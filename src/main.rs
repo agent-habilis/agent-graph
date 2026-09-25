@@ -2,15 +2,17 @@ mod frontmatter;
 mod include;
 mod init;
 mod markdown;
+mod pod;
 mod role;
 mod state;
 
+use std::collections::BTreeMap;
 use std::env;
 use std::io::{self, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use regex::Regex;
 
@@ -41,12 +43,29 @@ enum Command {
         #[arg(long)]
         pid: Option<u32>,
     },
+    /// List, print, and check pods: folders in `.agent-roles/pods/`.
+    Pod {
+        #[command(subcommand)]
+        command: PodCommand,
+    },
     /// Write the default roles and pods into `<dir>/.agent-roles/`. Does
     /// nothing if `.agent-roles` exists.
     Init {
         /// The folder to write into. The default is the current directory.
         dir: Option<PathBuf>,
     },
+}
+
+#[derive(Debug, Subcommand)]
+enum PodCommand {
+    /// Print one line per pod: name, description, scope, path (tab-separated).
+    List,
+    /// Print the pod's index.md body, with its `@file` includes expanded.
+    Get { name: String },
+    /// Print one line per pod node: node, role, class (tab-separated).
+    Nodes { name: String },
+    /// Check one pod, or all pods. Prints `path:line: reason` per error.
+    Lint { name: Option<String> },
 }
 
 fn main() -> ExitCode {
@@ -64,6 +83,7 @@ fn run(cli: Cli) -> Result<()> {
     let roles = role::discover_roles(&cwd);
     let mut stdout = io::stdout().lock();
     match cli.command {
+        Command::Pod { command } => run_pod(command, &cwd, &roles, &mut stdout)?,
         Command::Init { dir } => {
             let dir = dir.unwrap_or(cwd);
             match init::init(&dir)? {
@@ -125,6 +145,73 @@ fn run(cli: Cli) -> Result<()> {
                 state::write(pid, (role_name, &role), pod)?;
             }
             write!(stdout, "{text}")?;
+        }
+    }
+    Ok(())
+}
+
+fn run_pod(
+    command: PodCommand,
+    cwd: &Path,
+    roles: &BTreeMap<String, PathBuf>,
+    stdout: &mut impl Write,
+) -> Result<()> {
+    let pods = role::discover(cwd, "pods");
+    let find = |name: &str| {
+        pods.get(name)
+            .ok_or_else(|| anyhow!("pod `{name}` not found"))
+    };
+    match command {
+        PodCommand::List => {
+            for (name, dir) in &pods {
+                match pod::load(dir) {
+                    Ok(pod) => writeln!(
+                        stdout,
+                        "{name}\t{}\t{}\t{}",
+                        pod.description,
+                        pod.scope,
+                        dir.display()
+                    )?,
+                    Err(reason) => eprintln!("warning: {}: {reason}", dir.display()),
+                }
+            }
+        }
+        PodCommand::Get { name } => {
+            let dir = find(&name)?;
+            pod::load(dir).map_err(|reason| anyhow!("pod `{name}` is not valid: {reason}"))?;
+            write!(stdout, "{}", include::expand(dir, &dir.join("index.md"))?)?;
+        }
+        PodCommand::Nodes { name } => {
+            let dir = find(&name)?;
+            let pod =
+                pod::load(dir).map_err(|reason| anyhow!("pod `{name}` is not valid: {reason}"))?;
+            for node in pod.nodes.iter().filter(|node| node.subgraph.is_some()) {
+                let role =
+                    pod::role_of(&name, dir, node, roles).unwrap_or_else(|| node.label.clone());
+                let class = node.class.map_or("none", pod::Class::name);
+                writeln!(stdout, "{}\t{role}\t{class}", node.id)?;
+            }
+        }
+        PodCommand::Lint { name: only } => {
+            let targets: Vec<(&String, &PathBuf)> = match &only {
+                Some(name) => vec![(name, find(name)?)],
+                None => pods.iter().collect(),
+            };
+            let mut count = 0;
+            for (name, dir) in targets {
+                let path = dir.join("index.md");
+                let errors = match pod::load(dir) {
+                    Ok(pod) => pod::lint(name, dir, &pod, roles),
+                    Err(reason) => vec![(1, reason)],
+                };
+                for (line, reason) in &errors {
+                    writeln!(stdout, "{}:{line}: {reason}", path.display())?;
+                }
+                count += errors.len();
+            }
+            if count > 0 {
+                bail!("{count} errors in pods");
+            }
         }
     }
     Ok(())
