@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # No rust-toolchain.toml, so this installs stable. It also caches the build.
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: clippy, rustfmt
+
+      # `cargo task ci` formats with this exact nightly (tasks/src/fmt.rs).
+      - name: Install nightly rustfmt
+        run: rustup toolchain install nightly-2026-06-05 --profile minimal --component rustfmt
+
+      - name: Gate
+        run: cargo task ci
