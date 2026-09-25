@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::frontmatter;
+use crate::{frontmatter, markdown};
 
 #[derive(Debug)]
 pub(crate) struct Role {
@@ -10,14 +10,14 @@ pub(crate) struct Role {
     pub(crate) tags: Vec<String>,
 }
 
-/// Role folders in `.agent-role/roles/` from `start` up to `/`, by name. A
-/// nearer folder shadows a farther one with the same name, valid or not.
-pub(crate) fn discover(start: &Path) -> BTreeMap<String, PathBuf> {
-    let mut roles = BTreeMap::new();
+/// Bundle folders in `.agent-roles/<kind>/` from `start` up to `/`, by name.
+/// A nearer folder shadows a farther one with the same name, valid or not.
+pub(crate) fn discover(start: &Path, kind: &str) -> BTreeMap<String, PathBuf> {
+    let mut bundles = BTreeMap::new();
     for level in start.ancestors() {
-        // A missing or unreadable level has no roles for us; it must not
+        // A missing or unreadable level has no bundles for us; it must not
         // stop the walk.
-        let Ok(entries) = fs::read_dir(level.join(".agent-role/roles")) else {
+        let Ok(entries) = fs::read_dir(level.join(".agent-roles").join(kind)) else {
             continue;
         };
         for entry in entries.flatten() {
@@ -26,11 +26,11 @@ pub(crate) fn discover(start: &Path) -> BTreeMap<String, PathBuf> {
                 continue;
             }
             if let Some(name) = path.file_name().and_then(|name| name.to_str()) {
-                roles.entry(name.to_string()).or_insert(path);
+                bundles.entry(name.to_string()).or_insert(path);
             }
         }
     }
-    roles
+    bundles
 }
 
 /// Read and validate `<dir>/index.md`. The error is a reason for the user.
@@ -53,5 +53,7 @@ pub(crate) fn load(dir: &Path) -> Result<Role, String> {
         Some(value) => frontmatter::inline_list(value)
             .ok_or("tags must be an inline list, for example `tags: [a, b]`")?,
     };
+    markdown::check_boundaries(&content)
+        .map_err(|(line, reason)| format!("index.md:{line}: {reason}"))?;
     Ok(Role { description, tags })
 }

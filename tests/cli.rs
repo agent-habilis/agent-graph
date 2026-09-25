@@ -18,7 +18,7 @@ fn write(path: &Path, content: &str) {
 }
 
 fn role_dir(level: &Path, name: &str) -> PathBuf {
-    level.join(".agent-role/roles").join(name)
+    level.join(".agent-roles/roles").join(name)
 }
 
 /// Write `roles/<name>/index.md` under `level` and return the role folder.
@@ -253,4 +253,158 @@ fn get_unknown_role_exits_1() {
 
     assert_eq!(out.status.code(), Some(1));
     assert!(stderr(&out).starts_with("error: "), "{}", stderr(&out));
+}
+
+#[test]
+fn get_prints_role_with_valid_boundaries() {
+    let (_tmp, root) = root();
+    let body = "# Worker\n\n## Boundaries\n\n- No `git merge`.\n- No file changes\n  outside the branch.\n\n## Tone\n\nBe brief.\n";
+    role(&root, "worker", &index("d", None, body));
+
+    let out = run(&root, &["get", "worker"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), body);
+}
+
+#[test]
+fn get_rejects_role_with_bad_boundaries() {
+    let (_tmp, root) = root();
+    role(
+        &root,
+        "empty",
+        &index("d", None, "## Boundaries\n\n## Next\n"),
+    );
+    role(
+        &root,
+        "prose",
+        &index("d", None, "## Boundaries\n\n- No merge.\nAlso be nice.\n"),
+    );
+
+    for name in ["empty", "prose"] {
+        let out = run(&root, &["get", name]);
+
+        assert_eq!(out.status.code(), Some(1), "{name}");
+        assert!(stderr(&out).contains("Boundaries"), "{}", stderr(&out));
+    }
+}
+
+#[test]
+fn list_warns_on_role_with_bad_boundaries() {
+    let (_tmp, root) = root();
+    let ok = role(
+        &root,
+        "ok",
+        &index("fine", None, "## Boundaries\n- No merge.\n"),
+    );
+    role(&root, "empty", &index("d", None, "## Boundaries\n"));
+
+    let out = run(&root, &["list"]);
+
+    assert!(out.status.success());
+    assert_eq!(stdout(&out), line("ok", "fine", "", &ok));
+    assert!(
+        stderr(&out).contains("empty") && stderr(&out).contains("Boundaries"),
+        "{}",
+        stderr(&out)
+    );
+}
+
+/// Every file under `defaults/`, as (path relative to `defaults/`, bytes).
+fn defaults() -> Vec<(PathBuf, Vec<u8>)> {
+    let out = tree(&Path::new(env!("CARGO_MANIFEST_DIR")).join("defaults"));
+    assert!(!out.is_empty(), "no files in defaults/");
+    out
+}
+
+/// Every file under `dir`, as (path relative to `dir`, bytes), sorted.
+fn tree(dir: &Path) -> Vec<(PathBuf, Vec<u8>)> {
+    fn walk(root: &Path, dir: &Path, out: &mut Vec<(PathBuf, Vec<u8>)>) {
+        for entry in fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                walk(root, &path, out);
+            } else {
+                let relative = path.strip_prefix(root).unwrap().to_path_buf();
+                out.push((relative, fs::read(&path).unwrap()));
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(dir, dir, &mut out);
+    out.sort();
+    out
+}
+
+#[test]
+fn init_writes_defaults_into_cwd() {
+    let (_tmp, root) = root();
+
+    let out = run(&root, &["init"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(tree(&root.join(".agent-roles")), defaults());
+    let names: Vec<String> = stdout(&run(&root, &["list"]))
+        .lines()
+        .map(|line| line.split('\t').next().unwrap().to_string())
+        .collect();
+    assert_eq!(names, ["advisor", "qa", "worker"]);
+}
+
+#[test]
+fn init_prints_each_written_path() {
+    let (_tmp, root) = root();
+
+    let out = run(&root, &["init"]);
+
+    let mut expected: Vec<String> = defaults()
+        .into_iter()
+        .map(|(path, _)| root.join(".agent-roles").join(path).display().to_string())
+        .collect();
+    expected.sort();
+    let mut printed: Vec<String> = stdout(&out).lines().map(str::to_string).collect();
+    printed.sort();
+    assert_eq!(printed, expected);
+}
+
+#[test]
+fn init_writes_into_dir_argument() {
+    let (_tmp, root) = root();
+    let target = root.join("project");
+    fs::create_dir_all(&target).unwrap();
+
+    let out = run(&root, &["init", target.to_str().unwrap()]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(target.join(".agent-roles/roles/worker/index.md").is_file());
+    assert!(!root.join(".agent-roles").exists());
+}
+
+#[test]
+fn init_does_nothing_when_folder_exists() {
+    let (_tmp, root) = root();
+    write(&root.join(".agent-roles/roles/mine/index.md"), "keep me\n");
+    let before = tree(&root.join(".agent-roles"));
+
+    let out = run(&root, &["init"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stderr(&out).contains("already exists"), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "");
+    assert_eq!(tree(&root.join(".agent-roles")), before);
+}
+
+#[test]
+fn init_does_nothing_when_file_exists() {
+    let (_tmp, root) = root();
+    write(&root.join(".agent-roles"), "a file\n");
+
+    let out = run(&root, &["init"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stderr(&out).contains("already exists"), "{}", stderr(&out));
+    assert_eq!(
+        fs::read_to_string(root.join(".agent-roles")).unwrap(),
+        "a file\n"
+    );
 }

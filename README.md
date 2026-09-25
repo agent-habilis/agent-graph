@@ -6,7 +6,7 @@ A role is a fragment of text that you put into the context of an agent. The role
 ## Layout
 
 ```
-.agent-role/
+.agent-roles/
   roles/
     advisor/
       index.md      # entry point
@@ -29,7 +29,7 @@ tags: [review, go]          # optional, inline list only
 
 ## Discovery
 
-`agent-role` reads `.agent-role/roles/` in the current directory and in each parent directory, up to `/`.
+`agent-role` reads `.agent-roles/roles/` in the current directory and in each parent directory, up to `/`.
 If two directories have a role with the same name, the role nearer to the current directory wins.
 
 ## Commands
@@ -38,10 +38,17 @@ If two directories have a role with the same name, the role nearer to the curren
 agent-role list                # name<TAB>description<TAB>tags<TAB>path
 agent-role list --tag '^go$'   # only roles with a tag that matches the regex
 agent-role get advisor         # the body of index.md, with includes expanded
+agent-role init [<dir>]        # write the default roles and pods into <dir>/.agent-roles/
 ```
 
 If a role is not valid, `list` writes a warning to stderr and skips the role.
 The `--tag` regex is not anchored, so `go` also matches `mongo`.
+
+## Defaults
+
+`agent-role init` writes the files in [`defaults/`](defaults/) into `.agent-roles/`: the `worker`, `advisor`, and `qa` roles, and the `dev-team` pod.
+The build puts these files into the binary, so a user needs only the binary.
+If `.agent-roles` exists, `init` writes nothing and exits 0.
 
 ## Includes
 
