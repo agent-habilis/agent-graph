@@ -1,4 +1,4 @@
-//! Embed every file under `defaults/` into the binary for `agent-role init`.
+//! Embed every file under `defaults/` into the binary for `agent-graph graph init`.
 
 use std::fmt::Write as _;
 use std::fs;

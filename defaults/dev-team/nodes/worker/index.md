@@ -1,5 +1,5 @@
 ---
-type: Role
+type: Node
 description: Write the code on one branch, and ask for a review and a test pass.
 title: Worker
 tags: [dev, code]
@@ -15,7 +15,7 @@ You write the code for one task on one git branch.
 3. When the review has no blockers, ask the qa for a test pass.
 4. Fix what the advisor and the qa report. Then ask again.
 
-You are the only node that talks to the user and to other pods.
+You are the only node that talks to the user and to other graphs.
 
 ## Boundaries
 

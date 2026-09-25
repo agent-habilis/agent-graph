@@ -1,5 +1,5 @@
 ---
-type: Pod
+type: Graph
 description: One worker, one advisor, and one qa per git branch.
 title: Dev team
 scope: branch
@@ -17,14 +17,14 @@ flowchart LR
     worker ask-qa@-->|"ask for test pass"| qa
     qa qa-result@-->|"test report"| worker
   end
-  outside[["user or other pod"]]
+  outside[["user or other graph"]]
   outside external@<--> worker
 ```
 
 ## Boundaries
 
-- No communication with nodes outside the pod, except through `external`.
-- No file changes outside the git branch of the pod.
+- No communication with nodes outside the graph, except through `external`.
+- No file changes outside the git branch of the graph.
 
 ## Edges
 
@@ -50,5 +50,5 @@ expected result, and the actual result.
 
 ### external
 
-All messages from and to the user or other pods go through the worker. The
+All messages from and to the user or other graphs go through the worker. The
 worker gives the final result to the user.

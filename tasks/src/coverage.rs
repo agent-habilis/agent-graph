@@ -6,7 +6,7 @@ use crate::util::{ensure_installed, output};
 pub(crate) fn run(sh: &Shell) -> TaskOutcome {
     ensure_installed(sh, "cargo-llvm-cov", &["llvm-cov", "--version"]);
     output::status("Running", "tests with coverage");
-    cmd!(sh, "cargo llvm-cov -p agent-role --no-report")
+    cmd!(sh, "cargo llvm-cov -p agent-graph --no-report")
         .quiet()
         .run()?;
     output::status("Coverage", "summary");

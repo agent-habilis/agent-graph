@@ -17,27 +17,43 @@ fn write(path: &Path, content: &str) {
     fs::write(path, content).unwrap();
 }
 
-fn role_dir(level: &Path, name: &str) -> PathBuf {
-    level.join(".agent-roles/roles").join(name)
+const GRAPH_INDEX: &str = "---\ntype: Graph\ndescription: g\nscope: branch\n---\n";
+
+fn node_dir(level: &Path, graph: &str, name: &str) -> PathBuf {
+    level
+        .join(".agent-graph")
+        .join(graph)
+        .join("nodes")
+        .join(name)
 }
 
-/// Write `roles/<name>/index.md` under `level` and return the role folder.
-fn role(level: &Path, name: &str, index: &str) -> PathBuf {
-    let dir = role_dir(level, name);
+/// Write `<graph>/index.md` and `<graph>/nodes/<name>/index.md` under
+/// `level`, and return the node folder.
+fn graph_node(level: &Path, graph: &str, name: &str, index: &str) -> PathBuf {
+    write(
+        &level.join(".agent-graph").join(graph).join("index.md"),
+        GRAPH_INDEX,
+    );
+    let dir = node_dir(level, graph, name);
     write(&dir.join("index.md"), index);
     dir
+}
+
+/// Write the node `<name>` in the graph `g` under `level`.
+fn node(level: &Path, name: &str, index: &str) -> PathBuf {
+    graph_node(level, "g", name, index)
 }
 
 fn index(description: &str, tags: Option<&str>, body: &str) -> String {
     let tags = tags
         .map(|list| format!("tags: {list}\n"))
         .unwrap_or_default();
-    format!("---\ntype: Role\ndescription: {description}\n{tags}---\n{body}")
+    format!("---\ntype: Node\ndescription: {description}\n{tags}---\n{body}")
 }
 
 fn run(cwd: &Path, args: &[&str]) -> Output {
     fs::create_dir_all(cwd).unwrap();
-    Command::new(env!("CARGO_BIN_EXE_agent-role"))
+    Command::new(env!("CARGO_BIN_EXE_agent-graph"))
         .args(args)
         .current_dir(cwd)
         .output()
@@ -57,59 +73,65 @@ fn line(name: &str, description: &str, tags: &str, dir: &Path) -> String {
 }
 
 #[test]
-fn list_shows_roles_from_cwd_and_parents() {
+fn node_list_shows_nodes_from_cwd_and_parents() {
     let (_tmp, root) = root();
-    let outer = role(&root, "alpha", &index("outer role", None, "A\n"));
-    let inner = role(&root.join("x"), "beta", &index("inner role", None, "B\n"));
+    let outer = graph_node(&root, "outer", "alpha", &index("outer node", None, "A\n"));
+    let inner = graph_node(
+        &root.join("x"),
+        "inner",
+        "beta",
+        &index("inner node", None, "B\n"),
+    );
 
-    let out = run(&root.join("x/y"), &["list"]);
+    let out = run(&root.join("x/y"), &["node", "list"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(
         stdout(&out),
-        line("alpha", "outer role", "", &outer) + &line("beta", "inner role", "", &inner)
+        line("inner/beta", "inner node", "", &inner)
+            + &line("outer/alpha", "outer node", "", &outer)
     );
 }
 
 #[test]
-fn nearest_role_shadows_parent_role() {
+fn nearest_node_shadows_parent_node() {
     let (_tmp, root) = root();
-    role(&root, "advisor", &index("outer", None, "outer body\n"));
-    let inner = role(
+    node(&root, "advisor", &index("outer", None, "outer body\n"));
+    let inner = node(
         &root.join("x"),
         "advisor",
         &index("inner", None, "inner body\n"),
     );
     let cwd = root.join("x/y");
 
-    let list = run(&cwd, &["list"]);
-    let get = run(&cwd, &["get", "advisor"]);
+    let list = run(&cwd, &["node", "list"]);
+    let get = run(&cwd, &["node", "up", "g/advisor"]);
 
-    assert_eq!(stdout(&list), line("advisor", "inner", "", &inner));
+    assert_eq!(stdout(&list), line("g/advisor", "inner", "", &inner));
     assert_eq!(stdout(&get), "inner body\n");
 }
 
 #[test]
-fn list_warns_and_skips_invalid_role() {
+fn node_list_warns_and_skips_invalid_node() {
     let (_tmp, root) = root();
-    let ok = role(&root, "ok", &index("fine", None, ""));
-    fs::create_dir_all(role_dir(&root, "no-index")).unwrap();
-    role(
+    let ok = node(&root, "ok", &index("fine", None, ""));
+    fs::create_dir_all(node_dir(&root, "g", "no-index")).unwrap();
+    node(
         &root,
         "wrong-type",
         "---\ntype: Note\ndescription: x\n---\n",
     );
-    role(&root, "no-description", "---\ntype: Role\n---\n");
-    role(
+    node(&root, "no-description", "---\ntype: Node\n---\n");
+    node(
         &root,
         "block-tags",
-        "---\ntype: Role\ndescription: x\ntags:\n  - a\n---\n",
+        "---\ntype: Node\ndescription: x\ntags:\n  - a\n---\n",
     );
 
-    let out = run(&root, &["list"]);
+    let out = run(&root, &["node", "list"]);
 
     assert!(out.status.success());
-    assert_eq!(stdout(&out), line("ok", "fine", "", &ok));
+    assert_eq!(stdout(&out), line("g/ok", "fine", "", &ok));
     let err = stderr(&out);
     for name in ["no-index", "wrong-type", "no-description", "block-tags"] {
         assert!(
@@ -121,94 +143,94 @@ fn list_warns_and_skips_invalid_role() {
 }
 
 #[test]
-fn list_prints_tags_column() {
+fn node_list_prints_tags_column() {
     let (_tmp, root) = root();
-    let dir = role(&root, "advisor", &index("d", Some("[review, go]"), ""));
+    let dir = node(&root, "advisor", &index("d", Some("[review, go]"), ""));
 
-    let out = run(&root, &["list"]);
+    let out = run(&root, &["node", "list"]);
 
-    assert_eq!(stdout(&out), line("advisor", "d", "review,go", &dir));
+    assert_eq!(stdout(&out), line("g/advisor", "d", "review,go", &dir));
 }
 
 #[test]
-fn list_filters_by_tag_regex() {
+fn node_list_filters_by_tag_regex() {
     let (_tmp, root) = root();
-    let go = role(&root, "go-dev", &index("d", Some("[golang]"), ""));
-    let mongo = role(&root, "mongo", &index("d", Some("[db, mongo]"), ""));
-    role(&root, "rust", &index("d", Some("[rust]"), ""));
-    role(&root, "untagged", &index("d", None, ""));
+    let go = node(&root, "go-dev", &index("d", Some("[golang]"), ""));
+    let mongo = node(&root, "mongo", &index("d", Some("[db, mongo]"), ""));
+    node(&root, "rust", &index("d", Some("[rust]"), ""));
+    node(&root, "untagged", &index("d", None, ""));
 
-    let anchored = run(&root, &["list", "--tag", "^go"]);
-    let unanchored = run(&root, &["list", "--tag", "go"]);
+    let anchored = run(&root, &["node", "list", "--tag", "^go"]);
+    let unanchored = run(&root, &["node", "list", "--tag", "go"]);
 
-    assert_eq!(stdout(&anchored), line("go-dev", "d", "golang", &go));
+    assert_eq!(stdout(&anchored), line("g/go-dev", "d", "golang", &go));
     assert_eq!(
         stdout(&unanchored),
-        line("go-dev", "d", "golang", &go) + &line("mongo", "d", "db,mongo", &mongo)
+        line("g/go-dev", "d", "golang", &go) + &line("g/mongo", "d", "db,mongo", &mongo)
     );
 }
 
 #[test]
-fn list_tag_filter_runs_after_shadowing() {
+fn node_list_tag_filter_runs_after_shadowing() {
     let (_tmp, root) = root();
-    role(&root, "advisor", &index("outer", Some("[x]"), ""));
-    let inner = role(&root.join("a"), "advisor", &index("inner", Some("[y]"), ""));
+    node(&root, "advisor", &index("outer", Some("[x]"), ""));
+    let inner = node(&root.join("a"), "advisor", &index("inner", Some("[y]"), ""));
 
-    let parent_tag = run(&root.join("a"), &["list", "--tag", "x"]);
-    let inner_tag = run(&root.join("a"), &["list", "--tag", "y"]);
+    let parent_tag = run(&root.join("a"), &["node", "list", "--tag", "x"]);
+    let inner_tag = run(&root.join("a"), &["node", "list", "--tag", "y"]);
 
     assert!(parent_tag.status.success());
     assert_eq!(stdout(&parent_tag), "");
-    assert_eq!(stdout(&inner_tag), line("advisor", "inner", "y", &inner));
+    assert_eq!(stdout(&inner_tag), line("g/advisor", "inner", "y", &inner));
 }
 
 #[test]
-fn list_invalid_tag_regex_exits_1() {
+fn node_list_invalid_tag_regex_exits_1() {
     let (_tmp, root) = root();
 
-    let out = run(&root, &["list", "--tag", "("]);
+    let out = run(&root, &["node", "list", "--tag", "("]);
 
     assert_eq!(out.status.code(), Some(1));
     assert!(stderr(&out).starts_with("error: "), "{}", stderr(&out));
 }
 
 #[test]
-fn get_prints_body_without_frontmatter() {
+fn node_up_prints_body_without_frontmatter() {
     let (_tmp, root) = root();
-    role(
+    node(
         &root,
         "advisor",
         &index("d", None, "# Advisor\n\nBe blunt.\n"),
     );
 
-    let out = run(&root, &["get", "advisor"]);
+    let out = run(&root, &["node", "up", "g/advisor"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), "# Advisor\n\nBe blunt.\n");
 }
 
 #[test]
-fn get_expands_nested_includes() {
+fn node_up_expands_nested_includes() {
     let (_tmp, root) = root();
-    let dir = role(&root, "advisor", &index("d", None, "A\n  @parts/b.md\nC\n"));
+    let dir = node(&root, "advisor", &index("d", None, "A\n  @parts/b.md\nC\n"));
     write(&dir.join("parts/b.md"), "---\ntype: Note\n---\nB1\n@c.md\n");
     write(&dir.join("parts/c.md"), "C1\n");
     write(&dir.join("unused.md"), "never printed\n");
 
-    let out = run(&root, &["get", "advisor"]);
+    let out = run(&root, &["node", "up", "g/advisor"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), "A\nB1\nC1\nC\n");
 }
 
 #[test]
-fn get_rejects_include_cycle() {
+fn node_up_rejects_include_cycle() {
     let (_tmp, root) = root();
-    let dir = role(&root, "advisor", &index("d", None, "@a.md\n"));
+    let dir = node(&root, "advisor", &index("d", None, "@a.md\n"));
     write(&dir.join("a.md"), "@b.md\n");
     write(&dir.join("b.md"), "@a.md\n");
 
-    let out = run(&root, &["get", "advisor"]);
+    let out = run(&root, &["node", "up", "g/advisor"]);
 
     assert_eq!(out.status.code(), Some(1));
     assert!(stderr(&out).starts_with("error: "), "{}", stderr(&out));
@@ -216,16 +238,19 @@ fn get_rejects_include_cycle() {
 }
 
 #[test]
-fn get_rejects_include_outside_role() {
+fn node_up_rejects_include_outside_graph() {
     let (_tmp, root) = root();
-    role(&root, "other", &index("d", None, "secret\n"));
     write(&root.join("outside.md"), "secret\n");
-    role(&root, "relative", &index("d", None, "@../other/index.md\n"));
+    node(
+        &root,
+        "relative",
+        &index("d", None, "@../../../../outside.md\n"),
+    );
     let absolute = format!("@{}\n", root.join("outside.md").display());
-    role(&root, "absolute", &index("d", None, &absolute));
+    node(&root, "absolute", &index("d", None, &absolute));
 
     for name in ["relative", "absolute"] {
-        let out = run(&root, &["get", name]);
+        let out = run(&root, &["node", "up", &format!("g/{name}")]);
 
         assert_eq!(out.status.code(), Some(1), "{name}");
         assert!(stderr(&out).starts_with("error: "), "{}", stderr(&out));
@@ -234,55 +259,55 @@ fn get_rejects_include_outside_role() {
 }
 
 #[test]
-fn get_ignores_include_in_code_fence() {
+fn node_up_ignores_include_in_code_fence() {
     let (_tmp, root) = root();
     let body = "```md\n@missing.md\n```\n";
-    role(&root, "advisor", &index("d", None, body));
+    node(&root, "advisor", &index("d", None, body));
 
-    let out = run(&root, &["get", "advisor"]);
+    let out = run(&root, &["node", "up", "g/advisor"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), body);
 }
 
 #[test]
-fn get_unknown_role_exits_1() {
+fn node_up_unknown_node_exits_1() {
     let (_tmp, root) = root();
 
-    let out = run(&root, &["get", "nope"]);
+    let out = run(&root, &["node", "up", "g/nope"]);
 
     assert_eq!(out.status.code(), Some(1));
     assert!(stderr(&out).starts_with("error: "), "{}", stderr(&out));
 }
 
 #[test]
-fn get_prints_role_with_valid_boundaries() {
+fn node_up_prints_node_with_valid_boundaries() {
     let (_tmp, root) = root();
     let body = "# Worker\n\n## Boundaries\n\n- No `git merge`.\n- No file changes\n  outside the branch.\n\n## Tone\n\nBe brief.\n";
-    role(&root, "worker", &index("d", None, body));
+    node(&root, "worker", &index("d", None, body));
 
-    let out = run(&root, &["get", "worker"]);
+    let out = run(&root, &["node", "up", "g/worker"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), body);
 }
 
 #[test]
-fn get_rejects_role_with_bad_boundaries() {
+fn node_up_rejects_node_with_bad_boundaries() {
     let (_tmp, root) = root();
-    role(
+    node(
         &root,
         "empty",
         &index("d", None, "## Boundaries\n\n## Next\n"),
     );
-    role(
+    node(
         &root,
         "prose",
         &index("d", None, "## Boundaries\n\n- No merge.\nAlso be nice.\n"),
     );
 
     for name in ["empty", "prose"] {
-        let out = run(&root, &["get", name]);
+        let out = run(&root, &["node", "up", &format!("g/{name}")]);
 
         assert_eq!(out.status.code(), Some(1), "{name}");
         assert!(stderr(&out).contains("Boundaries"), "{}", stderr(&out));
@@ -290,19 +315,19 @@ fn get_rejects_role_with_bad_boundaries() {
 }
 
 #[test]
-fn list_warns_on_role_with_bad_boundaries() {
+fn node_list_warns_on_node_with_bad_boundaries() {
     let (_tmp, root) = root();
-    let ok = role(
+    let ok = node(
         &root,
         "ok",
         &index("fine", None, "## Boundaries\n- No merge.\n"),
     );
-    role(&root, "empty", &index("d", None, "## Boundaries\n"));
+    node(&root, "empty", &index("d", None, "## Boundaries\n"));
 
-    let out = run(&root, &["list"]);
+    let out = run(&root, &["node", "list"]);
 
     assert!(out.status.success());
-    assert_eq!(stdout(&out), line("ok", "fine", "", &ok));
+    assert_eq!(stdout(&out), line("g/ok", "fine", "", &ok));
     assert!(
         stderr(&out).contains("empty") && stderr(&out).contains("Boundaries"),
         "{}",
@@ -337,14 +362,14 @@ fn tree(dir: &Path) -> Vec<(PathBuf, Vec<u8>)> {
 }
 
 #[test]
-fn init_writes_defaults_into_cwd() {
+fn graph_init_writes_defaults_into_cwd() {
     let (_tmp, root) = root();
 
-    let out = run(&root, &["init"]);
+    let out = run(&root, &["graph", "init"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert_eq!(tree(&root.join(".agent-roles")), defaults());
-    let names: Vec<String> = stdout(&run(&root, &["list"]))
+    assert_eq!(tree(&root.join(".agent-graph")), defaults());
+    let names: Vec<String> = stdout(&run(&root, &["node", "list"]))
         .lines()
         .map(|line| line.split('\t').next().unwrap().to_string())
         .collect();
@@ -355,14 +380,14 @@ fn init_writes_defaults_into_cwd() {
 }
 
 #[test]
-fn init_prints_each_written_path() {
+fn graph_init_prints_each_written_path() {
     let (_tmp, root) = root();
 
-    let out = run(&root, &["init"]);
+    let out = run(&root, &["graph", "init"]);
 
     let mut expected: Vec<String> = defaults()
         .into_iter()
-        .map(|(path, _)| root.join(".agent-roles").join(path).display().to_string())
+        .map(|(path, _)| root.join(".agent-graph").join(path).display().to_string())
         .collect();
     expected.sort();
     let mut printed: Vec<String> = stdout(&out).lines().map(str::to_string).collect();
@@ -371,76 +396,66 @@ fn init_prints_each_written_path() {
 }
 
 #[test]
-fn init_writes_into_dir_argument() {
+fn graph_init_writes_into_dir_argument() {
     let (_tmp, root) = root();
     let target = root.join("project");
     fs::create_dir_all(&target).unwrap();
 
-    let out = run(&root, &["init", target.to_str().unwrap()]);
+    let out = run(&root, &["graph", "init", target.to_str().unwrap()]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
         target
-            .join(".agent-roles/pods/dev-team/roles/worker/index.md")
+            .join(".agent-graph/dev-team/nodes/worker/index.md")
             .is_file()
     );
-    assert!(!root.join(".agent-roles").exists());
+    assert!(!root.join(".agent-graph").exists());
 }
 
 #[test]
-fn init_does_nothing_when_folder_exists() {
+fn graph_init_does_nothing_when_folder_exists() {
     let (_tmp, root) = root();
-    write(&root.join(".agent-roles/roles/mine/index.md"), "keep me\n");
-    let before = tree(&root.join(".agent-roles"));
+    write(&root.join(".agent-graph/mine/index.md"), "keep me\n");
+    let before = tree(&root.join(".agent-graph"));
 
-    let out = run(&root, &["init"]);
+    let out = run(&root, &["graph", "init"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(stderr(&out).contains("already exists"), "{}", stderr(&out));
     assert_eq!(stdout(&out), "");
-    assert_eq!(tree(&root.join(".agent-roles")), before);
+    assert_eq!(tree(&root.join(".agent-graph")), before);
 }
 
 #[test]
-fn init_does_nothing_when_file_exists() {
+fn graph_init_does_nothing_when_file_exists() {
     let (_tmp, root) = root();
-    write(&root.join(".agent-roles"), "a file\n");
+    write(&root.join(".agent-graph"), "a file\n");
 
-    let out = run(&root, &["init"]);
+    let out = run(&root, &["graph", "init"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(stderr(&out).contains("already exists"), "{}", stderr(&out));
     assert_eq!(
-        fs::read_to_string(root.join(".agent-roles")).unwrap(),
+        fs::read_to_string(root.join(".agent-graph")).unwrap(),
         "a file\n"
     );
 }
 
-fn pod_index(icon: &str, body: &str) -> String {
-    format!("---\ntype: Pod\ndescription: d\nicon: {icon}\nscope: branch\n---\n{body}")
+fn graph_index(icon: &str, body: &str) -> String {
+    format!("---\ntype: Graph\ndescription: d\nicon: {icon}\nscope: branch\n---\n{body}")
 }
 
-/// Write `pods/<pod>/index.md` and `pods/<pod>/roles/<name>/index.md` under
-/// `level` and return the role folder.
-fn pod_role(level: &Path, pod: &str, pod_index: &str, name: &str, index: &str) -> PathBuf {
-    let pod_dir = level.join(".agent-roles/pods").join(pod);
-    write(&pod_dir.join("index.md"), pod_index);
-    let dir = pod_dir.join("roles").join(name);
-    write(&dir.join("index.md"), index);
-    dir
+fn node_index_with_icon(icon: &str, body: &str) -> String {
+    format!("---\ntype: Node\ndescription: d\nicon: {icon}\n---\n{body}")
 }
 
-fn role_index_with_icon(icon: &str, body: &str) -> String {
-    format!("---\ntype: Role\ndescription: d\nicon: {icon}\n---\n{body}")
-}
-
-/// Run `get <name> --pid <pid>` and return the state file it wrote. Each
+/// Run `node up <name> --pid <pid>` and return the state file it wrote. Each
 /// test uses its own pid, because the state folder is shared.
-fn get_state(cwd: &Path, name: &str, pid: u32) -> String {
-    let path = PathBuf::from(format!("/tmp/agent-roles/{pid}.json"));
+fn up_state(cwd: &Path, name: &str, pid: u32) -> String {
+    let path = PathBuf::from(format!("/tmp/agent-graph/{pid}.json"));
     let _ = fs::remove_file(&path);
 
-    let out = run(cwd, &["get", name, "--pid", &pid.to_string()]);
+    let out = run(cwd, &["node", "up", name, "--pid", &pid.to_string()]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     let state = fs::read_to_string(&path).unwrap();
@@ -449,64 +464,75 @@ fn get_state(cwd: &Path, name: &str, pid: u32) -> String {
 }
 
 #[test]
-fn list_names_pod_roles_pod_slash_role() {
+fn node_list_names_nodes_graph_slash_node() {
     let (_tmp, root) = root();
-    let solo = role(&root, "solo", &index("alone", None, ""));
-    let worker = pod_role(
-        &root,
-        "team",
-        &pod_index("P", ""),
-        "worker",
-        &index("w", None, ""),
-    );
+    let worker = graph_node(&root, "team", "worker", &index("w", None, ""));
 
-    let out = run(&root, &["list"]);
+    let out = run(&root, &["node", "list"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert_eq!(
-        stdout(&out),
-        line("solo", "alone", "", &solo) + &line("team/worker", "w", "", &worker)
-    );
+    assert_eq!(stdout(&out), line("team/worker", "w", "", &worker));
 }
 
 #[test]
-fn get_pod_role_prints_pod_then_role() {
+fn node_list_ignores_old_standalone_nodes() {
     let (_tmp, root) = root();
-    pod_role(
-        &root,
-        "team",
-        &pod_index("P", "# Pod\n"),
-        "worker",
-        &index("w", None, "# Worker\n"),
+    write(
+        &root.join(".agent-roles/roles/solo/index.md"),
+        &index("alone", None, ""),
     );
 
-    let out = run(&root, &["get", "team/worker"]);
+    let out = run(&root, &["node", "list"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert_eq!(stdout(&out), "# Pod\n# Worker\n");
+    assert_eq!(stdout(&out), "");
 }
 
 #[test]
-fn get_pod_role_includes_files_of_its_pod_only() {
+fn node_up_prints_graph_then_node() {
     let (_tmp, root) = root();
-    let dir = pod_role(
+    graph_node(&root, "team", "worker", &index("w", None, "# Worker\n"));
+    write(
+        &root.join(".agent-graph/team/index.md"),
+        &graph_index("P", "# Graph\n"),
+    );
+
+    let out = run(&root, &["node", "up", "team/worker"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "# Graph\n# Worker\n");
+}
+
+#[test]
+fn node_up_needs_graph_slash_node() {
+    let (_tmp, root) = root();
+    graph_node(&root, "team", "worker", &index("w", None, ""));
+
+    let out = run(&root, &["node", "up", "worker"]);
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("<graph>/<node>"), "{}", stderr(&out));
+}
+
+#[test]
+fn node_up_includes_files_of_its_graph_only() {
+    let (_tmp, root) = root();
+    let dir = graph_node(
         &root,
         "team",
-        &pod_index("P", ""),
         "worker",
         &index("w", None, "@../../shared/rules.md\n"),
     );
     write(&dir.join("../../shared/rules.md"), "shared rules\n");
-    pod_role(
+    graph_node(
         &root,
         "leak",
-        &pod_index("P", ""),
         "worker",
         &index("w", None, "@../../../team/shared/rules.md\n"),
     );
 
-    let shared = run(&root, &["get", "team/worker"]);
-    let leak = run(&root, &["get", "leak/worker"]);
+    let shared = run(&root, &["node", "up", "team/worker"]);
+    let leak = run(&root, &["node", "up", "leak/worker"]);
 
     assert_eq!(stdout(&shared), "shared rules\n", "{}", stderr(&shared));
     assert_eq!(leak.status.code(), Some(1));
@@ -514,30 +540,67 @@ fn get_pod_role_includes_files_of_its_pod_only() {
 }
 
 #[test]
-fn get_with_pid_writes_state_of_pod_role() {
+fn node_up_with_pid_writes_graph_and_node_state() {
     let (_tmp, root) = root();
-    pod_role(
+    graph_node(
         &root,
         "team",
-        &pod_index("\u{f0849}", ""),
         "worker",
-        &role_index_with_icon("\u{f1322}", ""),
+        &node_index_with_icon("\u{f1322}", ""),
+    );
+    write(
+        &root.join(".agent-graph/team/index.md"),
+        &graph_index("\u{f0849}", ""),
     );
 
-    let state = get_state(&root, "team/worker", 4_000_001);
+    let state = up_state(&root, "team/worker", 4_000_001);
 
     assert_eq!(
         state,
-        "{\"pid\":4000001,\"pod\":\"team\",\"pod_icon\":\"\u{f0849}\",\"role\":\"worker\",\"role_icon\":\"\u{f1322}\"}\n"
+        "{\"graph\":\"team\",\"graph_icon\":\"\u{f0849}\",\"node\":\"worker\",\"node_icon\":\"\u{f1322}\",\"pid\":4000001}\n"
     );
 }
 
 #[test]
-fn get_with_pid_writes_state_of_standalone_role() {
+fn node_up_with_pid_omits_missing_icons() {
     let (_tmp, root) = root();
-    role(&root, "solo", &index("d", None, ""));
+    node(&root, "solo", &index("d", None, ""));
 
-    let state = get_state(&root, "solo", 4_000_002);
+    let state = up_state(&root, "g/solo", 4_000_002);
 
-    assert_eq!(state, "{\"pid\":4000002,\"role\":\"solo\"}\n");
+    assert_eq!(
+        state,
+        "{\"graph\":\"g\",\"node\":\"solo\",\"pid\":4000002}\n"
+    );
+}
+
+#[test]
+fn node_list_warns_on_bad_count() {
+    let (_tmp, root) = root();
+    let ok = node(
+        &root,
+        "ok",
+        "---\ntype: Node\ndescription: d\ncount: 2\n---\n",
+    );
+    for (name, count) in [("zero", "0"), ("word", "two"), ("minus", "-1")] {
+        node(
+            &root,
+            name,
+            &format!("---\ntype: Node\ndescription: d\ncount: {count}\n---\n"),
+        );
+    }
+
+    let out = run(&root, &["node", "list"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), line("g/ok", "d", "", &ok));
+    for name in ["zero", "word", "minus"] {
+        assert!(
+            stderr(&out)
+                .lines()
+                .any(|warning| warning.contains(name) && warning.contains("count")),
+            "no count warning for {name} in:\n{}",
+            stderr(&out)
+        );
+    }
 }

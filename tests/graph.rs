@@ -5,27 +5,27 @@ use std::process::{Command, Output};
 use tempfile::TempDir;
 
 const CODING: &str = r#"---
-type: Pod
+type: Graph
 description: One worker and one advisor per project and branch.
 scope: branch
 ---
 
 ```mermaid
 flowchart LR
-  %% the pod
+  %% the graph
   subgraph coding
     worker(("worker")):::public
     advisor(("advisor")):::private
     worker ask-review@-->|"ask for review"| advisor
     advisor review-result@-->|"review result"| worker
   end
-  outside[["user or other pod"]]
+  outside[["user or other graph"]]
   outside external@<--> worker
 ```
 
 ## Boundaries
 
-- No file changes outside the git branch of the pod.
+- No file changes outside the git branch of the graph.
 - No `git merge`.
 
 ## Edges
@@ -43,6 +43,8 @@ The advisor answers with findings.
 All outside messages go through the worker.
 "#;
 
+const NODE_INDEX: &str = "---\ntype: Node\ndescription: d\n---\n";
+
 /// A temp root, canonicalized so paths match what the binary prints on
 /// macOS, where `/var` is a symlink to `/private/var`.
 fn root() -> (TempDir, PathBuf) {
@@ -50,8 +52,11 @@ fn root() -> (TempDir, PathBuf) {
     let path = tmp.path().canonicalize().unwrap();
     for name in ["worker", "advisor"] {
         write(
-            &path.join(".agent-roles/roles").join(name).join("index.md"),
-            "---\ntype: Role\ndescription: d\n---\n",
+            &path
+                .join(".agent-graph/coding/nodes")
+                .join(name)
+                .join("index.md"),
+            NODE_INDEX,
         );
     }
     (tmp, path)
@@ -62,16 +67,17 @@ fn write(path: &Path, content: &str) {
     fs::write(path, content).unwrap();
 }
 
-/// Write `pods/<name>/index.md` under `level` and return the pod folder.
-fn pod(level: &Path, name: &str, index: &str) -> PathBuf {
-    let dir = level.join(".agent-roles/pods").join(name);
+/// Write `<name>/index.md` in `.agent-graph/` under `level` and return the
+/// graph folder.
+fn graph(level: &Path, name: &str, index: &str) -> PathBuf {
+    let dir = level.join(".agent-graph").join(name);
     write(&dir.join("index.md"), index);
     dir
 }
 
 fn run(cwd: &Path, args: &[&str]) -> Output {
     fs::create_dir_all(cwd).unwrap();
-    Command::new(env!("CARGO_BIN_EXE_agent-role"))
+    Command::new(env!("CARGO_BIN_EXE_agent-graph"))
         .args(args)
         .current_dir(cwd)
         .output()
@@ -86,14 +92,14 @@ fn stderr(out: &Output) -> String {
     String::from_utf8(out.stderr.clone()).unwrap()
 }
 
-/// Lint the coding pod with `from` replaced by `to`, and expect one error
+/// Lint the coding graph with `from` replaced by `to`, and expect one error
 /// that contains `needle`.
 fn assert_lint_rejects(from: &str, to: &str, needle: &str) {
     let (_tmp, root) = root();
     assert!(CODING.contains(from), "fixture has no `{from}`");
-    pod(&root, "coding", &CODING.replacen(from, to, 1));
+    graph(&root, "coding", &CODING.replacen(from, to, 1));
 
-    let out = run(&root, &["pod", "lint"]);
+    let out = run(&root, &["graph", "lint"]);
 
     assert_eq!(out.status.code(), Some(1), "{}", stdout(&out));
     assert!(
@@ -105,16 +111,16 @@ fn assert_lint_rejects(from: &str, to: &str, needle: &str) {
 }
 
 #[test]
-fn pod_list_shows_pods_from_cwd_and_parents() {
+fn graph_list_shows_graphs_from_cwd_and_parents() {
     let (_tmp, root) = root();
-    let outer = pod(&root, "coding", CODING);
-    let inner = pod(
+    let outer = graph(&root, "coding", CODING);
+    let inner = graph(
         &root.join("x"),
         "docs",
         &CODING.replace("scope: branch", "scope: project"),
     );
 
-    let out = run(&root.join("x/y"), &["pod", "list"]);
+    let out = run(&root.join("x/y"), &["graph", "list"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     let description = "One worker and one advisor per project and branch.";
@@ -129,16 +135,16 @@ fn pod_list_shows_pods_from_cwd_and_parents() {
 }
 
 #[test]
-fn pod_get_prints_body_with_includes() {
+fn graph_get_prints_body_with_includes() {
     let (_tmp, root) = root();
-    let dir = pod(
+    let dir = graph(
         &root,
         "coding",
         &CODING.replace("## Edges\n", "@extra.md\n\n## Edges\n"),
     );
     write(&dir.join("extra.md"), "Extra text.\n");
 
-    let out = run(&root, &["pod", "get", "coding"]);
+    let out = run(&root, &["graph", "get", "coding"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
@@ -154,20 +160,20 @@ fn pod_get_prints_body_with_includes() {
 }
 
 #[test]
-fn pod_lint_accepts_coding_example() {
+fn graph_lint_accepts_coding_example() {
     let (_tmp, root) = root();
-    pod(&root, "coding", CODING);
+    graph(&root, "coding", CODING);
 
-    let out = run(&root, &["pod", "lint"]);
+    let out = run(&root, &["graph", "lint"]);
 
     assert!(out.status.success(), "{}{}", stdout(&out), stderr(&out));
     assert_eq!(stdout(&out), "");
 }
 
 #[test]
-fn pod_lint_reports_path_and_line() {
+fn graph_lint_reports_path_and_line() {
     let (_tmp, root) = root();
-    let dir = pod(
+    let dir = graph(
         &root,
         "coding",
         &CODING.replace(
@@ -176,7 +182,7 @@ fn pod_lint_reports_path_and_line() {
         ),
     );
 
-    let out = run(&root, &["pod", "lint", "coding"]);
+    let out = run(&root, &["graph", "lint", "coding"]);
 
     assert_eq!(out.status.code(), Some(1));
     let line = CODING
@@ -192,7 +198,7 @@ fn pod_lint_reports_path_and_line() {
 }
 
 #[test]
-fn pod_lint_rejects_external_to_private_edge() {
+fn graph_lint_rejects_external_to_private_edge() {
     assert_lint_rejects(
         "outside external@<--> worker",
         "outside external@<--> advisor",
@@ -201,7 +207,7 @@ fn pod_lint_rejects_external_to_private_edge() {
 }
 
 #[test]
-fn pod_lint_rejects_two_public_nodes() {
+fn graph_lint_rejects_two_public_nodes() {
     assert_lint_rejects(
         "advisor((\"advisor\")):::private",
         "advisor((\"advisor\")):::public",
@@ -210,7 +216,7 @@ fn pod_lint_rejects_two_public_nodes() {
 }
 
 #[test]
-fn pod_lint_rejects_no_public_node() {
+fn graph_lint_rejects_no_public_node() {
     assert_lint_rejects(
         "worker((\"worker\")):::public",
         "worker((\"worker\")):::private",
@@ -219,7 +225,7 @@ fn pod_lint_rejects_no_public_node() {
 }
 
 #[test]
-fn pod_lint_rejects_unclassed_node() {
+fn graph_lint_rejects_unclassed_node() {
     assert_lint_rejects(
         "advisor((\"advisor\")):::private",
         "advisor((\"advisor\"))",
@@ -228,9 +234,9 @@ fn pod_lint_rejects_unclassed_node() {
 }
 
 #[test]
-fn pod_lint_accepts_class_statement() {
+fn graph_lint_accepts_class_statement() {
     let (_tmp, root) = root();
-    pod(
+    graph(
         &root,
         "coding",
         &CODING.replace(
@@ -239,13 +245,13 @@ fn pod_lint_accepts_class_statement() {
         ),
     );
 
-    let out = run(&root, &["pod", "lint"]);
+    let out = run(&root, &["graph", "lint"]);
 
     assert!(out.status.success(), "{}{}", stdout(&out), stderr(&out));
 }
 
 #[test]
-fn pod_lint_rejects_pod_to_pod_edge_off_public() {
+fn graph_lint_rejects_graph_to_graph_edge_off_public() {
     let second = r#"  subgraph docs
     writer(("worker")):::public
     editor(("advisor")):::private
@@ -255,7 +261,7 @@ fn pod_lint_rejects_pod_to_pod_edge_off_public() {
 ```"#;
     let edges = "\n### ask-edit\n\nAsk.\n\n### cross\n\nCross.\n";
     let (_tmp, root) = root();
-    pod(
+    graph(
         &root,
         "coding",
         &(CODING.replacen(
@@ -265,7 +271,7 @@ fn pod_lint_rejects_pod_to_pod_edge_off_public() {
         ) + edges),
     );
 
-    let out = run(&root, &["pod", "lint"]);
+    let out = run(&root, &["graph", "lint"]);
 
     assert_eq!(out.status.code(), Some(1), "{}", stdout(&out));
     assert!(
@@ -277,12 +283,12 @@ fn pod_lint_rejects_pod_to_pod_edge_off_public() {
 }
 
 #[test]
-fn pod_lint_rejects_unnamed_edge() {
+fn graph_lint_rejects_unnamed_edge() {
     assert_lint_rejects("worker ask-review@-->", "worker -->", "edge has no name");
 }
 
 #[test]
-fn pod_lint_rejects_duplicate_edge_name() {
+fn graph_lint_rejects_duplicate_edge_name() {
     assert_lint_rejects(
         "advisor review-result@-->",
         "advisor ask-review@-->",
@@ -291,7 +297,7 @@ fn pod_lint_rejects_duplicate_edge_name() {
 }
 
 #[test]
-fn pod_lint_rejects_edge_without_section() {
+fn graph_lint_rejects_edge_without_section() {
     assert_lint_rejects(
         "### review-result\n\nThe advisor answers with findings.\n\n",
         "",
@@ -300,7 +306,7 @@ fn pod_lint_rejects_edge_without_section() {
 }
 
 #[test]
-fn pod_lint_rejects_section_without_edge() {
+fn graph_lint_rejects_section_without_edge() {
     assert_lint_rejects(
         "### external\n",
         "### external\n\nText.\n\n### ghost\n",
@@ -309,7 +315,7 @@ fn pod_lint_rejects_section_without_edge() {
 }
 
 #[test]
-fn pod_lint_rejects_empty_edge_section() {
+fn graph_lint_rejects_empty_edge_section() {
     assert_lint_rejects(
         "The advisor answers with findings.\n",
         "",
@@ -318,21 +324,21 @@ fn pod_lint_rejects_empty_edge_section() {
 }
 
 #[test]
-fn pod_lint_rejects_unknown_role() {
+fn graph_lint_rejects_unknown_node() {
     assert_lint_rejects(
         "advisor((\"advisor\"))",
         "advisor((\"reviewer\"))",
-        "role `reviewer` not found",
+        "node `reviewer` not found",
     );
 }
 
 #[test]
-fn pod_lint_rejects_bad_scope() {
+fn graph_lint_rejects_bad_scope() {
     assert_lint_rejects("scope: branch", "scope: repo", "scope");
 }
 
 #[test]
-fn pod_lint_rejects_unknown_mermaid_line() {
+fn graph_lint_rejects_unknown_mermaid_line() {
     assert_lint_rejects(
         "  end\n",
         "  end\n  click worker callback\n",
@@ -341,16 +347,16 @@ fn pod_lint_rejects_unknown_mermaid_line() {
 }
 
 #[test]
-fn pod_lint_rejects_empty_boundaries() {
+fn graph_lint_rejects_empty_boundaries() {
     assert_lint_rejects(
-        "- No file changes outside the git branch of the pod.\n- No `git merge`.\n",
+        "- No file changes outside the git branch of the graph.\n- No `git merge`.\n",
         "",
         "Boundaries has no `- ` items",
     );
 }
 
 #[test]
-fn pod_lint_rejects_boundaries_with_prose() {
+fn graph_lint_rejects_boundaries_with_prose() {
     assert_lint_rejects(
         "- No `git merge`.\n",
         "- No `git merge`.\nBe nice.\n",
@@ -359,59 +365,93 @@ fn pod_lint_rejects_boundaries_with_prose() {
 }
 
 #[test]
-fn pod_lint_unknown_pod_exits_1() {
+fn graph_lint_unknown_graph_exits_1() {
     let (_tmp, root) = root();
 
-    let out = run(&root, &["pod", "lint", "nope"]);
+    let out = run(&root, &["graph", "lint", "nope"]);
 
     assert_eq!(out.status.code(), Some(1));
     assert!(stderr(&out).starts_with("error: "), "{}", stderr(&out));
 }
 
 #[test]
-fn pod_nodes_prints_node_role_and_class() {
+fn graph_nodes_prints_node_node_and_class() {
     let (_tmp, root) = root();
-    pod(&root, "coding", CODING);
+    graph(&root, "coding", CODING);
 
-    let out = run(&root, &["pod", "nodes", "coding"]);
+    let out = run(&root, &["graph", "nodes", "coding"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(
         stdout(&out),
-        "worker\tworker\tpublic\nadvisor\tadvisor\tprivate\n"
+        "worker\tcoding/worker\tpublic\t1\nadvisor\tcoding/advisor\tprivate\t1\n"
     );
 }
 
 #[test]
-fn pod_nodes_names_pod_local_role() {
+fn graph_nodes_names_graph_local_node() {
     let (_tmp, root) = root();
-    let dir = pod(
+    let dir = graph(
         &root,
         "coding",
         &CODING.replace("advisor((\"advisor\"))", "advisor((\"reviewer\"))"),
     );
-    write(
-        &dir.join("roles/reviewer/index.md"),
-        "---\ntype: Role\ndescription: d\n---\n",
-    );
+    write(&dir.join("nodes/reviewer/index.md"), NODE_INDEX);
 
-    let nodes = run(&root, &["pod", "nodes", "coding"]);
-    let lint = run(&root, &["pod", "lint"]);
+    let nodes = run(&root, &["graph", "nodes", "coding"]);
+    let lint = run(&root, &["graph", "lint"]);
 
     assert_eq!(
         stdout(&nodes),
-        "worker\tworker\tpublic\nadvisor\tcoding/reviewer\tprivate\n"
+        "worker\tcoding/worker\tpublic\t1\nadvisor\tcoding/reviewer\tprivate\t1\n"
     );
     assert!(lint.status.success(), "{}{}", stdout(&lint), stderr(&lint));
 }
 
 #[test]
-fn pod_lint_accepts_default_pods() {
+fn graph_lint_accepts_default_graphs() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().canonicalize().unwrap();
-    assert!(run(&root, &["init"]).status.success());
+    assert!(run(&root, &["graph", "init"]).status.success());
 
-    let out = run(&root, &["pod", "lint"]);
+    let out = run(&root, &["graph", "lint"]);
 
     assert!(out.status.success(), "{}{}", stdout(&out), stderr(&out));
+}
+
+#[test]
+fn graph_nodes_prints_count_of_each_node() {
+    let (_tmp, root) = root();
+    let dir = graph(&root, "coding", CODING);
+    write(
+        &dir.join("nodes/advisor/index.md"),
+        "---\ntype: Node\ndescription: d\ncount: 3\n---\n",
+    );
+
+    let out = run(&root, &["graph", "nodes", "coding"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        stdout(&out),
+        "worker\tcoding/worker\tpublic\t1\nadvisor\tcoding/advisor\tprivate\t3\n"
+    );
+}
+
+#[test]
+fn graph_lint_rejects_node_with_bad_count() {
+    let (_tmp, root) = root();
+    let dir = graph(&root, "coding", CODING);
+    write(
+        &dir.join("nodes/advisor/index.md"),
+        "---\ntype: Node\ndescription: d\ncount: 0\n---\n",
+    );
+
+    let out = run(&root, &["graph", "lint"]);
+
+    assert_eq!(out.status.code(), Some(1), "{}", stdout(&out));
+    assert!(
+        stdout(&out).contains("node `advisor` is not valid: count is `0`"),
+        "{}",
+        stdout(&out)
+    );
 }

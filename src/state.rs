@@ -4,19 +4,18 @@ use std::path::PathBuf;
 use anyhow::Result;
 use serde_json::{Map, Value};
 
-use crate::role::{Pod, Role};
+use crate::graph::Graph;
+use crate::node::Node;
 
-/// Write `/tmp/agent-roles/<pid>.json`: the role (and pod) of the agent with
+/// Write `/tmp/agent-graph/<pid>.json`: the graph and node of the agent with
 /// that pid, for the statusline. The write is atomic, so a statusline never
 /// reads half a file.
-pub(crate) fn write(pid: u32, role: (&str, &Role), pod: Option<(&str, &Pod)>) -> Result<()> {
+pub(crate) fn write(pid: u32, graph: (&str, &Graph), node: (&str, &Node)) -> Result<()> {
     let mut state = Map::new();
     state.insert("pid".into(), pid.into());
-    insert(&mut state, "role", role.0, role.1.icon.as_deref());
-    if let Some((name, pod)) = pod {
-        insert(&mut state, "pod", name, pod.icon.as_deref());
-    }
-    let dir = PathBuf::from("/tmp/agent-roles");
+    insert(&mut state, "graph", graph.0, graph.1.icon.as_deref());
+    insert(&mut state, "node", node.0, node.1.icon.as_deref());
+    let dir = PathBuf::from("/tmp/agent-graph");
     fs::create_dir_all(&dir)?;
     let path = dir.join(format!("{pid}.json"));
     let tmp = dir.join(format!("{pid}.json.tmp"));

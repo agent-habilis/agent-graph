@@ -1,66 +1,79 @@
-# agent-role
+# agent-graph
 
-A role is a fragment of text that you put into the context of an agent. The role changes how the agent behaves.
-`agent-role` finds roles on disk and prints them.
+A graph is a team of agents. A node is one position in the graph. Its text goes into the context of an agent and changes how the agent behaves.
+Edges are the channels between nodes.
+`agent-graph` finds graphs on disk, checks them, and prints them.
 
 ## Layout
 
 ```
-.agent-roles/
-  roles/
-    advisor/
-      index.md      # entry point
-      tone.md       # printed only if index.md includes it
-  pods/
-    dev-team/
-      index.md      # the pod: graph, boundaries, edges
-      roles/
-        worker/
-          index.md  # the role "dev-team/worker"
+.agent-graph/
+  dev-team/
+    index.md        # the graph: mermaid block, boundaries, edges
+    shared/         # optional files that the nodes can include
+    nodes/
+      worker/
+        index.md    # the node "dev-team/worker"
+        tone.md     # printed only if index.md includes it
 ```
 
-Each role folder is an [OKF](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) bundle.
-The folder name is the role name.
-A pod folder is self-contained: it holds its roles, so you can share the pod as one folder.
-A role inside a pod has the name `<pod>/<role>`, for example `dev-team/worker`.
+Each graph folder and each node folder is an [OKF](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) bundle.
+A graph folder is self-contained: it holds its nodes, so you can share the graph as one folder.
+Every node lives in a graph. A node has the name `<graph>/<node>`, for example `dev-team/worker`.
 
-`index.md` starts with this frontmatter:
+A graph `index.md` starts with this frontmatter:
 
 ```yaml
 ---
-type: Role                  # required
+type: Graph                 # required
+description: One worker, one advisor, and one qa per git branch.   # required
+scope: branch               # required: branch or project
+icon: 󰡉                     # optional, one Nerd Font glyph for the statusline
+---
+```
+
+A node `index.md` starts with this frontmatter:
+
+```yaml
+---
+type: Node                  # required
 description: Challenge plans and point out risks.   # required, one line
 title: Advisor              # optional
 tags: [review, go]          # optional, inline list only
 icon: 󰌵                     # optional, one Nerd Font glyph for the statusline
+count: 2                    # optional, the number of agents in this node (default 1)
 ---
 ```
 
+All agents of one node have the same node name. Their gossip nicknames tell them apart.
+
 ## Discovery
 
-`agent-role` reads `.agent-roles/roles/` and `.agent-roles/pods/` in the current directory and in each parent directory, up to `/`.
-If two directories have a role with the same name, the role nearer to the current directory wins.
-If two directories have a pod with the same name, the nearer pod wins with all its roles.
+`agent-graph` reads `.agent-graph/` in the current directory and in each parent directory, up to `/`.
+If two directories have a graph with the same name, the graph nearer to the current directory wins, with all its nodes.
 
 ## Commands
 
 ```sh
-agent-role list                # name<TAB>description<TAB>tags<TAB>path
-agent-role list --tag '^go$'   # only roles with a tag that matches the regex
-agent-role get advisor         # the body of index.md, with includes expanded
-agent-role get dev-team/worker # the body of the pod, then the body of the role
-agent-role get advisor --pid N # also write /tmp/agent-roles/N.json for the statusline
-agent-role init [<dir>]        # write the default roles and pods into <dir>/.agent-roles/
+agent-graph graph list                     # name<TAB>description<TAB>scope<TAB>path
+agent-graph graph get dev-team             # the body of the graph, with includes expanded
+agent-graph graph nodes dev-team           # id<TAB><graph>/<node><TAB>class<TAB>count
+agent-graph graph lint [dev-team]          # path:line: reason, for each error
+agent-graph graph init [<dir>]             # write the default graph into <dir>/.agent-graph/
+agent-graph node list                      # name<TAB>description<TAB>tags<TAB>path
+agent-graph node list --tag '^go$'         # only nodes with a tag that matches the regex
+agent-graph node up dev-team/worker        # the body of the graph, then the body of the node
+agent-graph node up dev-team/worker --pid N  # also write /tmp/agent-graph/N.json for the statusline
 ```
 
-If a role is not valid, `list` writes a warning to stderr and skips the role.
+If a graph or node is not valid, `list` writes a warning to stderr and skips it.
 The `--tag` regex is not anchored, so `go` also matches `mongo`.
 
 ## Defaults
 
-`agent-role init` writes the files in [`defaults/`](defaults/) into `.agent-roles/`: the `dev-team` pod with its `worker`, `advisor`, and `qa` roles.
+`agent-graph graph init` writes the files in [`defaults/`](defaults/) into `.agent-graph/`: the `dev-team` graph with its `worker`, `advisor`, and `qa` nodes.
 The build puts these files into the binary, so a user needs only the binary.
-If `.agent-roles` exists, `init` writes nothing and exits 0.
+If `.agent-graph` exists, `init` writes nothing and exits 0.
 
 ## Includes
 
@@ -68,24 +81,24 @@ In `index.md`, a line that contains only `@<path>` is replaced with the body of 
 
 - The path is relative to the file that contains the include.
 - Included files can include other files. A cycle is an error.
-- The path must stay inside the role folder. For a role inside a pod, the path must stay inside the pod folder.
+- The path must stay inside the graph folder.
 - The CLI ignores `@` lines inside fenced code blocks.
 
 ## Statusline
 
-`get --pid <pid>` writes the role, the pod, and their icons to `/tmp/agent-roles/<pid>.json`:
+`node up --pid <pid>` writes the graph, the node, and their icons to `/tmp/agent-graph/<pid>.json`:
 
 ```json
-{"pid":123,"pod":"dev-team","pod_icon":"󰡉","role":"worker","role_icon":"󱌢"}
+{"graph":"dev-team","graph_icon":"󰡉","node":"worker","node_icon":"󱌢","pid":123}
 ```
 
 `pid` is the Claude Code process. A statusline script gets the same pid as its parent process.
-A standalone role has no `pod` and no `pod_icon`. A role or pod without an `icon` has no icon key.
+A graph or node without an `icon` has no icon key.
 
 ## Exit codes
 
 - `0`: success.
-- `1`: error. For example, the role is not found, an include is not valid, or the regex is not valid.
+- `1`: error. For example, the node is not found, an include is not valid, the regex is not valid, or `graph lint` found errors.
 
 ## Development
 
@@ -99,7 +112,7 @@ All development commands go through `cargo task <name>`.
 | `lint` | `cargo clippy --workspace --all-targets -- -D warnings` |
 | `fmt` | `cargo fmt --all` |
 | `coverage` | `cargo llvm-cov`, installed on demand |
-| `run` | `cargo run --` with the rest forwarded (`cargo task run list`) |
+| `run` | `cargo run --` with the rest forwarded (`cargo task run node list`) |
 | `install` | `cargo install --force --locked` from the repo root |
 | `release` | Builds the release binary |
 | `clean` | `cargo clean` plus the llvm-cov target dir |

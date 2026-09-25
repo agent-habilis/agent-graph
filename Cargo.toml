@@ -2,15 +2,15 @@
 members = ["tasks"]
 
 [package]
-name = "agent-role"
+name = "agent-graph"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.93"
 authors = ["Caio Gondim <me@caiogondim.com>"]
-description = "Find and print agent roles: OKF bundles in .agent-roles/ folders from cwd up to /."
+description = "Find and print agent graphs: OKF bundles in .agent-graph/ folders from cwd up to /."
 license = "MIT"
 readme = "README.md"
-keywords = ["agents", "roles", "okf"]
+keywords = ["agents", "graph", "okf"]
 categories = ["command-line-utilities"]
 
 [lints]
@@ -35,7 +35,7 @@ wildcard_enum_match_arm = "warn"
 module_name_repetitions = "allow"
 
 [[bin]]
-name = "agent-role"
+name = "agent-graph"
 path = "src/main.rs"
 
 [dependencies]

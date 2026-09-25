@@ -4,7 +4,7 @@ use crate::TaskOutcome;
 use crate::util::{output, repo_root};
 
 pub(crate) fn run(sh: &Shell) -> TaskOutcome {
-    output::status("Installing", "agent-role");
+    output::status("Installing", "agent-graph");
     // Absolute, not `--path .`: no task changes directory, so a relative path
     // would only resolve when invoked from the workspace root.
     let pkg = repo_root();
@@ -18,6 +18,6 @@ pub(crate) fn run(sh: &Shell) -> TaskOutcome {
     cmd!(sh, "cargo install --path {pkg} --force --locked")
         .quiet()
         .run()?;
-    output::status("Installed", "~/.cargo/bin/agent-role");
+    output::status("Installed", "~/.cargo/bin/agent-graph");
     Ok(())
 }

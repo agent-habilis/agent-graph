@@ -39,7 +39,7 @@ enum Task {
     Lint,
     /// Remove build artifacts.
     Clean,
-    /// Run the binary (`cargo run`). Extra args go to `agent-role`
+    /// Run the binary (`cargo run`). Extra args go to `agent-graph`
     /// (e.g. `cargo task run list`).
     Run {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]

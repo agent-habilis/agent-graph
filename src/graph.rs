@@ -5,7 +5,7 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
-use crate::{frontmatter, markdown};
+use crate::{frontmatter, markdown, node};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Class {
@@ -30,10 +30,11 @@ impl Class {
     }
 }
 
+/// A node in the mermaid block.
 #[derive(Debug)]
-pub(crate) struct Node {
+pub(crate) struct Vertex {
     pub(crate) id: String,
-    /// The node label, which names its role.
+    /// The label, which names a folder in `<graph>/nodes/`.
     pub(crate) label: String,
     pub(crate) class: Option<Class>,
     /// The subgraph that holds the node. `None` for an external node.
@@ -50,10 +51,11 @@ struct Edge {
 }
 
 #[derive(Debug)]
-pub(crate) struct Pod {
+pub(crate) struct Graph {
     pub(crate) description: String,
     pub(crate) scope: String,
-    pub(crate) nodes: Vec<Node>,
+    pub(crate) icon: Option<String>,
+    pub(crate) vertices: Vec<Vertex>,
     edges: Vec<Edge>,
     content: String,
     /// Problems found while reading, as (line, reason). `lint` reports them.
@@ -68,17 +70,22 @@ static NODE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^([A-Za-z_][\w-]*)([\[({>].*[\])}])?(?::::(\w+))?$").expect("valid regex")
 });
 
-/// Read `<dir>/index.md` of a pod. Frontmatter errors fail the load; graph
-/// problems are kept for `lint`, so that `nodes` can still read a pod with
-/// a missing edge section.
-pub(crate) fn load(dir: &Path) -> Result<Pod, String> {
+/// Read `<dir>/index.md` of a graph. Frontmatter errors fail the load;
+/// mermaid problems are kept for `lint`, so that `nodes` can still read a
+/// graph with a missing edge section.
+pub(crate) fn load(dir: &Path) -> Result<Graph, String> {
     let content =
         fs::read_to_string(dir.join("index.md")).map_err(|err| format!("index.md: {err}"))?;
     let frontmatter =
         frontmatter::parse(&content).ok_or("index.md has no frontmatter with a `type:` key")?;
     match frontmatter.get("type") {
-        Some("Pod") => {}
-        other => return Err(format!("type is `{}`, must be `Pod`", other.unwrap_or(""))),
+        Some("Graph") => {}
+        other => {
+            return Err(format!(
+                "type is `{}`, must be `Graph`",
+                other.unwrap_or("")
+            ));
+        }
     }
     let description = frontmatter
         .get("description")
@@ -89,20 +96,22 @@ pub(crate) fn load(dir: &Path) -> Result<Pod, String> {
     if !matches!(scope.as_str(), "project" | "branch") {
         return Err(format!("scope is `{scope}`, must be `project` or `branch`"));
     }
-    let mut pod = Pod {
+    let icon = frontmatter.get("icon").map(str::to_string);
+    let mut graph = Graph {
         description,
         scope,
-        nodes: Vec::new(),
+        icon,
+        vertices: Vec::new(),
         edges: Vec::new(),
         content: String::new(),
         problems: Vec::new(),
     };
-    parse_graph(&content, &mut pod);
-    pod.content = content;
-    Ok(pod)
+    parse_mermaid(&content, &mut graph);
+    graph.content = content;
+    Ok(graph)
 }
 
-fn parse_graph(content: &str, pod: &mut Pod) {
+fn parse_mermaid(content: &str, graph: &mut Graph) {
     let mut fences = Vec::new();
     let mut in_fence = false;
     for (index, line) in content.lines().enumerate() {
@@ -114,11 +123,12 @@ fn parse_graph(content: &str, pod: &mut Pod) {
         }
     }
     let Some(&start) = fences.first() else {
-        pod.problems.push((1, "no ```mermaid block".to_string()));
+        graph.problems.push((1, "no ```mermaid block".to_string()));
         return;
     };
     if fences.len() > 1 {
-        pod.problems
+        graph
+            .problems
             .push((fences[1], "more than one ```mermaid block".to_string()));
     }
     let mut subgraph: Option<String> = None;
@@ -150,7 +160,8 @@ fn parse_graph(content: &str, pod: &mut Pod) {
         } else if let Some(rest) = line.strip_prefix("class ") {
             let mut parts = rest.split_whitespace();
             let (Some(ids), Some(name)) = (parts.next(), parts.next()) else {
-                pod.problems
+                graph
+                    .problems
                     .push((number, format!("unknown line `{line}`")));
                 continue;
             };
@@ -164,7 +175,7 @@ fn parse_graph(content: &str, pod: &mut Pod) {
                 to: to.to_string(),
                 line: number,
             };
-            pod.edges.push(edge(&caps[1], &caps[4]));
+            graph.edges.push(edge(&caps[1], &caps[4]));
         } else if let Some(caps) = NODE.captures(line) {
             let id = caps[1].to_string();
             let label = caps.get(2).map_or(id.clone(), |shape| {
@@ -173,7 +184,7 @@ fn parse_graph(content: &str, pod: &mut Pod) {
                     .trim_matches(|char: char| "[](){}>\"".contains(char))
                     .to_string()
             });
-            pod.nodes.push(Node {
+            graph.vertices.push(Vertex {
                 id,
                 label,
                 class: caps.get(3).and_then(|class| Class::parse(class.as_str())),
@@ -181,49 +192,34 @@ fn parse_graph(content: &str, pod: &mut Pod) {
                 line: number,
             });
         } else {
-            pod.problems
+            graph
+                .problems
                 .push((number, format!("unknown line `{line}`")));
         }
     }
     for (id, class) in classes {
-        if let Some(node) = pod.nodes.iter_mut().find(|node| node.id == id) {
-            node.class = Some(class);
+        if let Some(vertex) = graph.vertices.iter_mut().find(|vertex| vertex.id == id) {
+            vertex.class = Some(class);
         }
     }
 }
 
-/// The role name of a node in the pod at `dir`: `<pod>/<label>` if the pod
-/// folder holds that role, else `<label>` if `roles` has it.
-pub(crate) fn role_of(
-    pod_name: &str,
-    dir: &Path,
-    node: &Node,
-    roles: &BTreeMap<String, PathBuf>,
-) -> Option<String> {
-    let local = format!("{pod_name}/{}", node.label);
-    if dir.join("roles").join(&node.label).is_dir() {
-        Some(local)
-    } else {
-        roles.contains_key(&node.label).then(|| node.label.clone())
-    }
+/// The node folder of a vertex in the graph at `dir`.
+pub(crate) fn node_dir(dir: &Path, vertex: &Vertex) -> PathBuf {
+    dir.join("nodes").join(&vertex.label)
 }
 
-/// Check the pod against the pod rules. Each error is (line, reason).
-pub(crate) fn lint(
-    pod_name: &str,
-    dir: &Path,
-    pod: &Pod,
-    roles: &BTreeMap<String, PathBuf>,
-) -> Vec<(usize, String)> {
-    let mut errors = pod.problems.clone();
-    let by_id: HashMap<&str, &Node> = pod
-        .nodes
+/// Check the graph against the graph rules. Each error is (line, reason).
+pub(crate) fn lint(dir: &Path, graph: &Graph) -> Vec<(usize, String)> {
+    let mut errors = graph.problems.clone();
+    let by_id: HashMap<&str, &Vertex> = graph
+        .vertices
         .iter()
-        .map(|node| (node.id.as_str(), node))
+        .map(|vertex| (vertex.id.as_str(), vertex))
         .collect();
 
-    let mut publics: BTreeMap<&str, Vec<&Node>> = BTreeMap::new();
-    for node in pod.nodes.iter().filter(|node| node.subgraph.is_some()) {
+    let mut publics: BTreeMap<&str, Vec<&Vertex>> = BTreeMap::new();
+    for node in graph.vertices.iter().filter(|node| node.subgraph.is_some()) {
         let subgraph = node.subgraph.as_deref().unwrap_or("");
         let entry = publics.entry(subgraph).or_default();
         match node.class {
@@ -234,28 +230,34 @@ pub(crate) fn lint(
                 format!("node `{}` is not public or private", node.id),
             )),
         }
-        if role_of(pod_name, dir, node, roles).is_none() {
-            errors.push((node.line, format!("role `{}` not found", node.label)));
+        let folder = node_dir(dir, node);
+        if !folder.is_dir() {
+            errors.push((node.line, format!("node `{}` not found", node.label)));
+        } else if let Err(reason) = node::load(&folder) {
+            errors.push((
+                node.line,
+                format!("node `{}` is not valid: {reason}", node.label),
+            ));
         }
     }
     for (subgraph, nodes) in &publics {
-        let line = pod
-            .nodes
+        let line = graph
+            .vertices
             .iter()
             .find(|node| node.subgraph.as_deref() == Some(subgraph))
             .map_or(1, |node| node.line);
         match nodes.len() {
-            0 => errors.push((line, format!("pod `{subgraph}` has no public node"))),
+            0 => errors.push((line, format!("graph `{subgraph}` has no public node"))),
             1 => {}
             _ => errors.push((
                 nodes[1].line,
-                format!("pod `{subgraph}` has more than one public node"),
+                format!("graph `{subgraph}` has more than one public node"),
             )),
         }
     }
 
     let mut names: Vec<&str> = Vec::new();
-    for edge in &pod.edges {
+    for edge in &graph.edges {
         let ends = [edge.from.as_str(), edge.to.as_str()];
         let Some(from) = by_id.get(ends[0]) else {
             errors.push((edge.line, format!("edge to unknown node `{}`", ends[0])));
@@ -271,7 +273,7 @@ pub(crate) fn lint(
                     errors.push((
                         edge.line,
                         format!(
-                            "edge crosses the pod boundary at private node `{}`",
+                            "edge crosses the graph boundary at private node `{}`",
                             node.id
                         ),
                     ));
@@ -288,8 +290,8 @@ pub(crate) fn lint(
         }
     }
 
-    let sections = edge_sections(&pod.content);
-    for edge in &pod.edges {
+    let sections = edge_sections(&graph.content);
+    for edge in &graph.edges {
         if let Some(name) = &edge.name
             && !sections.iter().any(|(_, section, _)| section == name)
         {
@@ -307,7 +309,7 @@ pub(crate) fn lint(
         }
     }
 
-    if let Err(error) = markdown::check_boundaries(&pod.content) {
+    if let Err(error) = markdown::check_boundaries(&graph.content) {
         errors.push(error);
     }
     errors.sort();

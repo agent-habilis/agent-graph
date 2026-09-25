@@ -1,12 +1,11 @@
 mod frontmatter;
+mod graph;
 mod include;
 mod init;
 mod markdown;
-mod pod;
-mod role;
+mod node;
 mod state;
 
-use std::collections::BTreeMap;
 use std::env;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -16,9 +15,9 @@ use anyhow::{Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use regex::Regex;
 
-/// Find and print agent roles: OKF bundles in `.agent-roles/roles/` and
-/// `.agent-roles/pods/<pod>/roles/` folders from the current directory up to
-/// `/`. The nearest role with a name wins.
+/// Find and print agent graphs: OKF bundles in `.agent-graph/` folders from
+/// the current directory up to `/`. A graph holds its nodes in
+/// `<graph>/nodes/`. The nearest graph with a name wins.
 #[derive(Debug, Parser)]
 #[command(version)]
 struct Cli {
@@ -28,28 +27,32 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Print one line per role: name, description, tags, path (tab-separated).
-    List {
-        /// Show only roles that have a tag that matches this regex.
-        #[arg(long)]
-        tag: Option<String>,
-    },
-    /// Print the role's index.md body, with its `@file` includes expanded.
-    /// For a pod role (`<pod>/<role>`), print the pod's body first.
-    Get {
-        name: String,
-        /// The pid of the agent. Records the role in
-        /// `/tmp/agent-roles/<pid>.json` for the statusline.
-        #[arg(long)]
-        pid: Option<u32>,
-    },
-    /// List, print, and check pods: folders in `.agent-roles/pods/`.
-    Pod {
+    /// List, print, and check graphs: folders in `.agent-graph/`.
+    Graph {
         #[command(subcommand)]
-        command: PodCommand,
+        command: GraphCommand,
     },
-    /// Write the default roles and pods into `<dir>/.agent-roles/`. Does
-    /// nothing if `.agent-roles` exists.
+    /// List nodes, and load one into an agent.
+    Node {
+        #[command(subcommand)]
+        command: NodeCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum GraphCommand {
+    /// Print one line per graph: name, description, scope, path
+    /// (tab-separated).
+    List,
+    /// Print the graph's index.md body, with its `@file` includes expanded.
+    Get { name: String },
+    /// Print one line per graph node: mermaid id, node, class, count
+    /// (tab-separated).
+    Nodes { name: String },
+    /// Check one graph, or all graphs. Prints `path:line: reason` per error.
+    Lint { name: Option<String> },
+    /// Write the default graph into `<dir>/.agent-graph/`. Does nothing if
+    /// `.agent-graph` exists.
     Init {
         /// The folder to write into. The default is the current directory.
         dir: Option<PathBuf>,
@@ -57,15 +60,24 @@ enum Command {
 }
 
 #[derive(Debug, Subcommand)]
-enum PodCommand {
-    /// Print one line per pod: name, description, scope, path (tab-separated).
-    List,
-    /// Print the pod's index.md body, with its `@file` includes expanded.
-    Get { name: String },
-    /// Print one line per pod node: node, role, class (tab-separated).
-    Nodes { name: String },
-    /// Check one pod, or all pods. Prints `path:line: reason` per error.
-    Lint { name: Option<String> },
+enum NodeCommand {
+    /// Print one line per node: name, description, tags, path
+    /// (tab-separated). The name is `<graph>/<node>`.
+    List {
+        /// Show only nodes that have a tag that matches this regex.
+        #[arg(long)]
+        tag: Option<String>,
+    },
+    /// Print the graph's body, then the node's body, with their `@file`
+    /// includes expanded.
+    Up {
+        /// The node, as `<graph>/<node>`.
+        name: String,
+        /// The pid of the agent. Records the node in
+        /// `/tmp/agent-graph/<pid>.json` for the statusline.
+        #[arg(long)]
+        pid: Option<u32>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -80,69 +92,54 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<()> {
     let cwd = env::current_dir()?;
-    let roles = role::discover_roles(&cwd);
     let mut stdout = io::stdout().lock();
     match cli.command {
-        Command::Pod { command } => run_pod(command, &cwd, &roles, &mut stdout)?,
-        Command::Init { dir } => {
-            let dir = dir.unwrap_or(cwd);
-            match init::init(&dir)? {
-                Some(written) => {
-                    for path in written {
-                        writeln!(stdout, "{}", path.display())?;
-                    }
-                }
-                None => eprintln!("{} already exists", dir.join(".agent-roles").display()),
-            }
-        }
-        Command::List { tag } => {
+        Command::Graph { command } => run_graph(command, &cwd, &mut stdout),
+        Command::Node { command } => run_node(command, &cwd, &mut stdout),
+    }
+}
+
+fn run_node(command: NodeCommand, cwd: &Path, stdout: &mut impl Write) -> Result<()> {
+    let nodes = node::discover_nodes(cwd);
+    match command {
+        NodeCommand::List { tag } => {
             let tag = tag.map(|pattern| Regex::new(&pattern)).transpose()?;
-            for (name, dir) in &roles {
-                let role = match role::load(dir) {
-                    Ok(role) => role,
+            for (name, dir) in &nodes {
+                let node = match node::load(dir) {
+                    Ok(node) => node,
                     Err(reason) => {
                         eprintln!("warning: {}: {reason}", dir.display());
                         continue;
                     }
                 };
                 if let Some(tag) = &tag
-                    && !role.tags.iter().any(|item| tag.is_match(item))
+                    && !node.tags.iter().any(|item| tag.is_match(item))
                 {
                     continue;
                 }
                 writeln!(
                     stdout,
                     "{name}\t{}\t{}\t{}",
-                    role.description,
-                    role.tags.join(","),
+                    node.description,
+                    node.tags.join(","),
                     dir.display()
                 )?;
             }
         }
-        Command::Get { name, pid } => {
-            let dir = roles
+        NodeCommand::Up { name, pid } => {
+            let dir = nodes
                 .get(&name)
-                .ok_or_else(|| anyhow!("role `{name}` not found"))?;
-            let role = role::load(dir)
-                .map_err(|reason| anyhow!("role `{name}` is not valid: {reason}"))?;
-            let (pod, role_name) = match name.split_once('/') {
-                Some((pod_name, role_name)) => {
-                    let pod_dir = dir.join("../..").canonicalize()?;
-                    let pod = role::load_pod(&pod_dir)
-                        .map_err(|reason| anyhow!("pod `{pod_name}` is not valid: {reason}"))?;
-                    (Some((pod_name, pod, pod_dir)), role_name)
-                }
-                None => (None, name.as_str()),
-            };
-            let root = pod.as_ref().map_or(dir, |(_, _, pod_dir)| pod_dir);
-            let mut text = String::new();
-            if pod.is_some() {
-                text += &include::expand(root, &root.join("index.md"))?;
-            }
-            text += &include::expand(root, &dir.join("index.md"))?;
+                .ok_or_else(|| anyhow!("node `{name}` not found, use `<graph>/<node>`"))?;
+            let node = node::load(dir)
+                .map_err(|reason| anyhow!("node `{name}` is not valid: {reason}"))?;
+            let (graph_name, node_name) = name.split_once('/').unwrap_or(("", &name));
+            let graph_dir = dir.join("../..").canonicalize()?;
+            let graph = graph::load(&graph_dir)
+                .map_err(|reason| anyhow!("graph `{graph_name}` is not valid: {reason}"))?;
+            let mut text = include::expand(&graph_dir, &graph_dir.join("index.md"))?;
+            text += &include::expand(&graph_dir, &dir.join("index.md"))?;
             if let Some(pid) = pid {
-                let pod = pod.as_ref().map(|(pod_name, pod, _)| (*pod_name, pod));
-                state::write(pid, (role_name, &role), pod)?;
+                state::write(pid, (graph_name, &graph), (node_name, &node))?;
             }
             write!(stdout, "{text}")?;
         }
@@ -150,58 +147,72 @@ fn run(cli: Cli) -> Result<()> {
     Ok(())
 }
 
-fn run_pod(
-    command: PodCommand,
-    cwd: &Path,
-    roles: &BTreeMap<String, PathBuf>,
-    stdout: &mut impl Write,
-) -> Result<()> {
-    let pods = role::discover(cwd, "pods");
+fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Result<()> {
+    let graphs = node::discover_graphs(cwd);
     let find = |name: &str| {
-        pods.get(name)
-            .ok_or_else(|| anyhow!("pod `{name}` not found"))
+        graphs
+            .get(name)
+            .ok_or_else(|| anyhow!("graph `{name}` not found"))
     };
     match command {
-        PodCommand::List => {
-            for (name, dir) in &pods {
-                match pod::load(dir) {
-                    Ok(pod) => writeln!(
+        GraphCommand::Init { dir } => {
+            let dir = dir.unwrap_or_else(|| cwd.to_path_buf());
+            match init::init(&dir)? {
+                Some(written) => {
+                    for path in written {
+                        writeln!(stdout, "{}", path.display())?;
+                    }
+                }
+                None => eprintln!("{} already exists", dir.join(".agent-graph").display()),
+            }
+        }
+        GraphCommand::List => {
+            for (name, dir) in &graphs {
+                match graph::load(dir) {
+                    Ok(graph) => writeln!(
                         stdout,
                         "{name}\t{}\t{}\t{}",
-                        pod.description,
-                        pod.scope,
+                        graph.description,
+                        graph.scope,
                         dir.display()
                     )?,
                     Err(reason) => eprintln!("warning: {}: {reason}", dir.display()),
                 }
             }
         }
-        PodCommand::Get { name } => {
+        GraphCommand::Get { name } => {
             let dir = find(&name)?;
-            pod::load(dir).map_err(|reason| anyhow!("pod `{name}` is not valid: {reason}"))?;
+            graph::load(dir).map_err(|reason| anyhow!("graph `{name}` is not valid: {reason}"))?;
             write!(stdout, "{}", include::expand(dir, &dir.join("index.md"))?)?;
         }
-        PodCommand::Nodes { name } => {
+        GraphCommand::Nodes { name } => {
             let dir = find(&name)?;
-            let pod =
-                pod::load(dir).map_err(|reason| anyhow!("pod `{name}` is not valid: {reason}"))?;
-            for node in pod.nodes.iter().filter(|node| node.subgraph.is_some()) {
-                let role =
-                    pod::role_of(&name, dir, node, roles).unwrap_or_else(|| node.label.clone());
-                let class = node.class.map_or("none", pod::Class::name);
-                writeln!(stdout, "{}\t{role}\t{class}", node.id)?;
+            let graph = graph::load(dir)
+                .map_err(|reason| anyhow!("graph `{name}` is not valid: {reason}"))?;
+            for vertex in graph
+                .vertices
+                .iter()
+                .filter(|vertex| vertex.subgraph.is_some())
+            {
+                let count = node::load(&graph::node_dir(dir, vertex)).map_or(1, |node| node.count);
+                let class = vertex.class.map_or("none", graph::Class::name);
+                writeln!(
+                    stdout,
+                    "{}\t{name}/{}\t{class}\t{count}",
+                    vertex.id, vertex.label
+                )?;
             }
         }
-        PodCommand::Lint { name: only } => {
+        GraphCommand::Lint { name: only } => {
             let targets: Vec<(&String, &PathBuf)> = match &only {
                 Some(name) => vec![(name, find(name)?)],
-                None => pods.iter().collect(),
+                None => graphs.iter().collect(),
             };
             let mut count = 0;
-            for (name, dir) in targets {
+            for (_, dir) in targets {
                 let path = dir.join("index.md");
-                let errors = match pod::load(dir) {
-                    Ok(pod) => pod::lint(name, dir, &pod, roles),
+                let errors = match graph::load(dir) {
+                    Ok(graph) => graph::lint(dir, &graph),
                     Err(reason) => vec![(1, reason)],
                 };
                 for (line, reason) in &errors {
@@ -210,7 +221,7 @@ fn run_pod(
                 count += errors.len();
             }
             if count > 0 {
-                bail!("{count} errors in pods");
+                bail!("{count} errors in graphs");
             }
         }
     }
