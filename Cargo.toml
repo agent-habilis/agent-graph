@@ -1,0 +1,48 @@
+[package]
+name = "agent-role"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93"
+authors = ["Caio Gondim <me@caiogondim.com>"]
+description = "Find and print agent roles: OKF bundles in .agent-role/ folders from cwd up to /."
+license = "MIT"
+readme = "README.md"
+keywords = ["agents", "roles", "okf"]
+categories = ["command-line-utilities"]
+
+[lints.rust]
+rust_2018_idioms = { level = "warn", priority = -1 }
+unsafe_code = "forbid"
+unreachable_pub = "warn"
+unused_qualifications = "warn"
+missing_debug_implementations = "warn"
+non_ascii_idents = "deny"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+min_ident_chars = "warn"
+shadow_unrelated = "warn"
+semicolon_inside_block = "warn"
+allow_attributes_without_reason = "warn"
+allow_attributes = "warn"
+wildcard_enum_match_arm = "warn"
+module_name_repetitions = "allow"
+
+[[bin]]
+name = "agent-role"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+regex = "1"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"
