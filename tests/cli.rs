@@ -348,7 +348,10 @@ fn init_writes_defaults_into_cwd() {
         .lines()
         .map(|line| line.split('\t').next().unwrap().to_string())
         .collect();
-    assert_eq!(names, ["advisor", "qa", "worker"]);
+    assert_eq!(
+        names,
+        ["dev-team/advisor", "dev-team/qa", "dev-team/worker"]
+    );
 }
 
 #[test]
@@ -376,7 +379,11 @@ fn init_writes_into_dir_argument() {
     let out = run(&root, &["init", target.to_str().unwrap()]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert!(target.join(".agent-roles/roles/worker/index.md").is_file());
+    assert!(
+        target
+            .join(".agent-roles/pods/dev-team/roles/worker/index.md")
+            .is_file()
+    );
     assert!(!root.join(".agent-roles").exists());
 }
 
@@ -407,4 +414,130 @@ fn init_does_nothing_when_file_exists() {
         fs::read_to_string(root.join(".agent-roles")).unwrap(),
         "a file\n"
     );
+}
+
+fn pod_index(icon: &str, body: &str) -> String {
+    format!("---\ntype: Pod\ndescription: d\nicon: {icon}\nscope: branch\n---\n{body}")
+}
+
+/// Write `pods/<pod>/index.md` and `pods/<pod>/roles/<name>/index.md` under
+/// `level` and return the role folder.
+fn pod_role(level: &Path, pod: &str, pod_index: &str, name: &str, index: &str) -> PathBuf {
+    let pod_dir = level.join(".agent-roles/pods").join(pod);
+    write(&pod_dir.join("index.md"), pod_index);
+    let dir = pod_dir.join("roles").join(name);
+    write(&dir.join("index.md"), index);
+    dir
+}
+
+fn role_index_with_icon(icon: &str, body: &str) -> String {
+    format!("---\ntype: Role\ndescription: d\nicon: {icon}\n---\n{body}")
+}
+
+/// Run `get <name> --pid <pid>` and return the state file it wrote. Each
+/// test uses its own pid, because the state folder is shared.
+fn get_state(cwd: &Path, name: &str, pid: u32) -> String {
+    let path = PathBuf::from(format!("/tmp/agent-roles/{pid}.json"));
+    let _ = fs::remove_file(&path);
+
+    let out = run(cwd, &["get", name, "--pid", &pid.to_string()]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let state = fs::read_to_string(&path).unwrap();
+    fs::remove_file(&path).unwrap();
+    state
+}
+
+#[test]
+fn list_names_pod_roles_pod_slash_role() {
+    let (_tmp, root) = root();
+    let solo = role(&root, "solo", &index("alone", None, ""));
+    let worker = pod_role(
+        &root,
+        "team",
+        &pod_index("P", ""),
+        "worker",
+        &index("w", None, ""),
+    );
+
+    let out = run(&root, &["list"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        stdout(&out),
+        line("solo", "alone", "", &solo) + &line("team/worker", "w", "", &worker)
+    );
+}
+
+#[test]
+fn get_pod_role_prints_pod_then_role() {
+    let (_tmp, root) = root();
+    pod_role(
+        &root,
+        "team",
+        &pod_index("P", "# Pod\n"),
+        "worker",
+        &index("w", None, "# Worker\n"),
+    );
+
+    let out = run(&root, &["get", "team/worker"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "# Pod\n# Worker\n");
+}
+
+#[test]
+fn get_pod_role_includes_files_of_its_pod_only() {
+    let (_tmp, root) = root();
+    let dir = pod_role(
+        &root,
+        "team",
+        &pod_index("P", ""),
+        "worker",
+        &index("w", None, "@../../shared/rules.md\n"),
+    );
+    write(&dir.join("../../shared/rules.md"), "shared rules\n");
+    pod_role(
+        &root,
+        "leak",
+        &pod_index("P", ""),
+        "worker",
+        &index("w", None, "@../../../team/shared/rules.md\n"),
+    );
+
+    let shared = run(&root, &["get", "team/worker"]);
+    let leak = run(&root, &["get", "leak/worker"]);
+
+    assert_eq!(stdout(&shared), "shared rules\n", "{}", stderr(&shared));
+    assert_eq!(leak.status.code(), Some(1));
+    assert!(!stdout(&leak).contains("shared rules"));
+}
+
+#[test]
+fn get_with_pid_writes_state_of_pod_role() {
+    let (_tmp, root) = root();
+    pod_role(
+        &root,
+        "team",
+        &pod_index("\u{f0849}", ""),
+        "worker",
+        &role_index_with_icon("\u{f1322}", ""),
+    );
+
+    let state = get_state(&root, "team/worker", 4_000_001);
+
+    assert_eq!(
+        state,
+        "{\"pid\":4000001,\"pod\":\"team\",\"pod_icon\":\"\u{f0849}\",\"role\":\"worker\",\"role_icon\":\"\u{f1322}\"}\n"
+    );
+}
+
+#[test]
+fn get_with_pid_writes_state_of_standalone_role() {
+    let (_tmp, root) = root();
+    role(&root, "solo", &index("d", None, ""));
+
+    let state = get_state(&root, "solo", 4_000_002);
+
+    assert_eq!(state, "{\"pid\":4000002,\"role\":\"solo\"}\n");
 }

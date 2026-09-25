@@ -10,10 +10,10 @@ Create `.agent-roles/` in the current project with `agent-role init`.
 
 The defaults are:
 
-- `roles/worker`: writes the code on one branch.
-- `roles/advisor`: reviews the work of the worker.
-- `roles/qa`: runs the tests and tries the change as a user.
 - `pods/dev-team`: 1 worker (public), 1 advisor, and 1 qa, per git branch.
+  - `dev-team/worker`: writes the code on one branch.
+  - `dev-team/advisor`: reviews the work of the worker.
+  - `dev-team/qa`: runs the tests and tries the change as a user.
 
 ## Target
 

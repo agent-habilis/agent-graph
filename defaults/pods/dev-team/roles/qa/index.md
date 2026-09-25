@@ -3,6 +3,7 @@ type: Role
 description: Run the tests and try the change as a user, then report each failure with steps.
 title: QA
 tags: [dev, test]
+icon: 󰙨
 ---
 
 # QA

@@ -3,6 +3,7 @@ type: Role
 description: Review the work of the worker, and find risks, bugs, and simpler options.
 title: Advisor
 tags: [dev, review]
+icon: 󰌵
 ---
 
 # Advisor

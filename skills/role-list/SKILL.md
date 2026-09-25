@@ -1,13 +1,14 @@
 ---
 name: role-list
-description: List the agent roles that the current project can see, with the `agent-role` CLI. Roles are OKF bundles in `.agent-roles/roles/` folders from the cwd up to `/`. Use when the user says "/role-list", "list roles", or "what roles are there".
+description: List the agent roles that the current project can see, with the `agent-role` CLI. Roles are OKF bundles in `.agent-roles/roles/` and `.agent-roles/pods/<pod>/roles/` folders from the cwd up to `/`. Use when the user says "/role-list", "list roles", or "what roles are there".
 allowed-tools: Bash(agent-role:*)
 ---
 
 # role-list
 
-`agent-role` finds roles in `.agent-roles/roles/` in the current directory
-and in each parent directory, up to `/`. If two directories have a role with
+`agent-role` finds roles in `.agent-roles/roles/` and
+`.agent-roles/pods/<pod>/roles/` in the current directory and in each parent
+directory, up to `/`. A role inside a pod has the name `<pod>/<role>`. If two directories have a role with
 the same name, the role nearer to the current directory wins.
 
 ## Preflight
@@ -39,7 +40,7 @@ the path unless the user asks for it.
 If the output is empty, print:
 
 ```text
-role · none · no .agent-roles/roles/ folder from the cwd up to /
+role · none · no roles in .agent-roles/ from the cwd up to /
 ```
 
 The CLI writes a `warning:` line to stderr for each role that is not valid.

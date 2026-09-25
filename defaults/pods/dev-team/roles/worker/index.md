@@ -3,6 +3,7 @@ type: Role
 description: Write the code on one branch, and ask for a review and a test pass.
 title: Worker
 tags: [dev, code]
+icon: 󱌢
 ---
 
 # Worker

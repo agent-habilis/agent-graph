@@ -3,6 +3,7 @@ type: Pod
 description: One worker, one advisor, and one qa per git branch.
 title: Dev team
 scope: branch
+icon: 󰡉
 ---
 
 ```mermaid

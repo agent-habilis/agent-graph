@@ -11,10 +11,18 @@ A role is a fragment of text that you put into the context of an agent. The role
     advisor/
       index.md      # entry point
       tone.md       # printed only if index.md includes it
+  pods/
+    dev-team/
+      index.md      # the pod: graph, boundaries, edges
+      roles/
+        worker/
+          index.md  # the role "dev-team/worker"
 ```
 
 Each role folder is an [OKF](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) bundle.
 The folder name is the role name.
+A pod folder is self-contained: it holds its roles, so you can share the pod as one folder.
+A role inside a pod has the name `<pod>/<role>`, for example `dev-team/worker`.
 
 `index.md` starts with this frontmatter:
 
@@ -24,13 +32,15 @@ type: Role                  # required
 description: Challenge plans and point out risks.   # required, one line
 title: Advisor              # optional
 tags: [review, go]          # optional, inline list only
+icon: 󰌵                     # optional, one Nerd Font glyph for the statusline
 ---
 ```
 
 ## Discovery
 
-`agent-role` reads `.agent-roles/roles/` in the current directory and in each parent directory, up to `/`.
+`agent-role` reads `.agent-roles/roles/` and `.agent-roles/pods/` in the current directory and in each parent directory, up to `/`.
 If two directories have a role with the same name, the role nearer to the current directory wins.
+If two directories have a pod with the same name, the nearer pod wins with all its roles.
 
 ## Commands
 
@@ -38,6 +48,8 @@ If two directories have a role with the same name, the role nearer to the curren
 agent-role list                # name<TAB>description<TAB>tags<TAB>path
 agent-role list --tag '^go$'   # only roles with a tag that matches the regex
 agent-role get advisor         # the body of index.md, with includes expanded
+agent-role get dev-team/worker # the body of the pod, then the body of the role
+agent-role get advisor --pid N # also write /tmp/agent-roles/N.json for the statusline
 agent-role init [<dir>]        # write the default roles and pods into <dir>/.agent-roles/
 ```
 
@@ -46,7 +58,7 @@ The `--tag` regex is not anchored, so `go` also matches `mongo`.
 
 ## Defaults
 
-`agent-role init` writes the files in [`defaults/`](defaults/) into `.agent-roles/`: the `worker`, `advisor`, and `qa` roles, and the `dev-team` pod.
+`agent-role init` writes the files in [`defaults/`](defaults/) into `.agent-roles/`: the `dev-team` pod with its `worker`, `advisor`, and `qa` roles.
 The build puts these files into the binary, so a user needs only the binary.
 If `.agent-roles` exists, `init` writes nothing and exits 0.
 
@@ -56,8 +68,19 @@ In `index.md`, a line that contains only `@<path>` is replaced with the body of 
 
 - The path is relative to the file that contains the include.
 - Included files can include other files. A cycle is an error.
-- The path must stay inside the role folder.
+- The path must stay inside the role folder. For a role inside a pod, the path must stay inside the pod folder.
 - The CLI ignores `@` lines inside fenced code blocks.
+
+## Statusline
+
+`get --pid <pid>` writes the role, the pod, and their icons to `/tmp/agent-roles/<pid>.json`:
+
+```json
+{"pid":123,"pod":"dev-team","pod_icon":"󰡉","role":"worker","role_icon":"󱌢"}
+```
+
+`pid` is the Claude Code process. A statusline script gets the same pid as its parent process.
+A standalone role has no `pod` and no `pod_icon`. A role or pod without an `icon` has no icon key.
 
 ## Exit codes
 
