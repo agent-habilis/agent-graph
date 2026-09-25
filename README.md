@@ -56,3 +56,20 @@ In `index.md`, a line that contains only `@<path>` is replaced with the body of 
 
 - `0`: success.
 - `1`: error. For example, the role is not found, an include is not valid, or the regex is not valid.
+
+## Development
+
+All development commands go through `cargo task <name>`.
+`cargo task` with no argument lists the tasks.
+
+| Task | What it does |
+|---|---|
+| `test` | `cargo test --workspace --no-fail-fast` |
+| `ci` | The full gate: `fmt --check`, clippy, tests |
+| `lint` | `cargo clippy --workspace --all-targets -- -D warnings` |
+| `fmt` | `cargo fmt --all` |
+| `coverage` | `cargo llvm-cov`, installed on demand |
+| `run` | `cargo run --` with the rest forwarded (`cargo task run list`) |
+| `install` | `cargo install --force --locked` from the repo root |
+| `release` | Builds the release binary |
+| `clean` | `cargo clean` plus the llvm-cov target dir |

@@ -1,3 +1,6 @@
+[workspace]
+members = ["tasks"]
+
 [package]
 name = "agent-role"
 version = "0.1.0"
@@ -10,7 +13,10 @@ readme = "README.md"
 keywords = ["agents", "roles", "okf"]
 categories = ["command-line-utilities"]
 
-[lints.rust]
+[lints]
+workspace = true
+
+[workspace.lints.rust]
 rust_2018_idioms = { level = "warn", priority = -1 }
 unsafe_code = "forbid"
 unreachable_pub = "warn"
@@ -18,7 +24,7 @@ unused_qualifications = "warn"
 missing_debug_implementations = "warn"
 non_ascii_idents = "deny"
 
-[lints.clippy]
+[workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
 min_ident_chars = "warn"
 shadow_unrelated = "warn"

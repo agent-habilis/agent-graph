@@ -1,0 +1,17 @@
+[package]
+name = "tasks"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93"
+publish = false
+
+[dependencies]
+# Mirrors the root crate's clap (Cargo.toml), so no new toolchain install.
+# xshell is a library cargo compiles automatically, not a binary anyone installs.
+clap = { version = "4", features = ["derive"] }
+xshell = "0.2"
+anstream = "1"
+anstyle = "1"
+
+[lints]
+workspace = true
