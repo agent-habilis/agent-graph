@@ -1,10 +1,10 @@
 ---
-name: node-list
-description: List the nodes of the agent graphs that the current project can see, with the `agent-graph` CLI. Graphs are OKF bundles in `.agent-graph/` folders from the cwd up to `/`, and each graph holds its nodes in `<graph>/nodes/`. Use when the user says "/node-list", "list nodes", or "what nodes are there".
+name: graph-node-list
+description: List the nodes of the agent graphs that the current project can see, with the `agent-graph` CLI. Graphs are OKF bundles in `.agent-graph/` folders from the cwd up to `/`, and each graph holds its nodes in `<graph>/nodes/`. Use when the user says "/graph-node-list", "list nodes", or "what nodes are there".
 allowed-tools: Bash(agent-graph:*)
 ---
 
-# node-list
+# graph-node-list
 
 `agent-graph` finds graphs in `.agent-graph/` in the current directory and in
 each parent directory, up to `/`. Each graph holds its nodes in

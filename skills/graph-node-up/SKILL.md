@@ -1,10 +1,10 @@
 ---
-name: node-up
-description: Load one node of an agent graph into this session with the `agent-graph` CLI, so that the agent acts as that node and obeys its boundaries and the boundaries of its graph. Use when the user says "/node-up <graph>/<node>", "load the <node> node", or "act as the <node> node".
+name: graph-node-up
+description: Load one node of an agent graph into this session with the `agent-graph` CLI, so that the agent acts as that node and obeys its boundaries and the boundaries of its graph. Use when the user says "/graph-node-up <graph>/<node>", "load the <node> node", or "act as the <node> node".
 allowed-tools: Bash(agent-graph:*)
 ---
 
-# node-up
+# graph-node-up
 
 A graph is a team of agents. A node is one position in a graph. Its text
 changes how an agent behaves. `agent-graph node up <graph>/<node>` prints the
@@ -27,10 +27,10 @@ If the command is not found, tell the user to run `cargo task install` in the
 The node name, as `<graph>/<node>`. If there is no name, print:
 
 ```text
-node · usage · /node-up <graph>/<node>
+node · usage · /graph-node-up <graph>/<node>
 ```
 
-Then stop. To see the names, the user runs `/node-list`.
+Then stop. To see the names, the user runs `/graph-node-list`.
 
 ## Up
 
