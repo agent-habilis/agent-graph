@@ -64,6 +64,7 @@ agent-graph node list                      # name<TAB>description<TAB>tags<TAB>p
 agent-graph node list --tag '^go$'         # only nodes with a tag that matches the regex
 agent-graph node up dev-team/worker        # the body of the graph, then the body of the node
 agent-graph node up dev-team/worker --pid N  # also write /tmp/agent-graph/N.json for the statusline
+agent-graph node down --pid N               # remove /tmp/agent-graph/N.json
 ```
 
 If a graph or node is not valid, `list` writes a warning to stderr and skips it.

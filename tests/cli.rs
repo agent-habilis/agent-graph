@@ -604,3 +604,31 @@ fn node_list_warns_on_bad_count() {
         );
     }
 }
+
+#[test]
+fn node_down_removes_state_file() {
+    let (_tmp, root) = root();
+    node(&root, "solo", &index("d", None, ""));
+    let path = PathBuf::from("/tmp/agent-graph/4000003.json");
+    assert!(
+        run(&root, &["node", "up", "g/solo", "--pid", "4000003"])
+            .status
+            .success()
+    );
+    assert!(path.is_file());
+
+    let out = run(&root, &["node", "down", "--pid", "4000003"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(!path.exists());
+}
+
+#[test]
+fn node_down_without_state_file_succeeds() {
+    let (_tmp, root) = root();
+    let _ = fs::remove_file("/tmp/agent-graph/4000004.json");
+
+    let out = run(&root, &["node", "down", "--pid", "4000004"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+}

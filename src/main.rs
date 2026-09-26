@@ -78,6 +78,13 @@ enum NodeCommand {
         #[arg(long)]
         pid: Option<u32>,
     },
+    /// Remove the node of an agent from the statusline:
+    /// `/tmp/agent-graph/<pid>.json`.
+    Down {
+        /// The pid of the agent.
+        #[arg(long)]
+        pid: u32,
+    },
 }
 
 fn main() -> ExitCode {
@@ -143,6 +150,7 @@ fn run_node(command: NodeCommand, cwd: &Path, stdout: &mut impl Write) -> Result
             }
             write!(stdout, "{text}")?;
         }
+        NodeCommand::Down { pid } => state::remove(pid)?,
     }
     Ok(())
 }

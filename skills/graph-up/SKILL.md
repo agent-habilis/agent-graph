@@ -1,6 +1,6 @@
 ---
 name: graph-up
-description: Start an agent graph in the current gossip. This agent is the bootstrapper. It takes one node of the graph, then offers each open place to one peer that ran `/graph-join`, through gossip tasks. A node with `count` n needs n agents. Done when every node has its count. Use when the user says "/graph-up <graph> [<node>]", "graph up", or "start the <graph> graph".
+description: Start an agent graph in the current gossip. This agent is the bootstrapper. It takes one node of the graph, then offers each open place to one peer of the gossip that has no node yet, through gossip tasks. A node with `count` n needs n agents. Done when every node has its count. Use when the user says "/graph-up <graph> [<node>]", "graph up", or "start the <graph> graph".
 allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(basename:*)
 ---
 
@@ -104,14 +104,15 @@ channel to find the peers:
 agent-gossip meta get --gossip "$GOSSIP" --nickname "$NICKNAME"
 ```
 
-A peer is **free** if its entry has `"graphs": "open"` (the peer ran
-`/graph-join`), it has no `node`, and it has no open offer from you. For each
-open place, pick one free peer, and send a node offer. The label must start
-with `graph · `, and the brief must have exactly this form, because
-`/graph-join` reads both:
+Every peer of the gossip is available, except a peer that already has a
+node. A peer has one node at most. A peer is **free** if its meta entry has
+no `node`, and it has no open offer from you. For each open place, pick one
+free peer, and send a node offer. The peer accepts or declines it as any
+other gossip task. After it accepts, the peer loads the node itself with
+`/graph-node-up`:
 
 ```bash
-agent-gossip a2a call --gossip "$GOSSIP" --nickname "$NICKNAME" --to "$PEER" --method SendMessage --label "graph · $INSTANCE · <id>" --text "Node offer. Graph: $INSTANCE. Id: <id>. Node: <graph>/<node>."
+agent-gossip a2a call --gossip "$GOSSIP" --nickname "$NICKNAME" --to "$PEER" --method SendMessage --label "graph · $INSTANCE · <id>" --text "Node offer. Graph: $INSTANCE. Node: <graph>/<node>. If you already have a node, decline with the reason: has a node. Else, after you accept: 1. Run /graph-node-up <graph>/<node>. 2. Record it in your meta entry: agent-gossip meta merge --gossip \"\$GOSSIP\" --nickname \"\$NICKNAME\" --merge '{\"peers\":{\"<your nickname>\":{\"graph\":\"$INSTANCE\",\"node\":\"<id>\",\"status\":\"busy\"}}}'. 3. Send the artifact: loaded <graph>/<node>. If /graph-node-up fails, decline with its error line."
 ```
 
 Track each offer as a task, per the **Task tracking** rules.
@@ -131,9 +132,9 @@ with these rules for node offers:
 
 - **`failed` or `task_timeout`:** the place is open again. Offer it to the
   next free peer.
-- **No free peer:** print this line. Tell the user that each other agent
-  runs `/graph-join`. On each later batch, read meta again, and offer the
-  open places to the new free peers:
+- **No free peer:** print this line. On each later batch, read meta again,
+  and offer the open places to new free peers, for example a peer that just
+  joined the gossip:
 
   ```text
   graph · waiting · $INSTANCE · <n> places open
