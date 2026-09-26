@@ -632,3 +632,20 @@ fn node_down_without_state_file_succeeds() {
 
     assert!(out.status.success(), "{}", stderr(&out));
 }
+
+#[test]
+fn node_up_state_uses_graph_title() {
+    let (_tmp, root) = root();
+    graph_node(&root, "team", "worker", &index("w", None, ""));
+    write(
+        &root.join(".agent-graph/team/index.md"),
+        "---\ntype: Graph\ndescription: d\ntitle: Dev team\nscope: branch\n---\n",
+    );
+
+    let state = up_state(&root, "team/worker", 4_000_005);
+
+    assert_eq!(
+        state,
+        "{\"graph\":\"Dev team\",\"node\":\"worker\",\"pid\":4000005}\n"
+    );
+}

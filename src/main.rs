@@ -46,9 +46,12 @@ enum GraphCommand {
     List,
     /// Print the graph's index.md body, with its `@file` includes expanded.
     Get { name: String },
-    /// Print one line per graph node: mermaid id, node, class, count
-    /// (tab-separated).
+    /// Print one line per graph node: mermaid id, node, class, count,
+    /// preferred model (tab-separated).
     Nodes { name: String },
+    /// Print the SHA-256 of the graph folder: the id of the graph between
+    /// peers.
+    Hash { name: String },
     /// Check one graph, or all graphs. Prints `path:line: reason` per error.
     Lint { name: Option<String> },
     /// Write the default graph into `<dir>/.agent-graph/`. Does nothing if
@@ -193,6 +196,9 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
             graph::load(dir).map_err(|reason| anyhow!("graph `{name}` is not valid: {reason}"))?;
             write!(stdout, "{}", include::expand(dir, &dir.join("index.md"))?)?;
         }
+        GraphCommand::Hash { name } => {
+            writeln!(stdout, "{}", graph::hash(find(&name)?)?)?;
+        }
         GraphCommand::Nodes { name } => {
             let dir = find(&name)?;
             let graph = graph::load(dir)
@@ -202,11 +208,13 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
                 .iter()
                 .filter(|vertex| vertex.subgraph.is_some())
             {
-                let count = node::load(&graph::node_dir(dir, vertex)).map_or(1, |node| node.count);
+                let node = node::load(&graph::node_dir(dir, vertex)).ok();
+                let count = node.as_ref().map_or(1, |node| node.count);
+                let model = node.and_then(|node| node.model).unwrap_or_default();
                 let class = vertex.class.map_or("none", graph::Class::name);
                 writeln!(
                     stdout,
-                    "{}\t{name}/{}\t{class}\t{count}",
+                    "{}\t{name}/{}\t{class}\t{count}\t{model}",
                     vertex.id, vertex.label
                 )?;
             }

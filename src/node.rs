@@ -11,6 +11,8 @@ pub(crate) struct Node {
     pub(crate) icon: Option<String>,
     /// How many agents the node needs.
     pub(crate) count: u32,
+    /// The model the node prefers, matched against a peer's model.
+    pub(crate) model: Option<String>,
 }
 
 /// Graph folders in `.agent-graph/` from `start` up to `/`, by name. A nearer
@@ -85,10 +87,12 @@ pub(crate) fn load(dir: &Path) -> Result<Node, String> {
     markdown::check_boundaries(&content)
         .map_err(|(line, reason)| format!("index.md:{line}: {reason}"))?;
     let icon = frontmatter.get("icon").map(str::to_string);
+    let model = frontmatter.get("model").map(str::to_string);
     Ok(Node {
         description,
         tags,
         icon,
         count,
+        model,
     })
 }

@@ -15,7 +15,8 @@ const DIR: &str = "/tmp/agent-graph";
 pub(crate) fn write(pid: u32, graph: (&str, &Graph), node: (&str, &Node)) -> Result<()> {
     let mut state = Map::new();
     state.insert("pid".into(), pid.into());
-    insert(&mut state, "graph", graph.0, graph.1.icon.as_deref());
+    let graph_name = graph.1.title.as_deref().unwrap_or(graph.0);
+    insert(&mut state, "graph", graph_name, graph.1.icon.as_deref());
     insert(&mut state, "node", node.0, node.1.icon.as_deref());
     let dir = PathBuf::from(DIR);
     fs::create_dir_all(&dir)?;

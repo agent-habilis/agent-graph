@@ -28,6 +28,7 @@ A graph `index.md` starts with this frontmatter:
 type: Graph                 # required
 description: One worker, one advisor, and one qa per git branch.   # required
 scope: branch               # required: branch or project
+title: Dev team             # optional, the graph name on the statusline
 icon: 󰡉                     # optional, one Nerd Font glyph for the statusline
 ---
 ```
@@ -42,6 +43,7 @@ title: Advisor              # optional
 tags: [review, go]          # optional, inline list only
 icon: 󰌵                     # optional, one Nerd Font glyph for the statusline
 count: 2                    # optional, the number of agents in this node (default 1)
+model: fable                # optional, the model the node prefers; graph-up offers it to a matching peer first
 ---
 ```
 
@@ -57,8 +59,9 @@ If two directories have a graph with the same name, the graph nearer to the curr
 ```sh
 agent-graph graph list                     # name<TAB>description<TAB>scope<TAB>path
 agent-graph graph get dev-team             # the body of the graph, with includes expanded
-agent-graph graph nodes dev-team           # id<TAB><graph>/<node><TAB>class<TAB>count
+agent-graph graph nodes dev-team           # id<TAB><graph>/<node><TAB>class<TAB>count<TAB>model
 agent-graph graph lint [dev-team]          # path:line: reason, for each error
+agent-graph graph hash dev-team            # SHA-256 of the graph folder: the graph id between peers
 agent-graph graph init [<dir>]             # write the default graph into <dir>/.agent-graph/
 agent-graph node list                      # name<TAB>description<TAB>tags<TAB>path
 agent-graph node list --tag '^go$'         # only nodes with a tag that matches the regex
@@ -94,6 +97,7 @@ In `index.md`, a line that contains only `@<path>` is replaced with the body of 
 ```
 
 `pid` is the Claude Code process. A statusline script gets the same pid as its parent process.
+The `graph` key is the `title` of the graph, or its folder name when it has no title.
 A graph or node without an `icon` has no icon key.
 
 ## Exit codes

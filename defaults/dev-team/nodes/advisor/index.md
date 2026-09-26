@@ -4,6 +4,7 @@ description: Review the work of the worker, and find risks, bugs, and simpler op
 title: Advisor
 tags: [dev, review]
 icon: 󰌵
+model: fable
 ---
 
 # Advisor

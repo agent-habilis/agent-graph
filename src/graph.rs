@@ -1,9 +1,11 @@
 use std::collections::{BTreeMap, HashMap};
-use std::fs;
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
+use std::{fs, io};
 
 use regex::Regex;
+use sha2::{Digest, Sha256};
 
 use crate::{frontmatter, markdown, node};
 
@@ -54,6 +56,7 @@ struct Edge {
 pub(crate) struct Graph {
     pub(crate) description: String,
     pub(crate) scope: String,
+    pub(crate) title: Option<String>,
     pub(crate) icon: Option<String>,
     pub(crate) vertices: Vec<Vertex>,
     edges: Vec<Edge>,
@@ -96,10 +99,12 @@ pub(crate) fn load(dir: &Path) -> Result<Graph, String> {
     if !matches!(scope.as_str(), "project" | "branch") {
         return Err(format!("scope is `{scope}`, must be `project` or `branch`"));
     }
+    let title = frontmatter.get("title").map(str::to_string);
     let icon = frontmatter.get("icon").map(str::to_string);
     let mut graph = Graph {
         description,
         scope,
+        title,
         icon,
         vertices: Vec::new(),
         edges: Vec::new(),
@@ -202,6 +207,42 @@ fn parse_mermaid(content: &str, graph: &mut Graph) {
             vertex.class = Some(class);
         }
     }
+}
+
+/// The SHA-256 of the graph folder at `dir`, as hex: the id of the graph
+/// between peers. It covers the relative path and the content of each file,
+/// in path order, and no timestamps, so a copy of the folder has the same
+/// hash.
+pub(crate) fn hash(dir: &Path) -> io::Result<String> {
+    let mut files = Vec::new();
+    collect_files(dir, &mut files)?;
+    files.sort();
+    let mut hasher = Sha256::new();
+    for file in files {
+        let content = fs::read(&file)?;
+        let relative = file.strip_prefix(dir).unwrap_or(&file);
+        hasher.update(relative.to_string_lossy().as_bytes());
+        hasher.update(b"\0");
+        hasher.update((content.len() as u64).to_le_bytes());
+        hasher.update(&content);
+    }
+    let mut hex = String::with_capacity(64);
+    for byte in hasher.finalize() {
+        let _ = write!(hex, "{byte:02x}");
+    }
+    Ok(hex)
+}
+
+fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> io::Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            collect_files(&path, files)?;
+        } else {
+            files.push(path);
+        }
+    }
+    Ok(())
 }
 
 /// The node folder of a vertex in the graph at `dir`.

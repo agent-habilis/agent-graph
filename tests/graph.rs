@@ -384,7 +384,7 @@ fn graph_nodes_prints_node_node_and_class() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(
         stdout(&out),
-        "worker\tcoding/worker\tpublic\t1\nadvisor\tcoding/advisor\tprivate\t1\n"
+        "worker\tcoding/worker\tpublic\t1\t\nadvisor\tcoding/advisor\tprivate\t1\t\n"
     );
 }
 
@@ -403,7 +403,7 @@ fn graph_nodes_names_graph_local_node() {
 
     assert_eq!(
         stdout(&nodes),
-        "worker\tcoding/worker\tpublic\t1\nadvisor\tcoding/reviewer\tprivate\t1\n"
+        "worker\tcoding/worker\tpublic\t1\t\nadvisor\tcoding/reviewer\tprivate\t1\t\n"
     );
     assert!(lint.status.success(), "{}{}", stdout(&lint), stderr(&lint));
 }
@@ -433,7 +433,7 @@ fn graph_nodes_prints_count_of_each_node() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(
         stdout(&out),
-        "worker\tcoding/worker\tpublic\t1\nadvisor\tcoding/advisor\tprivate\t3\n"
+        "worker\tcoding/worker\tpublic\t1\t\nadvisor\tcoding/advisor\tprivate\t3\t\n"
     );
 }
 
@@ -453,5 +453,76 @@ fn graph_lint_rejects_node_with_bad_count() {
         stdout(&out).contains("node `advisor` is not valid: count is `0`"),
         "{}",
         stdout(&out)
+    );
+}
+
+fn hash(cwd: &Path, name: &str) -> String {
+    let out = run(cwd, &["graph", "hash", name]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    stdout(&out)
+}
+
+#[test]
+fn graph_hash_is_same_for_same_content() {
+    let (_tmp, root) = root();
+    let first = graph(&root.join("a"), "coding", CODING);
+    write(&first.join("nodes/worker/index.md"), NODE_INDEX);
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let second = graph(&root.join("b"), "coding", CODING);
+    write(&second.join("nodes/worker/index.md"), NODE_INDEX);
+
+    let first_hash = hash(&root.join("a"), "coding");
+    let second_hash = hash(&root.join("b"), "coding");
+
+    assert_eq!(first_hash, second_hash);
+    assert_eq!(first_hash.trim().len(), 64, "{first_hash}");
+    assert!(
+        first_hash
+            .trim()
+            .chars()
+            .all(|char| char.is_ascii_hexdigit()),
+        "{first_hash}"
+    );
+}
+
+#[test]
+fn graph_hash_changes_when_a_file_changes() {
+    let (_tmp, root) = root();
+    let dir = graph(&root, "coding", CODING);
+    let before = hash(&root, "coding");
+
+    write(
+        &dir.join("nodes/worker/index.md"),
+        "---\ntype: Node\ndescription: e\n---\n",
+    );
+
+    assert_ne!(hash(&root, "coding"), before);
+}
+
+#[test]
+fn graph_hash_unknown_graph_exits_1() {
+    let (_tmp, root) = root();
+
+    let out = run(&root, &["graph", "hash", "nope"]);
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).starts_with("error: "), "{}", stderr(&out));
+}
+
+#[test]
+fn graph_nodes_prints_model_preference() {
+    let (_tmp, root) = root();
+    let dir = graph(&root, "coding", CODING);
+    write(
+        &dir.join("nodes/advisor/index.md"),
+        "---\ntype: Node\ndescription: d\nmodel: fable\n---\n",
+    );
+
+    let out = run(&root, &["graph", "nodes", "coding"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        stdout(&out),
+        "worker\tcoding/worker\tpublic\t1\t\nadvisor\tcoding/advisor\tprivate\t1\tfable\n"
     );
 }

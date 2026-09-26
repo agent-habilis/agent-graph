@@ -51,15 +51,23 @@ graph · usage · /graph-up <graph> [<node>]
 
    If `lint` fails, show its lines, then stop. From `graph list`, hold the
    `scope` of the graph. Each line of `graph nodes` is
-   `id<TAB><graph>/<node><TAB>public|private<TAB>count`. Hold the list as
+   `id<TAB><graph>/<node><TAB>public|private<TAB>count<TAB>model`. `model` is
+   the model the node prefers, or empty. Hold the list as
    `$NODES`.
 
-3. Hold the instance name as `$INSTANCE`:
+3. Hold the hash of the graph folder as `$HASH`. It is the id of the graph
+   between peers:
+
+   ```bash
+   agent-graph graph hash <graph>
+   ```
+
+4. Hold the instance name as `$INSTANCE`:
    - `scope: branch` → `<graph>@<branch>`, with `git branch --show-current`.
    - `scope: project` → `<graph>@<repo>`, with
      `basename "$(git rev-parse --show-toplevel)"`.
 
-4. Read the state document:
+5. Read the state document:
 
    ```bash
    agent-gossip state get --gossip "$GOSSIP" --nickname "$NICKNAME"
@@ -83,7 +91,7 @@ graph · usage · /graph-up <graph> [<node>]
    node has `["$NICKNAME"]`. Every other node has `[]`:
 
    ```bash
-   agent-gossip state merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"graphs":{"'"$INSTANCE"'":{"bootstrapper":"'"$NICKNAME"'","nodes":{"<id>":{"node":"<graph>/<node>","count":<count>,"peers":["'"$NICKNAME"'"]}, …}}}}'
+   agent-gossip state merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"graphs":{"'"$INSTANCE"'":{"bootstrapper":"'"$NICKNAME"'","hash":"'"$HASH"'","nodes":{"<id>":{"node":"<graph>/<node>","count":<count>,"peers":["'"$NICKNAME"'"]}, …}}}}'
    ```
 
 3. Record your node in the meta channel:
@@ -107,12 +115,15 @@ agent-gossip meta get --gossip "$GOSSIP" --nickname "$NICKNAME"
 Every peer of the gossip is available, except a peer that already has a
 node. A peer has one node at most. A peer is **free** if its meta entry has
 no `node`, and it has no open offer from you. For each open place, pick one
-free peer, and send a node offer. The peer accepts or declines it as any
-other gossip task. After it accepts, the peer loads the node itself with
-`/graph-node-up`:
+free peer, and send a node offer. If the node has a `model`, pick first a
+free peer whose meta `model` contains it (case-insensitive, so `fable`
+matches `claude-fable-5-1`). If no such peer is free, pick any free peer. The peer accepts or declines it as any
+other gossip task. The brief holds the steps for the peer. The peer has the
+graph if `~/.agent-graph/$HASH/` exists. If it does not, it asks for the graph
+on the same task, and you send it (see **Drive**):
 
 ```bash
-agent-gossip a2a call --gossip "$GOSSIP" --nickname "$NICKNAME" --to "$PEER" --method SendMessage --label "graph · $INSTANCE · <id>" --text "Node offer. Graph: $INSTANCE. Node: <graph>/<node>. If you already have a node, decline with the reason: has a node. Else, after you accept: 1. Run /graph-node-up <graph>/<node>. 2. Record it in your meta entry: agent-gossip meta merge --gossip \"\$GOSSIP\" --nickname \"\$NICKNAME\" --merge '{\"peers\":{\"<your nickname>\":{\"graph\":\"$INSTANCE\",\"node\":\"<id>\",\"status\":\"busy\"}}}'. 3. Send the artifact: loaded <graph>/<node>. If /graph-node-up fails, decline with its error line."
+agent-gossip a2a call --gossip "$GOSSIP" --nickname "$NICKNAME" --to "$PEER" --method SendMessage --label "graph · $INSTANCE · <id>" --text "Node offer. Graph: $INSTANCE. Hash: $HASH. Node: <node>. If you already have a node, decline with the reason: has a node. Else, after you accept: 1. If ~/.agent-graph/$HASH/ does not exist, run: agent-gossip a2a status --gossip \"\$GOSSIP\" --nickname \"\$NICKNAME\" --task-id <this task> --state input-required --text \"graph $HASH missing · send it\". Then wait for my follow-up on this task. It carries the graph as a file part: fetch it with agent-gossip a2a fetch <payload.parts[].url> --output /tmp/$HASH.tar, then run: mkdir -p ~/.agent-graph/$HASH && tar -xf /tmp/$HASH.tar -C ~/.agent-graph/$HASH. Then run agent-graph graph hash $HASH from your home folder. If it does not print $HASH, remove ~/.agent-graph/$HASH and decline with the reason: bad graph. 2. Run /graph-node-up $HASH/<node> from your home folder, or from any folder under it. 3. Record it in your meta entry: agent-gossip meta merge --gossip \"\$GOSSIP\" --nickname \"\$NICKNAME\" --merge '{\"peers\":{\"<your nickname>\":{\"graph\":\"$INSTANCE\",\"node\":\"<id>\",\"status\":\"busy\"}}}'. 4. Send the artifact: loaded <node>. If /graph-node-up fails, decline with its error line."
 ```
 
 Track each offer as a task, per the **Task tracking** rules.
@@ -122,7 +133,16 @@ Track each offer as a task, per the **Task tracking** rules.
 Handle each event per the **Receive loop** and **Event handling** sections,
 with these rules for node offers:
 
-- **Artifact `loaded <graph>/<node>`:** approve it with a follow-up that
+- **`input-required` with the text `graph <hash> missing · send it`:** pack
+  the graph folder (its path is the last column of `agent-graph graph list`)
+  and send it on the same task:
+
+  ```bash
+  COPYFILE_DISABLE=1 tar -cf /tmp/$HASH.tar -C "<graph folder>" .
+  agent-gossip a2a call --gossip "$GOSSIP" --nickname "$NICKNAME" --to "<peer>" --method SendMessage --task-id "<task id>" --file /tmp/$HASH.tar --text "graph $HASH"
+  ```
+
+- **Artifact `loaded <node>`:** approve it with a follow-up that
   carries `--task-id`. Then add the peer to the `peers` list of the node. A
   merge replaces a list, so write the full list:
 
