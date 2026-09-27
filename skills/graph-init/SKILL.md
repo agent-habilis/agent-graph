@@ -1,6 +1,6 @@
 ---
 name: graph-init
-description: Create a starter `.agent-graph/` folder in the current project, with the dev-team graph and its worker, advisor, and qa nodes. Does nothing if the folder exists. Use when the user says "/graph-init", "init graph", or "set up agent graphs for this project".
+description: Create a starter `.agent-graph/` folder in the current project, with the default-pod graph and its orchestrator, worker, and advisor nodes. Does nothing if the folder exists. Use when the user says "/graph-init", "init graph", or "set up agent graphs for this project".
 allowed-tools: Bash(git rev-parse:*), Bash(agent-graph:*)
 ---
 
@@ -10,10 +10,10 @@ Create `.agent-graph/` in the current project with `agent-graph graph init`.
 
 The defaults are:
 
-- `dev-team`: 1 worker (public), 1 advisor, and 1 qa, per git branch.
-  - `dev-team/worker`: writes the code on one branch.
-  - `dev-team/advisor`: reviews the work of the worker.
-  - `dev-team/qa`: runs the tests and tries the change as a user.
+- `default-pod`: 1 orchestrator (public), 2 workers, and 1 advisor, per git branch.
+  - `default-pod/orchestrator`: divides the task and manages the work (model opus).
+  - `default-pod/worker`: writes the code for one part (count 2, model sonnet).
+  - `default-pod/advisor`: reviews the plan and the diff (model fable).
 
 ## Target
 

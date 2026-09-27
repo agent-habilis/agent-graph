@@ -8,27 +8,27 @@ Edges are the channels between nodes.
 
 ```
 .agent-graph/
-  dev-team/
+  default-pod/
     index.md        # the graph: mermaid block, boundaries, edges
     shared/         # optional files that the nodes can include
     nodes/
       worker/
-        index.md    # the node "dev-team/worker"
+        index.md    # the node "default-pod/worker"
         tone.md     # printed only if index.md includes it
 ```
 
 Each graph folder and each node folder is an [OKF](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) bundle.
 A graph folder is self-contained: it holds its nodes, so you can share the graph as one folder.
-Every node lives in a graph. A node has the name `<graph>/<node>`, for example `dev-team/worker`.
+Every node lives in a graph. A node has the name `<graph>/<node>`, for example `default-pod/worker`.
 
 A graph `index.md` starts with this frontmatter:
 
 ```yaml
 ---
 type: Graph                 # required
-description: One worker, one advisor, and one qa per git branch.   # required
+description: One orchestrator, two workers, and one advisor per git branch.   # required
 scope: branch               # required: branch or project
-title: Dev team             # optional, the graph name on the statusline
+title: Default pod          # optional, the graph name on the statusline
 icon: 󰡉                     # optional, one Nerd Font glyph for the statusline
 ---
 ```
@@ -58,15 +58,15 @@ If two directories have a graph with the same name, the graph nearer to the curr
 
 ```sh
 agent-graph graph list                     # name<TAB>description<TAB>scope<TAB>path
-agent-graph graph get dev-team             # the body of the graph, with includes expanded
-agent-graph graph nodes dev-team           # id<TAB><graph>/<node><TAB>class<TAB>count<TAB>model
-agent-graph graph lint [dev-team]          # path:line: reason, for each error
-agent-graph graph hash dev-team            # SHA-256 of the graph folder: the graph id between peers
+agent-graph graph get default-pod          # the body of the graph, with includes expanded
+agent-graph graph nodes default-pod        # id<TAB><graph>/<node><TAB>class<TAB>count<TAB>model
+agent-graph graph lint [default-pod]       # path:line: reason, for each error
+agent-graph graph hash default-pod         # SHA-256 of the graph folder: the graph id between peers
 agent-graph graph init [<dir>]             # write the default graph into <dir>/.agent-graph/
 agent-graph node list                      # name<TAB>description<TAB>tags<TAB>path
 agent-graph node list --tag '^go$'         # only nodes with a tag that matches the regex
-agent-graph node up dev-team/worker        # the body of the graph, then the body of the node
-agent-graph node up dev-team/worker --pid N  # also write /tmp/agent-graph/N.json for the statusline
+agent-graph node up default-pod/worker     # the body of the graph, then the body of the node
+agent-graph node up default-pod/worker --pid N # also write /tmp/agent-graph/N.json for the statusline
 agent-graph node down --pid N               # remove /tmp/agent-graph/N.json
 ```
 
@@ -75,7 +75,7 @@ The `--tag` regex is not anchored, so `go` also matches `mongo`.
 
 ## Defaults
 
-`agent-graph graph init` writes the files in [`defaults/`](defaults/) into `.agent-graph/`: the `dev-team` graph with its `worker`, `advisor`, and `qa` nodes.
+`agent-graph graph init` writes the files in [`defaults/`](defaults/) into `.agent-graph/`: the `default-pod` graph with its `orchestrator`, `worker`, and `advisor` nodes.
 The build puts these files into the binary, so a user needs only the binary.
 If `.agent-graph` exists, `init` writes nothing and exits 0.
 
@@ -93,7 +93,7 @@ In `index.md`, a line that contains only `@<path>` is replaced with the body of 
 `node up --pid <pid>` writes the graph, the node, and their icons to `/tmp/agent-graph/<pid>.json`:
 
 ```json
-{"graph":"dev-team","graph_icon":"󰡉","node":"worker","node_icon":"󱌢","pid":123}
+{"graph":"default-pod","graph_icon":"󰡉","node":"worker","node_icon":"󱌢","pid":123}
 ```
 
 `pid` is the Claude Code process. A statusline script gets the same pid as its parent process.

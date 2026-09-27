@@ -375,7 +375,27 @@ fn graph_init_writes_defaults_into_cwd() {
         .collect();
     assert_eq!(
         names,
-        ["dev-team/advisor", "dev-team/qa", "dev-team/worker"]
+        [
+            "default-pod/advisor",
+            "default-pod/orchestrator",
+            "default-pod/worker"
+        ]
+    );
+}
+
+#[test]
+fn graph_init_defaults_have_opus_orchestrator_sonnet_workers_and_fable_advisor() {
+    let (_tmp, root) = root();
+    run(&root, &["graph", "init"]);
+
+    let out = run(&root, &["graph", "nodes", "default-pod"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        stdout(&out),
+        "orchestrator\tdefault-pod/orchestrator\tpublic\t1\topus\n\
+         worker\tdefault-pod/worker\tprivate\t2\tsonnet\n\
+         advisor\tdefault-pod/advisor\tprivate\t1\tfable\n"
     );
 }
 
@@ -406,7 +426,7 @@ fn graph_init_writes_into_dir_argument() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
         target
-            .join(".agent-graph/dev-team/nodes/worker/index.md")
+            .join(".agent-graph/default-pod/nodes/worker/index.md")
             .is_file()
     );
     assert!(!root.join(".agent-graph").exists());
@@ -639,13 +659,13 @@ fn node_up_state_uses_graph_title() {
     graph_node(&root, "team", "worker", &index("w", None, ""));
     write(
         &root.join(".agent-graph/team/index.md"),
-        "---\ntype: Graph\ndescription: d\ntitle: Dev team\nscope: branch\n---\n",
+        "---\ntype: Graph\ndescription: d\ntitle: Default pod\nscope: branch\n---\n",
     );
 
     let state = up_state(&root, "team/worker", 4_000_005);
 
     assert_eq!(
         state,
-        "{\"graph\":\"Dev team\",\"node\":\"worker\",\"pid\":4000005}\n"
+        "{\"graph\":\"Default pod\",\"node\":\"worker\",\"pid\":4000005}\n"
     );
 }
