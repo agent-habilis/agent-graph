@@ -1,4 +1,4 @@
-//! Embed every file under `defaults/` into the binary for `agent-graph graph init`,
+//! Embed every file under `defaults/` into the binary for `agent-graph template init`,
 //! and render the `skills/` sources into one self-contained `SKILL.md` per skill
 //! for `agent-graph plug`.
 
@@ -39,8 +39,8 @@ fn embed_defaults(root: &Path, out_dir: &Path) -> io::Result<()> {
     fs::write(out_dir.join("defaults.rs"), out)
 }
 
-/// Expand each `skills/graph-*/SKILL.md` template into `dest`. The partials in
-/// `skills/shared/` are only spliced in, never emitted.
+/// Expand each `skills/{template,role,team}-*/SKILL.md` source into `dest`.
+/// The partials in `skills/shared/` are only spliced in, never emitted.
 fn render_skills(src: &Path, dest: &Path) -> io::Result<()> {
     println!("cargo:rerun-if-changed={}", src.display());
     if dest.exists() {
@@ -52,9 +52,12 @@ fn render_skills(src: &Path, dest: &Path) -> io::Result<()> {
         .into_iter()
         .filter(|path| {
             path.is_dir()
-                && path
-                    .file_name()
-                    .is_some_and(|name| name.to_string_lossy().starts_with("graph-"))
+                && path.file_name().is_some_and(|name| {
+                    let name = name.to_string_lossy();
+                    ["template-", "role-", "team-"]
+                        .iter()
+                        .any(|prefix| name.starts_with(prefix))
+                })
         })
         .collect();
     skills.sort();

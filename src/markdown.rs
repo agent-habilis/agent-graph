@@ -6,7 +6,7 @@ pub(crate) struct Section<'a> {
     pub(crate) lines: Vec<(usize, &'a str)>,
 }
 
-/// The section under `heading` (for example `## Edges`), up to the next
+/// The section under `heading` (for example `## Handoffs`), up to the next
 /// heading of the same or a higher level. A heading inside a code fence
 /// is text, not a heading.
 pub(crate) fn section<'a>(content: &'a str, heading: &str) -> Option<Section<'a>> {

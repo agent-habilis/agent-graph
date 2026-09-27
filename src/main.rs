@@ -1,12 +1,12 @@
 mod frontmatter;
-mod graph;
 mod include;
 mod init;
 mod markdown;
-mod node;
 mod plug;
+mod role;
 mod state;
-mod topology;
+mod team;
+mod template;
 
 use std::env;
 use std::io::{self, Write};
@@ -17,9 +17,9 @@ use anyhow::{Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use regex::Regex;
 
-/// Find and print agent graphs: OKF bundles in `.agent-graph/` folders from
-/// the current directory up to `/`. A graph holds its nodes in
-/// `<graph>/nodes/`. The nearest graph with a name wins.
+/// Find and print agent team templates: OKF bundles in `.agent-graph/`
+/// folders from the current directory up to `/`. A template holds its roles
+/// in `<template>/roles/`. The nearest template with a name wins.
 #[derive(Debug, Parser)]
 #[command(version)]
 struct Cli {
@@ -29,16 +29,103 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// List, print, and check graphs: folders in `.agent-graph/`.
-    Graph {
+    /// List, print, and check team templates: folders in `.agent-graph/`.
+    Template {
         #[command(subcommand)]
-        command: GraphCommand,
+        command: TemplateCommand,
     },
-    /// Draw the live pod: one box per gossip peer in its node, and the graph
-    /// edges between them. Prints one `warning:` line per problem to stderr.
+    /// List roles, and load one into an agent.
+    Role {
+        #[command(subcommand)]
+        command: RoleCommand,
+    },
+    /// Show running teams: team templates that run in a gossip.
+    Team {
+        #[command(subcommand)]
+        command: TeamCommand,
+    },
+    /// Install the team skills into each agent on this machine. Prints one
+    /// line per target: state, agent, path (tab-separated).
+    Plug {
+        /// The agent to install into (repeatable). The default is each
+        /// detected agent.
+        #[arg(long = "agent", value_enum)]
+        agents: Vec<plug::Agent>,
+        /// A folder to install into as a skill root (repeatable). With only
+        /// `--path`, no agent is touched.
+        #[arg(long = "path")]
+        paths: Vec<PathBuf>,
+    },
+    /// Remove the team skills that `plug` installed. Other skills stay.
+    Unplug {
+        #[arg(long = "agent", value_enum)]
+        agents: Vec<plug::Agent>,
+        #[arg(long = "path")]
+        paths: Vec<PathBuf>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum TemplateCommand {
+    /// Print one line per template: name, description, scope, path
+    /// (tab-separated).
+    List,
+    /// Print the template's index.md body, with its `@file` includes
+    /// expanded.
+    Get { name: String },
+    /// Print one line per role of the template: mermaid id, role, `lead` or
+    /// `-`, count, preferred model (tab-separated).
+    Roles { name: String },
+    /// Print the SHA-256 of the template folder: the id of the template
+    /// between peers.
+    Hash { name: String },
+    /// Check one template, or all templates. Prints `path:line: reason` per
+    /// error.
+    Lint { name: Option<String> },
+    /// Write the default template into `<dir>/.agent-graph/`. Does nothing if
+    /// `.agent-graph` exists.
+    Init {
+        /// The folder to write into. The default is the current directory.
+        dir: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum RoleCommand {
+    /// Print one line per role: name, description, tags, path
+    /// (tab-separated). The name is `<template>/<role>`.
+    List {
+        /// Show only roles that have a tag that matches this regex.
+        #[arg(long)]
+        tag: Option<String>,
+    },
+    /// Print the template's body, then the role's body, with their `@file`
+    /// includes expanded.
+    Up {
+        /// The role, as `<template>/<role>`.
+        name: String,
+        /// The pid of the agent. Records the role in
+        /// `/tmp/agent-graph/<pid>.json` for the statusline.
+        #[arg(long)]
+        pid: Option<u32>,
+    },
+    /// Remove the role of an agent from the statusline:
+    /// `/tmp/agent-graph/<pid>.json`.
+    Down {
+        /// The pid of the agent.
+        #[arg(long)]
+        pid: u32,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum TeamCommand {
+    /// Draw the running team: one box per member in its role, and the
+    /// handoffs between them. Prints one `warning:` line per problem to
+    /// stderr.
     Topology {
-        /// The pod instance name, for example `default-pod@main`. The default
-        /// is the pod of `--me`.
+        /// The team instance name, for example `default@main`. The default
+        /// is the team of `--me`.
         instance: Option<String>,
         /// The output of `agent-gossip meta get`.
         #[arg(long)]
@@ -52,81 +139,6 @@ enum Command {
         /// Print the Mermaid source instead of the drawing.
         #[arg(long)]
         mermaid: bool,
-    },
-    /// List nodes, and load one into an agent.
-    Node {
-        #[command(subcommand)]
-        command: NodeCommand,
-    },
-    /// Install the graph skills into each agent on this machine. Prints one
-    /// line per target: state, agent, path (tab-separated).
-    Plug {
-        /// The agent to install into (repeatable). The default is each
-        /// detected agent.
-        #[arg(long = "agent", value_enum)]
-        agents: Vec<plug::Agent>,
-        /// A folder to install into as a skill root (repeatable). With only
-        /// `--path`, no agent is touched.
-        #[arg(long = "path")]
-        paths: Vec<PathBuf>,
-    },
-    /// Remove the graph skills that `plug` installed. Other skills stay.
-    Unplug {
-        #[arg(long = "agent", value_enum)]
-        agents: Vec<plug::Agent>,
-        #[arg(long = "path")]
-        paths: Vec<PathBuf>,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum GraphCommand {
-    /// Print one line per graph: name, description, scope, path
-    /// (tab-separated).
-    List,
-    /// Print the graph's index.md body, with its `@file` includes expanded.
-    Get { name: String },
-    /// Print one line per graph node: mermaid id, node, class, count,
-    /// preferred model (tab-separated).
-    Nodes { name: String },
-    /// Print the SHA-256 of the graph folder: the id of the graph between
-    /// peers.
-    Hash { name: String },
-    /// Check one graph, or all graphs. Prints `path:line: reason` per error.
-    Lint { name: Option<String> },
-    /// Write the default graph into `<dir>/.agent-graph/`. Does nothing if
-    /// `.agent-graph` exists.
-    Init {
-        /// The folder to write into. The default is the current directory.
-        dir: Option<PathBuf>,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum NodeCommand {
-    /// Print one line per node: name, description, tags, path
-    /// (tab-separated). The name is `<graph>/<node>`.
-    List {
-        /// Show only nodes that have a tag that matches this regex.
-        #[arg(long)]
-        tag: Option<String>,
-    },
-    /// Print the graph's body, then the node's body, with their `@file`
-    /// includes expanded.
-    Up {
-        /// The node, as `<graph>/<node>`.
-        name: String,
-        /// The pid of the agent. Records the node in
-        /// `/tmp/agent-graph/<pid>.json` for the statusline.
-        #[arg(long)]
-        pid: Option<u32>,
-    },
-    /// Remove the node of an agent from the statusline:
-    /// `/tmp/agent-graph/<pid>.json`.
-    Down {
-        /// The pid of the agent.
-        #[arg(long)]
-        pid: u32,
     },
 }
 
@@ -144,97 +156,103 @@ fn run(cli: Cli) -> Result<()> {
     let cwd = env::current_dir()?;
     let mut stdout = io::stdout().lock();
     match cli.command {
-        Command::Graph { command } => run_graph(command, &cwd, &mut stdout),
-        Command::Node { command } => run_node(command, &cwd, &mut stdout),
+        Command::Template { command } => run_template(command, &cwd, &mut stdout),
+        Command::Role { command } => run_role(command, &cwd, &mut stdout),
+        Command::Team { command } => run_team(command, &cwd, &mut stdout),
         Command::Plug { agents, paths } => print_lines(&mut stdout, &plug::plug(&agents, &paths)?),
         Command::Unplug { agents, paths } => {
             print_lines(&mut stdout, &plug::unplug(&agents, &paths)?)
         }
-        Command::Topology {
+    }
+}
+
+fn run_team(command: TeamCommand, cwd: &Path, stdout: &mut impl Write) -> Result<()> {
+    match command {
+        TeamCommand::Topology {
             instance,
             meta,
             peers,
             me,
             mermaid,
         } => {
-            let gossip = topology::Gossip::read(&meta, &peers)?;
-            let graphs = node::discover_graphs(&cwd);
-            let (source, warnings) = topology::draw(&graphs, &gossip, instance.as_deref(), &me)?;
+            let gossip = team::Gossip::read(&meta, &peers)?;
+            let templates = role::discover_templates(cwd);
+            let (source, warnings) = team::draw(&templates, &gossip, instance.as_deref(), &me)?;
             for warning in warnings {
                 eprintln!("warning: {warning}");
             }
             let mut text = if mermaid {
                 source
             } else {
-                topology::render_mermaid(&source)?
+                team::render_mermaid(&source)?
             };
             if !text.ends_with('\n') {
                 text.push('\n');
             }
             write!(stdout, "{text}")?;
-            Ok(())
         }
     }
+    Ok(())
 }
 
-fn run_node(command: NodeCommand, cwd: &Path, stdout: &mut impl Write) -> Result<()> {
-    let nodes = node::discover_nodes(cwd);
+fn run_role(command: RoleCommand, cwd: &Path, stdout: &mut impl Write) -> Result<()> {
+    let roles = role::discover_roles(cwd);
     match command {
-        NodeCommand::List { tag } => {
+        RoleCommand::List { tag } => {
             let tag = tag.map(|pattern| Regex::new(&pattern)).transpose()?;
-            for (name, dir) in &nodes {
-                let node = match node::load(dir) {
-                    Ok(node) => node,
+            for (name, dir) in &roles {
+                let role = match role::load(dir) {
+                    Ok(role) => role,
                     Err(reason) => {
                         eprintln!("warning: {}: {reason}", dir.display());
                         continue;
                     }
                 };
                 if let Some(tag) = &tag
-                    && !node.tags.iter().any(|item| tag.is_match(item))
+                    && !role.tags.iter().any(|item| tag.is_match(item))
                 {
                     continue;
                 }
                 writeln!(
                     stdout,
                     "{name}\t{}\t{}\t{}",
-                    node.description,
-                    node.tags.join(","),
+                    role.description,
+                    role.tags.join(","),
                     dir.display()
                 )?;
             }
         }
-        NodeCommand::Up { name, pid } => {
-            let dir = nodes
+        RoleCommand::Up { name, pid } => {
+            let dir = roles
                 .get(&name)
-                .ok_or_else(|| anyhow!("node `{name}` not found, use `<graph>/<node>`"))?;
-            let node = node::load(dir)
-                .map_err(|reason| anyhow!("node `{name}` is not valid: {reason}"))?;
-            let (graph_name, node_name) = name.split_once('/').unwrap_or(("", &name));
-            let graph_dir = dir.join("../..").canonicalize()?;
-            let graph = graph::load(&graph_dir)
-                .map_err(|reason| anyhow!("graph `{graph_name}` is not valid: {reason}"))?;
-            let mut text = include::expand(&graph_dir, &graph_dir.join("index.md"))?;
-            text += &include::expand(&graph_dir, &dir.join("index.md"))?;
+                .ok_or_else(|| anyhow!("role `{name}` not found, use `<template>/<role>`"))?;
+            let role = role::load(dir)
+                .map_err(|reason| anyhow!("role `{name}` is not valid: {reason}"))?;
+            let (template_name, role_name) = name.split_once('/').unwrap_or(("", &name));
+            let template_dir = dir.join("../..").canonicalize()?;
+            let template = template::load(&template_dir)
+                .map_err(|reason| anyhow!("template `{template_name}` is not valid: {reason}"))?;
+            let mut text = include::expand(&template_dir, &template_dir.join("index.md"))?;
+            text += &include::expand(&template_dir, &dir.join("index.md"))?;
             if let Some(pid) = pid {
-                state::write(pid, (graph_name, &graph), (node_name, &node))?;
+                state::write(pid, (template_name, &template), (role_name, &role))?;
             }
             write!(stdout, "{text}")?;
         }
-        NodeCommand::Down { pid } => state::remove(pid)?,
+        RoleCommand::Down { pid } => state::remove(pid)?,
     }
     Ok(())
 }
 
-fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Result<()> {
-    let graphs = node::discover_graphs(cwd);
+fn run_template(command: TemplateCommand, cwd: &Path, stdout: &mut impl Write) -> Result<()> {
+    let templates = role::discover_templates(cwd);
     let find = |name: &str| {
-        graphs
+        templates
             .get(name)
-            .ok_or_else(|| anyhow!("graph `{name}` not found"))
+            .ok_or_else(|| anyhow!("template `{name}` not found"))
     };
     match command {
-        GraphCommand::Init { dir } => {
+        TemplateCommand::Init { dir } => {
             let dir = dir.unwrap_or_else(|| cwd.to_path_buf());
             match init::init(&dir)? {
                 Some(written) => {
@@ -245,58 +263,59 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
                 None => eprintln!("{} already exists", dir.join(".agent-graph").display()),
             }
         }
-        GraphCommand::List => {
-            for (name, dir) in &graphs {
-                match graph::load(dir) {
-                    Ok(graph) => writeln!(
+        TemplateCommand::List => {
+            for (name, dir) in &templates {
+                match template::load(dir) {
+                    Ok(template) => writeln!(
                         stdout,
                         "{name}\t{}\t{}\t{}",
-                        graph.description,
-                        graph.scope,
+                        template.description,
+                        template.scope,
                         dir.display()
                     )?,
                     Err(reason) => eprintln!("warning: {}: {reason}", dir.display()),
                 }
             }
         }
-        GraphCommand::Get { name } => {
+        TemplateCommand::Get { name } => {
             let dir = find(&name)?;
-            graph::load(dir).map_err(|reason| anyhow!("graph `{name}` is not valid: {reason}"))?;
+            template::load(dir)
+                .map_err(|reason| anyhow!("template `{name}` is not valid: {reason}"))?;
             write!(stdout, "{}", include::expand(dir, &dir.join("index.md"))?)?;
         }
-        GraphCommand::Hash { name } => {
-            writeln!(stdout, "{}", graph::hash(find(&name)?)?)?;
+        TemplateCommand::Hash { name } => {
+            writeln!(stdout, "{}", template::hash(find(&name)?)?)?;
         }
-        GraphCommand::Nodes { name } => {
+        TemplateCommand::Roles { name } => {
             let dir = find(&name)?;
-            let graph = graph::load(dir)
-                .map_err(|reason| anyhow!("graph `{name}` is not valid: {reason}"))?;
-            for vertex in graph
+            let template = template::load(dir)
+                .map_err(|reason| anyhow!("template `{name}` is not valid: {reason}"))?;
+            for vertex in template
                 .vertices
                 .iter()
                 .filter(|vertex| vertex.subgraph.is_some())
             {
-                let node = node::load(&graph::node_dir(dir, vertex)).ok();
-                let count = node.as_ref().map_or(1, |node| node.count);
-                let model = node.and_then(|node| node.model).unwrap_or_default();
-                let class = vertex.class.map_or("none", graph::Class::name);
+                let role = role::load(&template::role_dir(dir, vertex)).ok();
+                let count = role.as_ref().map_or(1, |role| role.count);
+                let model = role.and_then(|role| role.model).unwrap_or_default();
+                let lead = if vertex.lead { "lead" } else { "-" };
                 writeln!(
                     stdout,
-                    "{}\t{name}/{}\t{class}\t{count}\t{model}",
+                    "{}\t{name}/{}\t{lead}\t{count}\t{model}",
                     vertex.id, vertex.label
                 )?;
             }
         }
-        GraphCommand::Lint { name: only } => {
+        TemplateCommand::Lint { name: only } => {
             let targets: Vec<(&String, &PathBuf)> = match &only {
                 Some(name) => vec![(name, find(name)?)],
-                None => graphs.iter().collect(),
+                None => templates.iter().collect(),
             };
             let mut count = 0;
             for (_, dir) in targets {
                 let path = dir.join("index.md");
-                let errors = match graph::load(dir) {
-                    Ok(graph) => graph::lint(dir, &graph),
+                let errors = match template::load(dir) {
+                    Ok(template) => template::lint(dir, &template),
                     Err(reason) => vec![(1, reason)],
                 };
                 for (line, reason) in &errors {
@@ -305,7 +324,7 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
                 count += errors.len();
             }
             if count > 0 {
-                bail!("{count} errors in graphs");
+                bail!("{count} errors in templates");
             }
         }
     }

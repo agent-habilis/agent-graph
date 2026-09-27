@@ -10,13 +10,13 @@ is the `slot-template` crate, copied from agent-gossip.
 
 Rules:
 
-- **`skills/graph-*/SKILL.md` is the template and the only emitted file.**
-  Only folders that start with `graph-` are skills. `shared/` holds the
-  partials, and it is never emitted.
+- **`skills/<prefix>-*/SKILL.md` is the source and the only emitted file.**
+  Only folders that start with `template-`, `role-`, or `team-` are skills.
+  `shared/` holds the partials, and it is never emitted.
 - The directives are HTML comments, so a source stays valid markdown:
 
   ```markdown
-  <!-- include path="../shared/node-offer.md" inviter="{NICKNAME}" -->
+  <!-- include path="../shared/role-offer.md" inviter="{NICKNAME}" -->
   <!-- slot name="inviter" -->
   ```
 

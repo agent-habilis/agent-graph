@@ -54,13 +54,13 @@ fn stub(dir: &Path) -> PathBuf {
 }
 
 #[test]
-fn node_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
+fn role_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
     let tmp = TempDir::new().unwrap();
     let dir = tmp.path();
-    let skill = rendered_skill(dir, "graph-node-invite");
-    let command = bash_block(&skill, "## Node offer", "a2a call")
+    let skill = rendered_skill(dir, "role-invite");
+    let command = bash_block(&skill, "## Role offer", "a2a call")
         .replace("<id>", "worker")
-        .replace("<node>", "worker");
+        .replace("<role>", "worker");
     let bin = stub(dir);
 
     let out = Command::new("bash")
@@ -70,7 +70,7 @@ fn node_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
         .env("INVITER", "ann")
         .env("PEER", "bob")
         .env("INSTANCE", "demo")
-        .env("GRAPH", "default-pod")
+        .env("TEMPLATE", "default")
         .env("HASH", "abc123")
         .output()
         .unwrap();
@@ -93,10 +93,10 @@ fn node_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
     let json: Value =
         serde_json::from_str(&merge).unwrap_or_else(|error| panic!("{error}: {merge}"));
     let entry = &json["peers"]["bob"];
-    assert_eq!(entry["pod"], "demo");
-    assert_eq!(entry["graph"], "default-pod");
+    assert_eq!(entry["team"], "demo");
+    assert_eq!(entry["template"], "default");
     assert_eq!(entry["hash"], "abc123");
-    assert_eq!(entry["node"], "worker");
+    assert_eq!(entry["role"], "worker");
     assert_eq!(entry["invited_by"], "ann");
     assert!(text.contains("--to ann "), "{text}");
     assert!(

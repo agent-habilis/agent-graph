@@ -59,7 +59,7 @@ fn resolve(root: &Path, from: &Path, target: &str) -> Result<PathBuf> {
         .with_context(|| format!("include `@{target}` in {} not found", relative(root, from)))?;
     if !path.starts_with(root) {
         bail!(
-            "include `@{target}` in {} is outside the graph folder",
+            "include `@{target}` in {} is outside the template folder",
             relative(root, from)
         );
     }
