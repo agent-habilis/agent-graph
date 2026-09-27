@@ -5,7 +5,7 @@ members = ["tasks"]
 name = "agent-graph"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.93"
+rust-version = "1.95"
 authors = ["Caio Gondim <me@caiogondim.com>"]
 description = "Find and print agent graphs: OKF bundles in .agent-graph/ folders from cwd up to /."
 license = "MIT"
@@ -41,6 +41,9 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+# agent-habilis/render, for its Mermaid renderer. Pinned to a commit until it
+# is on crates.io.
+agent-habilis-render = { git = "ssh://git@github.com/agent-habilis/render.git", rev = "a0eb8f61adabc6468da8b3acd05bc2d88598ee9e" }
 regex = "1"
 serde_json = "1.0.151"
 sha2 = "0.11.0"
@@ -54,3 +57,9 @@ lto = "fat"
 codegen-units = 1
 strip = true
 panic = "abort"
+
+# Use render's fork of figurehead, not the crates.io release: render's own
+# [patch.crates-io] does not apply to a dependency. Keep `rev` equal to the
+# render rev above.
+[patch.crates-io]
+figurehead = { git = "ssh://git@github.com/agent-habilis/render.git", rev = "a0eb8f61adabc6468da8b3acd05bc2d88598ee9e" }

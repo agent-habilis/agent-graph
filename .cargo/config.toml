@@ -1,2 +1,7 @@
 [alias]
 task = "run --package tasks --"
+
+# render is a private repo: the git CLI uses the SSH agent, and Cargo's own
+# git client does not.
+[net]
+git-fetch-with-cli = true

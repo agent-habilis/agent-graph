@@ -5,6 +5,7 @@ mod init;
 mod markdown;
 mod node;
 mod state;
+mod topology;
 
 use std::env;
 use std::io::{self, Write};
@@ -31,6 +32,28 @@ enum Command {
     Graph {
         #[command(subcommand)]
         command: GraphCommand,
+    },
+    /// Draw the live pod: one box per gossip peer in its node, and the graph
+    /// edges between them. Prints one `warning:` line per problem to stderr.
+    Topology {
+        /// The pod, as `<graph>@<branch or repo>`. The default is the pod of
+        /// `--me`.
+        instance: Option<String>,
+        /// The output of `agent-gossip state get`.
+        #[arg(long)]
+        state: PathBuf,
+        /// The output of `agent-gossip meta get`.
+        #[arg(long)]
+        meta: PathBuf,
+        /// The output of `agent-gossip peers`.
+        #[arg(long)]
+        peers: PathBuf,
+        /// The gossip nickname of this agent.
+        #[arg(long)]
+        me: String,
+        /// Print the Mermaid source instead of the drawing.
+        #[arg(long)]
+        mermaid: bool,
     },
     /// List nodes, and load one into an agent.
     Node {
@@ -106,6 +129,31 @@ fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Graph { command } => run_graph(command, &cwd, &mut stdout),
         Command::Node { command } => run_node(command, &cwd, &mut stdout),
+        Command::Topology {
+            instance,
+            state,
+            meta,
+            peers,
+            me,
+            mermaid,
+        } => {
+            let gossip = topology::Gossip::read(&state, &meta, &peers)?;
+            let graphs = node::discover_graphs(&cwd);
+            let (source, warnings) = topology::draw(&graphs, &gossip, instance.as_deref(), &me)?;
+            for warning in warnings {
+                eprintln!("warning: {warning}");
+            }
+            let mut text = if mermaid {
+                source
+            } else {
+                topology::render_mermaid(&source)?
+            };
+            if !text.ends_with('\n') {
+                text.push('\n');
+            }
+            write!(stdout, "{text}")?;
+            Ok(())
+        }
     }
 }
 

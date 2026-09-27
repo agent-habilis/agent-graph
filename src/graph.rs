@@ -45,10 +45,14 @@ pub(crate) struct Vertex {
 }
 
 #[derive(Debug)]
-struct Edge {
-    name: Option<String>,
-    from: String,
-    to: String,
+pub(crate) struct Edge {
+    pub(crate) name: Option<String>,
+    pub(crate) from: String,
+    pub(crate) to: String,
+    /// `-->`, `<-->`, or `---`.
+    pub(crate) arrow: String,
+    /// The `|label|` text, without quotes.
+    pub(crate) label: Option<String>,
     line: usize,
 }
 
@@ -59,14 +63,14 @@ pub(crate) struct Graph {
     pub(crate) title: Option<String>,
     pub(crate) icon: Option<String>,
     pub(crate) vertices: Vec<Vertex>,
-    edges: Vec<Edge>,
+    pub(crate) edges: Vec<Edge>,
     content: String,
     /// Problems found while reading, as (line, reason). `lint` reports them.
     problems: Vec<(usize, String)>,
 }
 
 static EDGE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^([A-Za-z_][\w-]*)\s+(?:([a-z0-9-]+)@)?(<-->|-->|---)\s*(?:\|[^|]*\|)?\s*([A-Za-z_][\w-]*)$")
+    Regex::new(r"^([A-Za-z_][\w-]*)\s+(?:([a-z0-9-]+)@)?(<-->|-->|---)\s*(?:\|([^|]*)\|)?\s*([A-Za-z_][\w-]*)$")
         .expect("valid regex")
 });
 static NODE: LazyLock<Regex> = LazyLock::new(|| {
@@ -174,13 +178,17 @@ fn parse_mermaid(content: &str, graph: &mut Graph) {
                 classes.extend(ids.split(',').map(|id| (id.to_string(), class)));
             }
         } else if let Some(caps) = EDGE.captures(line) {
-            let edge = |from: &str, to: &str| Edge {
+            graph.edges.push(Edge {
                 name: caps.get(2).map(|name| name.as_str().to_string()),
-                from: from.to_string(),
-                to: to.to_string(),
+                from: caps[1].to_string(),
+                to: caps[5].to_string(),
+                arrow: caps[3].to_string(),
+                label: caps
+                    .get(4)
+                    .map(|label| label.as_str().trim().trim_matches('"').to_string())
+                    .filter(|label| !label.is_empty()),
                 line: number,
-            };
-            graph.edges.push(edge(&caps[1], &caps[4]));
+            });
         } else if let Some(caps) = NODE.captures(line) {
             let id = caps[1].to_string();
             let label = caps.get(2).map_or(id.clone(), |shape| {
