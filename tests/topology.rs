@@ -83,29 +83,10 @@ fn pod() -> Pod {
     pod_with(GRAPH)
 }
 
-/// The output of `agent-gossip state get` for the pod `pod@main`, with these
-/// `nodes`.
-fn state_nodes(hash: &str, nodes: &str) -> String {
-    format!(
-        r#"{{"ok":true,"document":{{"graphs":{{"pod@main":{{"bootstrapper":"ann","hash":"{hash}","nodes":{{{nodes}}}}}}}}}}}"#
-    )
-}
-
-fn state(hash: &str, workers: &str) -> String {
-    state_nodes(
-        hash,
-        &format!(
-            r#""lead":{{"node":"pod/lead","count":1,"peers":["ann"]}},"worker":{{"node":"pod/worker","count":2,"peers":[{workers}]}}"#
-        ),
-    )
-}
-
-const META: &str = r#"{"ok":true,"document":{"peers":{
-  "ann":{"model":"claude-opus-5-5","harness":"Claude Code","status":"busy","graph":"pod@main","node":"lead"},
-  "bob":{"model":"claude-sonnet-5","status":"busy","graph":"pod@main","node":"worker"},
-  "cy":{"model":"GPT-6","status":"idle","graph":"pod@main","node":"worker"},
-  "dee":{"model":"claude-opus-5-5","status":"idle"}
-}},"absent":[]}"#;
+const ANN: &str = r#""ann":{"model":"claude-opus-5-5","harness":"Claude Code","status":"busy","pod":"pod@main","graph":"pod","hash":"HASH","node":"lead"}"#;
+const BOB: &str = r#""bob":{"model":"claude-sonnet-5","status":"busy","pod":"pod@main","graph":"pod","hash":"HASH","node":"worker","invited_by":"ann"}"#;
+const CY: &str = r#""cy":{"model":"GPT-6","status":"idle","pod":"pod@main","graph":"pod","hash":"HASH","node":"worker","invited_by":"ann"}"#;
+const DEE: &str = r#""dee":{"model":"claude-opus-5-5","status":"idle"}"#;
 
 const ROSTER: &str = r#"{"ok":true,"peer_count":4,"peers":[
   {"nickname":"bob","quiet":false,"last_seen_secs_ago":3},
@@ -113,16 +94,32 @@ const ROSTER: &str = r#"{"ok":true,"peer_count":4,"peers":[
   {"nickname":"dee","quiet":false,"last_seen_secs_ago":1}
 ]}"#;
 
-/// Write the three gossip files and run `topology` with them, and with
-/// `args` after them.
-fn run_topology(pod: &Pod, state: &str, meta: &str, roster: &str, args: &[&str]) -> Output {
+/// The output of `agent-gossip meta get` with these entries, and the hash of
+/// the pod graph for `HASH`.
+fn meta_of(pod: &Pod, entries: &[&str]) -> String {
+    format!(
+        r#"{{"ok":true,"document":{{"peers":{{{}}}}},"absent":[]}}"#,
+        entries.join(",")
+    )
+    .replace("HASH", &pod.hash)
+}
+
+fn meta(pod: &Pod) -> String {
+    meta_of(pod, &[ANN, BOB, CY, DEE])
+}
+
+/// `meta` with the entry of `dee` replaced by `entry`.
+fn meta_with_dee(pod: &Pod, entry: &str) -> String {
+    meta_of(pod, &[ANN, BOB, CY, &format!(r#""dee":{entry}"#)])
+}
+
+/// Write the gossip files and run `topology` with them, and with `args` after
+/// them.
+fn run_topology(pod: &Pod, meta: &str, roster: &str, args: &[&str]) -> Output {
     let dir = pod.root.join("gossip");
-    write(&dir.join("state.json"), state);
     write(&dir.join("meta.json"), meta);
     write(&dir.join("peers.json"), roster);
     let files = [
-        "--state",
-        dir.join("state.json").to_str().unwrap(),
         "--meta",
         dir.join("meta.json").to_str().unwrap(),
         "--peers",
@@ -136,23 +133,17 @@ fn run_topology(pod: &Pod, state: &str, meta: &str, roster: &str, args: &[&str])
 }
 
 /// `run_topology` with `--mermaid`.
-fn topology(pod: &Pod, state: &str, meta: &str, roster: &str, args: &[&str]) -> Output {
+fn topology(pod: &Pod, meta: &str, roster: &str, args: &[&str]) -> Output {
     let mut all = vec!["--mermaid"];
     all.extend(args);
-    run_topology(pod, state, meta, roster, &all)
+    run_topology(pod, meta, roster, &all)
 }
 
 #[test]
-fn topology_draws_each_peer_in_a_pod_box_with_its_edges() {
+fn topology_draws_each_member_in_a_pod_box_with_its_edges() {
     let pod = pod();
 
-    let out = topology(
-        &pod,
-        &state(&pod.hash, r#""bob","cy""#),
-        META,
-        ROSTER,
-        &["--me", "ann"],
-    );
+    let out = topology(&pod, &meta(&pod), ROSTER, &["--me", "ann"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     let short = &pod.hash[..6];
@@ -161,8 +152,8 @@ fn topology_draws_each_peer_in_a_pod_box_with_its_edges() {
         format!(
             "flowchart TD\n\
              \x20 outside[user or other graph]\n\
-             \x20 subgraph \"pod@main · 3/3 · {short}\"\n\
-             \x20   pod_main__lead__ann(lead · ann ← you ★ · claude-opus-5-5 · busy)\n\
+             \x20 subgraph \"pod@main · 3 peers · {short}\"\n\
+             \x20   pod_main__lead__ann(lead · ann ← you · claude-opus-5-5 · busy)\n\
              \x20   pod_main__worker__bob[worker · bob · claude-sonnet-5 · busy]\n\
              \x20   pod_main__worker__cy[worker · cy · GPT-6 · idle ⚠]\n\
              \x20 end\n\
@@ -183,21 +174,21 @@ fn topology_draws_each_peer_in_a_pod_box_with_its_edges() {
 #[test]
 fn topology_output_does_not_depend_on_the_key_order_of_the_input() {
     let pod = pod();
-    let state = state(&pod.hash, r#""bob","cy""#);
-    let meta = r#"{"absent":[],"document":{"peers":{
+    let reordered = r#"{"absent":[],"document":{"peers":{
       "dee":{"status":"idle","model":"claude-opus-5-5"},
-      "cy":{"node":"worker","graph":"pod@main","status":"idle","model":"GPT-6"},
-      "bob":{"node":"worker","graph":"pod@main","status":"busy","model":"claude-sonnet-5"},
-      "ann":{"node":"lead","graph":"pod@main","status":"busy","harness":"Claude Code","model":"claude-opus-5-5"}
-    }},"ok":true}"#;
+      "cy":{"invited_by":"ann","node":"worker","hash":"HASH","graph":"pod","pod":"pod@main","status":"idle","model":"GPT-6"},
+      "bob":{"invited_by":"ann","node":"worker","hash":"HASH","graph":"pod","pod":"pod@main","status":"busy","model":"claude-sonnet-5"},
+      "ann":{"node":"lead","hash":"HASH","graph":"pod","pod":"pod@main","status":"busy","harness":"Claude Code","model":"claude-opus-5-5"}
+    }},"ok":true}"#
+        .replace("HASH", &pod.hash);
     let roster = r#"{"peers":[
       {"last_seen_secs_ago":1,"quiet":false,"nickname":"dee"},
       {"last_seen_secs_ago":90,"quiet":true,"nickname":"cy"},
       {"last_seen_secs_ago":3,"quiet":false,"nickname":"bob"}
     ],"peer_count":4,"ok":true}"#;
 
-    let first = topology(&pod, &state, META, ROSTER, &["--me", "ann"]);
-    let second = topology(&pod, &state, meta, roster, &["--me", "ann"]);
+    let first = topology(&pod, &meta(&pod), ROSTER, &["--me", "ann"]);
+    let second = topology(&pod, &reordered, roster, &["--me", "ann"]);
 
     assert_eq!(stdout(&first), stdout(&second));
     assert_eq!(stderr(&first), stderr(&second));
@@ -206,98 +197,71 @@ fn topology_output_does_not_depend_on_the_key_order_of_the_input() {
 #[test]
 fn topology_does_not_draw_open_places_and_warns() {
     let pod = pod();
-
-    let out = topology(
+    let meta = meta_of(
         &pod,
-        &state(&pod.hash, r#""bob""#),
-        META,
-        ROSTER,
-        &["--me", "ann"],
+        &[ANN, BOB, r#""cy":{"model":"GPT-6","status":"idle"}"#, DEE],
     );
+
+    let out = topology(&pod, &meta, ROSTER, &["--me", "ann"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     let text = stdout(&out);
-    assert!(text.contains("pod@main · 2/3 ·"), "{text}");
+    assert!(text.contains("pod@main · 2 peers ·"), "{text}");
     assert!(!text.contains("__cy"), "{text}");
-    assert_eq!(
-        stderr(&out),
-        "warning: worker · 1 open place\n\
-         warning: worker · cy · in the meta, not in the state\n"
-    );
+    assert_eq!(stderr(&out), "warning: worker · 1 open place\n");
 }
 
 #[test]
-fn topology_takes_the_count_from_the_node_file_when_the_state_has_no_entry() {
+fn topology_does_not_warn_on_more_peers_than_count() {
     let pod = pod();
-    let state = state_nodes(
-        &pod.hash,
-        r#""lead":{"node":"pod/lead","count":1,"peers":["ann"]}"#,
-    );
-
-    let out = topology(&pod, &state, META, ROSTER, &["--me", "ann"]);
-
-    assert!(out.status.success(), "{}", stderr(&out));
-    assert!(
-        stdout(&out).contains("pod@main · 1/3 ·"),
-        "{}",
-        stdout(&out)
-    );
-    assert_eq!(
-        stderr(&out),
-        "warning: worker · 2 open places\n\
-         warning: worker · bob · in the meta, not in the state\n\
-         warning: worker · cy · in the meta, not in the state\n"
-    );
-}
-
-#[test]
-fn topology_warns_on_more_peers_than_places() {
-    let pod = pod();
-    let meta = META.replace(
-        r#""dee":{"model":"claude-opus-5-5","status":"idle"}"#,
-        r#""dee":{"model":"claude-sonnet-5","status":"idle","graph":"pod@main","node":"worker"}"#,
-    );
-
-    let out = topology(
+    let meta = meta_with_dee(
         &pod,
-        &state(&pod.hash, r#""bob","dee""#).replace(r#""count":2"#, r#""count":1"#),
-        &meta,
-        ROSTER,
-        &["--me", "ann"],
+        &format!(
+            r#"{{"model":"claude-sonnet-5","status":"busy","pod":"pod@main","graph":"pod","hash":"{}","node":"worker","invited_by":"bob"}}"#,
+            pod.hash
+        ),
     );
 
+    let out = topology(&pod, &meta, ROSTER, &["--me", "ann"]);
+
     assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("pod@main · 4 peers ·"), "{text}");
     assert!(
-        stdout(&out).contains("pod@main · 3/2 ·"),
-        "{}",
-        stdout(&out)
+        text.contains("pod_main__worker__dee[worker · dee ·"),
+        "{text}"
     );
     assert_eq!(
         stderr(&out),
-        "warning: worker · 2 peers for 1 place\n\
-         warning: worker · cy · in the meta, not in the state\n"
+        "warning: worker · cy · model GPT-6 does not match sonnet\n\
+         warning: worker · cy · quiet\n"
     );
 }
 
 #[test]
-fn topology_warns_on_a_gone_peer_and_a_meta_conflict() {
+fn topology_does_not_count_an_absent_peer() {
     let pod = pod();
-    let meta = META.replace(
-        r#""bob":{"model":"claude-sonnet-5","status":"busy","graph":"pod@main","node":"worker"}"#,
-        r#""bob":{"model":"claude-sonnet-5","status":"busy","graph":"pod@main","node":"lead"}"#,
-    );
+    let meta = meta(&pod).replace(r#""absent":[]"#, r#""absent":["cy"]"#);
+    assert!(meta.contains(r#""absent":["cy"]"#));
+
+    let out = topology(&pod, &meta, ROSTER, &["--me", "ann"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(!text.contains("__cy"), "{text}");
+    assert!(text.contains("pod@main · 2 peers ·"), "{text}");
+    assert_eq!(stderr(&out), "warning: worker · 1 open place\n");
+}
+
+#[test]
+fn topology_warns_on_a_gone_peer() {
+    let pod = pod();
     let roster = ROSTER.replace(
         r#"{"nickname":"bob","quiet":false,"last_seen_secs_ago":3},"#,
         "",
     );
 
-    let out = topology(
-        &pod,
-        &state(&pod.hash, r#""bob","cy""#),
-        &meta,
-        &roster,
-        &["--me", "ann"],
-    );
+    let out = topology(&pod, &meta(&pod), &roster, &["--me", "ann"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
@@ -306,97 +270,167 @@ fn topology_warns_on_a_gone_peer_and_a_meta_conflict() {
     assert_eq!(
         stderr(&out),
         "warning: worker · bob · gone from the roster\n\
-         warning: worker · bob · meta node lead does not match worker\n\
          warning: worker · cy · model GPT-6 does not match sonnet\n\
          warning: worker · cy · quiet\n"
     );
 }
 
 #[test]
-fn topology_draws_a_peer_in_two_nodes_two_times_and_warns() {
+fn topology_warns_on_a_partial_entry_and_does_not_draw_it() {
     let pod = pod();
-    let state = state_nodes(
-        &pod.hash,
-        r#""lead":{"node":"pod/lead","count":1,"peers":["ann"]},"worker":{"node":"pod/worker","count":2,"peers":["ann","bob","bob"]}"#,
-    );
-
-    let out = topology(&pod, &state, META, ROSTER, &["--me", "ann"]);
-
-    assert!(out.status.success(), "{}", stderr(&out));
-    let text = stdout(&out);
-    assert!(text.contains("    pod_main__lead__ann("), "{text}");
-    assert!(text.contains("    pod_main__worker__ann["), "{text}");
-    assert_eq!(
-        text.matches("    pod_main__worker__bob[").count(),
-        1,
-        "{text}"
-    );
-    assert!(text.contains("pod@main · 3/3 ·"), "{text}");
-    assert_eq!(
-        stderr(&out),
-        "warning: lead · ann · in 2 nodes\n\
-         warning: worker · ann · in 2 nodes\n\
-         warning: worker · ann · meta node lead does not match worker\n\
-         warning: worker · ann · model claude-opus-5-5 does not match sonnet\n\
-         warning: worker · bob · listed 2 times\n\
-         warning: worker · cy · in the meta, not in the state\n"
-    );
-}
-
-#[test]
-fn topology_warns_on_a_meta_peer_that_the_state_does_not_list() {
-    let pod = pod();
-    let meta = META.replace(
-        r#""dee":{"model":"claude-opus-5-5","status":"idle"}"#,
-        r#""dee":{"model":"claude-sonnet-5","status":"idle","graph":"pod@main","node":"worker"}"#,
-    );
-
-    let out = topology(
+    let meta = meta_with_dee(
         &pod,
-        &state(&pod.hash, r#""bob""#),
-        &meta,
-        ROSTER,
-        &["--me", "ann"],
+        &format!(
+            r#"{{"model":"claude-sonnet-5","status":"busy","pod":"pod@main","graph":"pod","hash":"{}","invited_by":"ann"}}"#,
+            pod.hash
+        ),
     );
+
+    let out = topology(&pod, &meta, ROSTER, &["--me", "ann"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert_eq!(
-        stderr(&out),
-        "warning: worker · 1 open place\n\
-         warning: worker · cy · in the meta, not in the state\n\
-         warning: worker · dee · in the meta, not in the state\n"
-    );
-}
-
-#[test]
-fn topology_warns_on_a_state_node_that_the_graph_does_not_have() {
-    let pod = pod();
-    let state = state(&pod.hash, r#""bob","cy""#).replace(
-        r#""lead":{"#,
-        r#""ghost":{"node":"pod/ghost","count":1,"peers":["eve"]},"lead":{"#,
-    );
-
-    let out = topology(&pod, &state, META, ROSTER, &["--me", "ann"]);
-
-    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(!stdout(&out).contains("__dee"), "{}", stdout(&out));
     assert!(
-        stderr(&out).contains("warning: ghost · not in the graph\n"),
+        stderr(&out).contains("warning: pod@main · dee · meta has no node\n"),
         "{}",
         stderr(&out)
     );
 }
 
 #[test]
+fn topology_warns_on_a_member_in_a_node_that_the_graph_does_not_have() {
+    let pod = pod();
+    let meta = meta_with_dee(
+        &pod,
+        &format!(
+            r#"{{"model":"claude-sonnet-5","status":"busy","pod":"pod@main","graph":"pod","hash":"{}","node":"ghost","invited_by":"ann"}}"#,
+            pod.hash
+        ),
+    );
+
+    let out = topology(&pod, &meta, ROSTER, &["--me", "ann"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("warning: ghost · dee · not in the graph\n"),
+        "{}",
+        stderr(&out)
+    );
+}
+
+#[test]
+fn topology_warns_on_two_members_of_the_public_node() {
+    let pod = pod();
+    let meta = meta_with_dee(
+        &pod,
+        &format!(
+            r#"{{"model":"claude-opus-5-5","status":"busy","pod":"pod@main","graph":"pod","hash":"{}","node":"lead","invited_by":"ann"}}"#,
+            pod.hash
+        ),
+    );
+
+    let out = topology(&pod, &meta, ROSTER, &["--me", "ann"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("warning: lead · 2 peers in a public node\n"),
+        "{}",
+        stderr(&out)
+    );
+}
+
+#[test]
+fn topology_warns_on_two_members_without_invited_by() {
+    let pod = pod();
+    let meta = meta_of(
+        &pod,
+        &[ANN, &BOB.replace(r#","invited_by":"ann""#, ""), CY, DEE],
+    );
+
+    let out = topology(&pod, &meta, ROSTER, &["--me", "ann"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("warning: pod@main · 2 peers without invited_by · ann bob\n"),
+        "{}",
+        stderr(&out)
+    );
+}
+
+#[test]
+fn topology_uses_the_hash_of_me_and_warns_on_another_hash() {
+    let pod = pod();
+    let meta = meta_with_dee(
+        &pod,
+        r#"{"model":"claude-sonnet-5","status":"busy","pod":"pod@main","graph":"pod","hash":"0000","node":"worker","invited_by":"cy"}"#,
+    );
+
+    let out = topology(&pod, &meta, ROSTER, &["--me", "ann"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(!stdout(&out).contains("__dee"), "{}", stdout(&out));
+    assert!(
+        stderr(&out).contains("warning: pod@main · 1 peer with another hash · dee\n"),
+        "{}",
+        stderr(&out)
+    );
+}
+
+#[test]
+fn topology_fails_and_lists_hashes_when_not_a_member_and_hashes_differ() {
+    let pod = pod();
+    let meta = meta_of(&pod, &[ANN, &BOB.replace("HASH", "000000ff"), CY, DEE]);
+
+    let out = topology(&pod, &meta, ROSTER, &["pod@main", "--me", "dee"]);
+
+    assert!(!out.status.success());
+    let err = stderr(&out);
+    assert!(err.contains("pod `pod@main` has 2 hashes"), "{err}");
+    assert!(err.contains("000000"), "{err}");
+    assert!(err.contains(&pod.hash[..6]), "{err}");
+}
+
+#[test]
+fn topology_ignores_an_old_entry_without_pod() {
+    let pod = pod();
+    let meta = meta_with_dee(
+        &pod,
+        r#"{"model":"claude-sonnet-5","status":"busy","graph":"pod@main","node":"worker"}"#,
+    );
+
+    let out = topology(&pod, &meta, ROSTER, &["--me", "ann"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(!stdout(&out).contains("__dee"), "{}", stdout(&out));
+    assert!(!stderr(&out).contains("dee"), "{}", stderr(&out));
+}
+
+#[test]
+fn topology_finds_the_graph_by_hash_for_a_custom_instance_name() {
+    let pod = pod();
+    let meta = meta(&pod).replace("pod@main", "demo");
+
+    let out = topology(&pod, &meta, ROSTER, &["--me", "ann"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stdout(&out).contains("demo__lead__ann -->|assign a part| demo__worker__bob"),
+        "{}",
+        stdout(&out)
+    );
+}
+
+#[test]
 fn topology_removes_line_breaks_and_brackets_from_gossip_values() {
     let pod = pod();
-    let meta = META.replace(
-        r#""model":"claude-sonnet-5""#,
-        r#""model":"claude-sonnet-5\n  end\n  hacked[injected]""#,
-    );
-    let state = state(&pod.hash, r#""bob","cy""#).replace("pod@main", "pod@feat/a\\\"b");
-    let meta = meta.replace("pod@main", "pod@feat/a\\\"b");
+    let meta = meta(&pod)
+        .replace(
+            r#""model":"claude-sonnet-5""#,
+            r#""model":"claude-sonnet-5\n  end\n  hacked[injected]""#,
+        )
+        .replace("pod@main", "pod@feat/a\\\"b");
 
-    let out = topology(&pod, &state, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&pod, &meta, ROSTER, &["--me", "ann"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     let text = stdout(&out);
@@ -406,20 +440,17 @@ fn topology_removes_line_breaks_and_brackets_from_gossip_values() {
         "{text}"
     );
     assert!(!text.contains("hacked["), "{text}");
-    assert!(text.contains("subgraph \"pod@feat/ab · 3/3 ·"), "{text}");
+    assert!(
+        text.contains("subgraph \"pod@feat/ab · 3 peers ·"),
+        "{text}"
+    );
 }
 
 #[test]
 fn topology_uses_the_edge_name_for_an_empty_label() {
     let pod = pod_with(&GRAPH.replace(r#"|"part result"|"#, "||"));
 
-    let out = topology(
-        &pod,
-        &state(&pod.hash, r#""bob","cy""#),
-        META,
-        ROSTER,
-        &["--me", "ann"],
-    );
+    let out = topology(&pod, &meta(&pod), ROSTER, &["--me", "ann"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
@@ -432,26 +463,37 @@ fn topology_uses_the_edge_name_for_an_empty_label() {
 #[test]
 fn topology_takes_the_instance_argument() {
     let pod = pod();
-    let state = state(&pod.hash, r#""bob","cy""#).replace("pod@main", "pod@my-repo");
-    let meta = META.replace("pod@main", "pod@my-repo");
+    let meta = meta(&pod).replace("pod@main", "pod@my-repo");
 
-    let out = topology(&pod, &state, &meta, ROSTER, &["pod@my-repo", "--me", "dee"]);
+    let out = topology(&pod, &meta, ROSTER, &["pod@my-repo", "--me", "dee"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert!(stdout(&out).contains("pod_my_repo__lead__ann(lead · ann ★ ·"));
+    assert!(
+        stdout(&out).contains("pod_my_repo__lead__ann(lead · ann · claude-opus-5-5 · busy"),
+        "{}",
+        stdout(&out)
+    );
+}
+
+#[test]
+fn topology_fails_when_the_pod_has_no_members() {
+    let pod = pod();
+
+    let out = topology(&pod, &meta(&pod), ROSTER, &["nope", "--me", "ann"]);
+
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("pod `nope` has no members"),
+        "{}",
+        stderr(&out)
+    );
 }
 
 #[test]
 fn topology_fails_when_me_is_not_in_a_pod() {
     let pod = pod();
 
-    let out = topology(
-        &pod,
-        &state(&pod.hash, r#""bob","cy""#),
-        META,
-        ROSTER,
-        &["--me", "dee"],
-    );
+    let out = topology(&pod, &meta(&pod), ROSTER, &["--me", "dee"]);
 
     assert!(!out.status.success());
     assert!(
@@ -465,13 +507,7 @@ fn topology_fails_when_me_is_not_in_a_pod() {
 fn topology_fails_when_me_is_not_in_the_meta() {
     let pod = pod();
 
-    let out = topology(
-        &pod,
-        &state(&pod.hash, r#""bob","cy""#),
-        META,
-        ROSTER,
-        &["--me", "typo"],
-    );
+    let out = topology(&pod, &meta(&pod), ROSTER, &["--me", "typo"]);
 
     assert!(!out.status.success());
     assert!(
@@ -488,14 +524,13 @@ fn topology_fails_when_a_gossip_command_failed() {
     let out = topology(
         &pod,
         r#"{"ok":false,"error":"no session"}"#,
-        META,
         ROSTER,
         &["--me", "ann"],
     );
 
     assert!(!out.status.success());
     let err = stderr(&out);
-    assert!(err.contains("state.json"), "{err}");
+    assert!(err.contains("meta.json"), "{err}");
     assert!(err.contains("no session"), "{err}");
 }
 
@@ -506,13 +541,7 @@ fn topology_finds_a_received_graph_by_hash_in_home() {
     fs::create_dir_all(received.parent().unwrap()).unwrap();
     fs::rename(pod.root.join(".agent-graph/pod"), &received).unwrap();
 
-    let out = topology(
-        &pod,
-        &state(&pod.hash, r#""bob","cy""#),
-        META,
-        ROSTER,
-        &["--me", "ann"],
-    );
+    let out = topology(&pod, &meta(&pod), ROSTER, &["--me", "ann"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(stdout(&out).contains("pod_main__lead__ann -->|assign a part| pod_main__worker__bob"));
@@ -526,13 +555,7 @@ fn topology_prefers_a_received_graph_with_the_hash_over_a_changed_local_graph() 
     write_graph(&received, GRAPH);
     write(&local.join("nodes/worker/index.md"), &format!("{WORKER}\n"));
 
-    let out = topology(
-        &pod,
-        &state(&pod.hash, r#""bob","cy""#),
-        META,
-        ROSTER,
-        &["--me", "ann"],
-    );
+    let out = topology(&pod, &meta(&pod), ROSTER, &["--me", "ann"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
 }
@@ -545,13 +568,7 @@ fn topology_says_when_the_local_graph_has_another_hash() {
         &format!("{WORKER}\n"),
     );
 
-    let out = topology(
-        &pod,
-        &state(&pod.hash, r#""bob","cy""#),
-        META,
-        ROSTER,
-        &["--me", "ann"],
-    );
+    let out = topology(&pod, &meta(&pod), ROSTER, &["--me", "ann"]);
 
     assert!(!out.status.success());
     let err = stderr(&out);
@@ -563,14 +580,9 @@ fn topology_says_when_the_local_graph_has_another_hash() {
 fn topology_fails_when_no_graph_has_the_hash() {
     let pod = pod();
     fs::remove_dir_all(pod.root.join(".agent-graph")).unwrap();
+    let meta = meta(&pod).replace(&pod.hash, "0000");
 
-    let out = topology(
-        &pod,
-        &state("0000", r#""bob","cy""#),
-        META,
-        ROSTER,
-        &["--me", "ann"],
-    );
+    let out = topology(&pod, &meta, ROSTER, &["--me", "ann"]);
 
     assert!(!out.status.success());
     assert!(
@@ -584,20 +596,104 @@ fn topology_fails_when_no_graph_has_the_hash() {
 fn topology_draws_the_pod_as_terminal_text_by_default() {
     let pod = pod();
 
-    let out = run_topology(
-        &pod,
-        &state(&pod.hash, r#""bob","cy""#),
-        META,
-        ROSTER,
-        &["--me", "ann"],
-    );
+    let out = run_topology(&pod, &meta(&pod), ROSTER, &["--me", "ann"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     let text = stdout(&out);
     assert!(!text.contains("flowchart"), "{text}");
     assert!(
-        text.contains(&format!("pod@main · 3/3 · {}", &pod.hash[..6])),
+        text.contains(&format!("pod@main · 3 peers · {}", &pod.hash[..6])),
         "{text}"
     );
     assert!(text.ends_with('\n'), "{text:?}");
+}
+
+#[test]
+fn topology_warns_on_an_invited_by_that_is_not_a_member() {
+    let pod = pod();
+    let meta = meta_with_dee(
+        &pod,
+        &format!(
+            r#"{{"model":"claude-sonnet-5","status":"busy","pod":"pod@main","graph":"pod","hash":"{}","node":"worker","invited_by":"zed"}}"#,
+            pod.hash
+        ),
+    );
+
+    let out = topology(&pod, &meta, ROSTER, &["--me", "ann"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("warning: worker · dee · invited_by zed is not a member\n"),
+        "{}",
+        stderr(&out)
+    );
+}
+
+#[test]
+fn topology_draws_the_pod_when_me_has_a_partial_entry() {
+    let pod = pod();
+    let meta = meta_with_dee(
+        &pod,
+        r#"{"model":"claude-sonnet-5","status":"busy","pod":"pod@main","graph":"pod","node":"worker","invited_by":"ann"}"#,
+    );
+
+    let out = topology(&pod, &meta, ROSTER, &["--me", "dee"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stdout(&out).contains("pod@main · 3 peers ·"),
+        "{}",
+        stdout(&out)
+    );
+    assert!(
+        stderr(&out).contains("warning: pod@main · dee · meta has no hash\n"),
+        "{}",
+        stderr(&out)
+    );
+}
+
+#[test]
+fn topology_fails_when_no_entry_of_the_pod_has_a_hash() {
+    let pod = pod();
+    let meta =
+        meta_of(&pod, &[ANN, BOB, CY, DEE]).replace(&format!(r#""hash":"{}","#, pod.hash), "");
+
+    let out = topology(&pod, &meta, ROSTER, &["--me", "ann"]);
+
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("pod `pod@main` has no hash in the gossip meta"),
+        "{}",
+        stderr(&out)
+    );
+}
+
+#[test]
+fn topology_does_not_count_an_absent_second_starter() {
+    let pod = pod();
+    let meta = meta_of(
+        &pod,
+        &[ANN, &BOB.replace(r#","invited_by":"ann""#, ""), CY, DEE],
+    )
+    .replace(r#""absent":[]"#, r#""absent":["bob"]"#);
+
+    let out = topology(&pod, &meta, ROSTER, &["--me", "ann"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        !stderr(&out).contains("without invited_by"),
+        "{}",
+        stderr(&out)
+    );
+}
+
+#[test]
+fn topology_finds_a_local_graph_by_hash_under_another_folder_name() {
+    let pod = pod();
+    let meta = meta(&pod).replace(r#""graph":"pod""#, r#""graph":"renamed""#);
+
+    let out = topology(&pod, &meta, ROSTER, &["--me", "ann"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).contains("pod_main__lead__ann -->|assign a part| pod_main__worker__bob"));
 }

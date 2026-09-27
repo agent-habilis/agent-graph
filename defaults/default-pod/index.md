@@ -24,6 +24,8 @@ flowchart LR
 ## Boundaries
 
 - No communication with nodes outside the graph, except through `external`.
+- Pod management (`/graph-up`, `/graph-node-invite`, `/graph-node-down`) is
+  permitted with any gossip peer.
 - No file changes outside the git branch of the graph.
 - All nodes work on the same host, in the same working tree. The workers
   share one git index.

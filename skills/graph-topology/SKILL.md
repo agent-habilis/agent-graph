@@ -6,10 +6,11 @@ allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*)
 
 # graph-topology
 
-A pod is a graph that runs in a gossip. `agent-graph topology` reads the
-gossip documents and the graph file, and draws the pod: one box per peer that
-fills a place, and the edges of the graph between the peers. The output is
-the same for the same input.
+A pod is one run of a graph in a gossip. The gossip meta document holds the
+pod: each member writes its pod, graph hash, and node into its own entry.
+`agent-graph topology` reads the meta document, the roster, and the graph
+file, and draws the pod: one box per member, and the edges of the graph
+between the members. The output is the same for the same input.
 
 ## Preflight
 
@@ -24,31 +25,18 @@ If the command is not found, tell the user to run `cargo task install` in the
 
 ## Arguments
 
-`<instance>`: optional. The pod, as `<graph>@<branch or repo>`. With no
-argument, the command draws the pod of this agent.
+`<instance>`: optional. The instance name of the pod, for example
+`default-pod@main`. With no argument, the command draws the pod of this
+agent.
 
-## Gossip
-
-Find the gossip of this session:
-
-```bash
-agent-gossip session --session-pid "$PPID"
-```
-
-Hold `$GOSSIP` and `$NICKNAME` from the output. If there is no session, print
-this line, then stop:
-
-```text
-graph · no gossip · create or join a gossip first
-```
+<!-- include path="../shared/gossip-session.md" -->
 
 ## Draw
 
-Give the three gossip documents to the command in one call:
+Give the two gossip documents to the command in one call:
 
 ```bash
 agent-graph topology [<instance>] --me "$NICKNAME" \
-  --state <(agent-gossip state get --gossip "$GOSSIP" --nickname "$NICKNAME") \
   --meta <(agent-gossip meta get --gossip "$GOSSIP" --nickname "$NICKNAME") \
   --peers <(agent-gossip peers --gossip "$GOSSIP" --nickname "$NICKNAME")
 ```
@@ -59,4 +47,5 @@ fence.
 
 If the command fails, show its `error:` line, then stop. For
 `is not in a pod`, tell the user to start a pod with `/graph-up <graph>`, or
-to give the `<instance>`.
+to give the `<instance>`. To add an agent to the pod, a member runs
+`/graph-node-invite <node>`.

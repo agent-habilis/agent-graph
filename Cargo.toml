@@ -1,5 +1,5 @@
 [workspace]
-members = ["tasks"]
+members = ["slot-template", "tasks"]
 
 [package]
 name = "agent-graph"
@@ -44,9 +44,15 @@ clap = { version = "4", features = ["derive"] }
 # agent-habilis/render, for its Mermaid renderer. Pinned to a commit until it
 # is on crates.io.
 agent-habilis-render = { git = "ssh://git@github.com/agent-habilis/render.git", rev = "a0eb8f61adabc6468da8b3acd05bc2d88598ee9e" }
+include_dir = "0.7"
 regex = "1"
 serde_json = "1.0.151"
 sha2 = "0.11.0"
+
+[build-dependencies]
+# Renders the multi-file `skills/` sources into one SKILL.md per skill. A copy
+# of agent-gossip's crate; see slot-template/README.md.
+slot-template = { path = "slot-template" }
 
 [dev-dependencies]
 tempfile = "3"

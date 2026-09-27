@@ -4,6 +4,7 @@ mod include;
 mod init;
 mod markdown;
 mod node;
+mod plug;
 mod state;
 mod topology;
 
@@ -36,12 +37,9 @@ enum Command {
     /// Draw the live pod: one box per gossip peer in its node, and the graph
     /// edges between them. Prints one `warning:` line per problem to stderr.
     Topology {
-        /// The pod, as `<graph>@<branch or repo>`. The default is the pod of
-        /// `--me`.
+        /// The pod instance name, for example `default-pod@main`. The default
+        /// is the pod of `--me`.
         instance: Option<String>,
-        /// The output of `agent-gossip state get`.
-        #[arg(long)]
-        state: PathBuf,
         /// The output of `agent-gossip meta get`.
         #[arg(long)]
         meta: PathBuf,
@@ -59,6 +57,25 @@ enum Command {
     Node {
         #[command(subcommand)]
         command: NodeCommand,
+    },
+    /// Install the graph skills into each agent on this machine. Prints one
+    /// line per target: state, agent, path (tab-separated).
+    Plug {
+        /// The agent to install into (repeatable). The default is each
+        /// detected agent.
+        #[arg(long = "agent", value_enum)]
+        agents: Vec<plug::Agent>,
+        /// A folder to install into as a skill root (repeatable). With only
+        /// `--path`, no agent is touched.
+        #[arg(long = "path")]
+        paths: Vec<PathBuf>,
+    },
+    /// Remove the graph skills that `plug` installed. Other skills stay.
+    Unplug {
+        #[arg(long = "agent", value_enum)]
+        agents: Vec<plug::Agent>,
+        #[arg(long = "path")]
+        paths: Vec<PathBuf>,
     },
 }
 
@@ -129,15 +146,18 @@ fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Graph { command } => run_graph(command, &cwd, &mut stdout),
         Command::Node { command } => run_node(command, &cwd, &mut stdout),
+        Command::Plug { agents, paths } => print_lines(&mut stdout, &plug::plug(&agents, &paths)?),
+        Command::Unplug { agents, paths } => {
+            print_lines(&mut stdout, &plug::unplug(&agents, &paths)?)
+        }
         Command::Topology {
             instance,
-            state,
             meta,
             peers,
             me,
             mermaid,
         } => {
-            let gossip = topology::Gossip::read(&state, &meta, &peers)?;
+            let gossip = topology::Gossip::read(&meta, &peers)?;
             let graphs = node::discover_graphs(&cwd);
             let (source, warnings) = topology::draw(&graphs, &gossip, instance.as_deref(), &me)?;
             for warning in warnings {
@@ -288,6 +308,13 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
                 bail!("{count} errors in graphs");
             }
         }
+    }
+    Ok(())
+}
+
+fn print_lines(stdout: &mut impl Write, lines: &[String]) -> Result<()> {
+    for line in lines {
+        writeln!(stdout, "{line}")?;
     }
     Ok(())
 }

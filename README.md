@@ -68,7 +68,9 @@ agent-graph node list --tag '^go$'         # only nodes with a tag that matches 
 agent-graph node up default-pod/worker     # the body of the graph, then the body of the node
 agent-graph node up default-pod/worker --pid N # also write /tmp/agent-graph/N.json for the statusline
 agent-graph node down --pid N               # remove /tmp/agent-graph/N.json
-agent-graph topology --state F --meta F --peers F --me NICK  # draw the live pod from gossip JSON; --mermaid for the source
+agent-graph topology --meta F --peers F --me NICK  # draw the live pod from gossip meta JSON; --mermaid for the source
+agent-graph plug [--agent A] [--path DIR]  # install the graph skills into each detected agent
+agent-graph unplug [--agent A] [--path DIR] # remove the graph skills that plug installed
 ```
 
 If a graph or node is not valid, `list` writes a warning to stderr and skips it.
@@ -100,6 +102,16 @@ In `index.md`, a line that contains only `@<path>` is replaced with the body of 
 `pid` is the Claude Code process. A statusline script gets the same pid as its parent process.
 The `graph` key is the `title` of the graph, or its folder name when it has no title.
 A graph or node without an `icon` has no icon key.
+
+## Skills
+
+The agent skills (`/graph-up`, `/graph-topology`, and more) are in the binary.
+`agent-graph plug` writes them into each agent on this machine: Claude Code, pi, Codex, Cursor, and opencode.
+An agent that is not on the machine is skipped.
+Run `plug` again after each install of a new binary.
+`plug` replaces a symbolic link to an old skill folder, and it does not change the target of the link.
+
+The skill sources in [`skills/`](skills/) are templates. See [`skills/README.md`](skills/README.md).
 
 ## Exit codes
 

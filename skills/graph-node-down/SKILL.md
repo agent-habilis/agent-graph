@@ -1,7 +1,7 @@
 ---
 name: graph-node-down
 description: Unset the node of this agent with the `agent-graph` CLI. The agent stops acting as the node, and the node pill leaves the statusline. Use when the user says "/graph-node-down", "unset the node", "drop the node", or "stop acting as the node".
-allowed-tools: Bash(agent-graph:*)
+allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*)
 ---
 
 # graph-node-down
@@ -31,7 +31,28 @@ agent-graph node down --pid "$PPID"
 `$PPID` is the agent process. The command also succeeds when this agent has
 no node. If the command fails, show its `error:` line and stop.
 
-When the command succeeds:
+When the command succeeds, leave the pod. Run:
+
+```bash
+agent-gossip session --session-pid "$PPID"
+```
+
+If this session is in a gossip, hold `$GOSSIP` and `$NICKNAME` from the
+output, and read your meta entry:
+
+```bash
+agent-gossip meta get --gossip "$GOSSIP" --nickname "$NICKNAME"
+```
+
+If your entry `/peers/$NICKNAME` has a `pod`, remove your place. Then the pod
+does not count you, and you are a free peer again. If it has no `pod`, write
+nothing:
+
+```bash
+agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"pod":null,"graph":null,"hash":null,"node":null,"invited_by":null,"status":"idle"}}}'
+```
+
+Then:
 
 1. Stop acting as the node and as a member of its graph. The boundaries of
    the node and of its graph do not apply any more.
