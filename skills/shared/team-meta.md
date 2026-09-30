@@ -16,6 +16,10 @@ writes only its own entry, `/peers/<nickname>`:
 
 - `invited_by` is absent only on the founder: the member that started the
   team with `/team-up`.
+- `verified` is `false` on a member without agent-graph. It joined with the
+  role context that its inviter sent, and it could not check the template
+  hash. `agent-graph team topology` warns about such a member. On a member
+  that checked the hash, `verified` is absent.
 - `host` is in the entry too. The gossip skill writes it when the peer
   joins.
 - Read the document with:

@@ -17,6 +17,20 @@ the gossip skill, with these rules for role offers:
   ```
 
   When the peer approves, close that task with `--state completed`.
+- **A task brief `send role <hash>/<role>`:** a peer without agent-graph asks
+  for the context of the team and of its role. If `<hash>` is `$HASH` and the
+  peer has an open offer of yours for `<role>`, accept it without the accept
+  or decline question. Else decline it with the reason: no offer for this
+  role. Send the text that `agent-graph role up` prints. Its SHA-256 is the
+  `$CONTEXT_HASH` of your offer:
+
+  ```bash
+  agent-gossip a2a status --gossip "$GOSSIP" --nickname "$NICKNAME" --task-id "<task id>" --state working
+  agent-graph role up "$SOURCE/<role>" > /tmp/$HASH-<role>.md
+  agent-gossip a2a artifact --gossip "$GOSSIP" --nickname "$NICKNAME" --task-id "<task id>" --file /tmp/$HASH-<role>.md --text "role $HASH/<role>"
+  ```
+
+  When the peer approves, close that task with `--state completed`.
 - **Artifact `loaded <role>`:** approve it with a follow-up that carries
   `--task-id`. The new member wrote its own meta entry. Write nothing.
 - **`failed` or `task_timeout`:** the place is open again.

@@ -697,3 +697,29 @@ fn team_topology_finds_a_local_template_by_hash_under_another_folder_name() {
         stdout(&out).contains("squad_main__lead__ann -->|assign a part| squad_main__worker__bob")
     );
 }
+
+#[test]
+fn team_topology_warns_on_a_member_that_did_not_verify_the_template() {
+    let team = team();
+    let meta = meta_with_dee(
+        &team,
+        &format!(
+            r#"{{"model":"claude-sonnet-5","status":"busy","team":"squad@main","template":"squad","hash":"{}","role":"worker","invited_by":"ann","verified":false}}"#,
+            team.hash
+        ),
+    );
+
+    let out = topology(&team, &meta, ROSTER, &["--me", "ann"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stdout(&out).contains("squad_main__worker__dee[worker · dee · claude-sonnet-5 · busy ⚠]"),
+        "{}",
+        stdout(&out)
+    );
+    assert!(
+        stderr(&out).contains("warning: worker · dee · template not verified\n"),
+        "{}",
+        stderr(&out)
+    );
+}

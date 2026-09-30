@@ -374,6 +374,11 @@ fn problems(
     {
         problems.push(format!("model {model} does not match {preferred}"));
     }
+    // A peer without agent-graph cannot hash the template folder. It joins
+    // with the role context that the inviter sent, and says so.
+    if meta["verified"] == false {
+        problems.push("template not verified".to_string());
+    }
     match gossip.roster_peer(nick) {
         Some(peer) if peer["quiet"] == true => problems.push("quiet".to_string()),
         None if nick != me => problems.push("gone from the roster".to_string()),

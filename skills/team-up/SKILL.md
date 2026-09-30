@@ -115,7 +115,7 @@ Read the meta document. If another live entry has `team` `$INSTANCE` and no
 2. Remove your place:
 
    ```bash
-   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"team":null,"template":null,"hash":null,"role":null,"status":"idle"}}}'
+   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"team":null,"template":null,"hash":null,"role":null,"verified":null,"status":"idle"}}}'
    agent-graph role down --pid "$PPID"
    ```
 

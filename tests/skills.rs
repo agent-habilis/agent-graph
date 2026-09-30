@@ -72,6 +72,7 @@ fn role_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
         .env("INSTANCE", "demo")
         .env("TEMPLATE", "default")
         .env("HASH", "abc123")
+        .env("CONTEXT_HASH", "c0ffee")
         .output()
         .unwrap();
 
@@ -103,4 +104,102 @@ fn role_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
         text.contains("\"$NICKNAME\""),
         "the invitee's own nickname stays a variable: {text}"
     );
+    assert!(text.contains("Context hash: c0ffee."), "{text}");
+    assert!(text.contains("send role abc123/worker"), "{text}");
+    let unverified = text
+        .split("--merge '")
+        .skip(1)
+        .filter_map(|rest| rest.split('\'').next())
+        .find(|candidate| candidate.contains("verified"))
+        .unwrap_or_else(|| panic!("no merge with verified in the brief: {text}"))
+        .replace("<your nickname>", "bob");
+    let unverified_json: Value =
+        serde_json::from_str(&unverified).unwrap_or_else(|error| panic!("{error}: {unverified}"));
+    let unverified_entry = &unverified_json["peers"]["bob"];
+    assert_eq!(unverified_entry["verified"], false);
+    assert_eq!(unverified_entry["team"], "demo");
+    assert_eq!(unverified_entry["role"], "worker");
+}
+
+/// Run a bash block in `cwd` with the real `agent-graph` and a stub
+/// `agent-gossip` on `PATH`, and return its stdout.
+fn run_block(block: &str, cwd: &Path, bin: &Path, env: &[(&str, &str)]) -> String {
+    let agent_graph = Path::new(env!("CARGO_BIN_EXE_agent-graph"));
+    let out = Command::new("bash")
+        .args(["-c", block])
+        .current_dir(cwd)
+        .env(
+            "PATH",
+            format!(
+                "{}:{}:/usr/bin:/bin",
+                bin.display(),
+                agent_graph.parent().unwrap().display()
+            ),
+        )
+        .envs(env.iter().copied())
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8(out.stdout).unwrap()
+}
+
+#[test]
+fn send_role_gives_the_role_context_that_matches_the_context_hash_of_the_offer() {
+    let tmp = TempDir::new().unwrap();
+    let dir = tmp.path();
+    let project = dir.join("project");
+    fs::create_dir_all(&project).unwrap();
+    let init = Command::new(env!("CARGO_BIN_EXE_agent-graph"))
+        .args(["template", "init"])
+        .current_dir(&project)
+        .output()
+        .unwrap();
+    assert!(init.status.success());
+    let skill = rendered_skill(dir, "role-invite");
+    let bin = stub(dir);
+    let hash = format!("skills-test-{}", std::process::id());
+    let env = [
+        ("GOSSIP", "g1"),
+        ("NICKNAME", "ann"),
+        ("SOURCE", "default"),
+        ("HASH", hash.as_str()),
+    ];
+
+    let hash_block = bash_block(&skill, "## Role offer", "CONTEXT_HASH=")
+        .replace("<role>", "worker")
+        + "\necho \"$CONTEXT_HASH\"\n";
+    let context_hash = run_block(&hash_block, &project, &bin, &env);
+    let send_block = bash_block(&skill, "## Drive", "role up")
+        .replace("<role>", "worker")
+        .replace("<task id>", "t1");
+    run_block(&send_block, &project, &bin, &env);
+
+    let sent = PathBuf::from(format!("/tmp/{hash}-worker.md"));
+    let body = fs::read(&sent).unwrap();
+    let digest = Command::new("shasum")
+        .args(["-a", "256"])
+        .arg(&sent)
+        .output()
+        .unwrap()
+        .stdout;
+    fs::remove_file(&sent).unwrap();
+    let expected = Command::new(env!("CARGO_BIN_EXE_agent-graph"))
+        .args(["role", "up", "default/worker"])
+        .current_dir(&project)
+        .output()
+        .unwrap()
+        .stdout;
+    assert_eq!(body, expected);
+    let digest = String::from_utf8(digest).unwrap();
+    assert_eq!(
+        context_hash.trim(),
+        digest.split_whitespace().next().unwrap()
+    );
+    let args = fs::read_to_string(dir.join("args")).unwrap();
+    assert!(args.contains("artifact"), "{args}");
+    assert!(args.contains(&sent.display().to_string()), "{args}");
 }

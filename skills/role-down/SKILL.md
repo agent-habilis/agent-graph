@@ -49,7 +49,7 @@ team does not count you, and you are a free peer again. If it has no `team`,
 write nothing:
 
 ```bash
-agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"team":null,"template":null,"hash":null,"role":null,"invited_by":null,"status":"idle"}}}'
+agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"team":null,"template":null,"hash":null,"role":null,"invited_by":null,"verified":null,"status":"idle"}}}'
 ```
 
 Then:
