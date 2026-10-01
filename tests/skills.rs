@@ -54,13 +54,13 @@ fn stub(dir: &Path) -> PathBuf {
 }
 
 #[test]
-fn role_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
+fn node_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
     let tmp = TempDir::new().unwrap();
     let dir = tmp.path();
-    let skill = rendered_skill(dir, "role-invite");
-    let command = bash_block(&skill, "## Role offer", "a2a call")
+    let skill = rendered_skill(dir, "node-invite");
+    let command = bash_block(&skill, "## Node offer", "a2a call")
         .replace("<id>", "worker")
-        .replace("<role>", "worker");
+        .replace("<node>", "worker");
     let bin = stub(dir);
 
     let out = Command::new("bash")
@@ -70,7 +70,7 @@ fn role_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
         .env("INVITER", "ann")
         .env("PEER", "bob")
         .env("INSTANCE", "demo")
-        .env("TEMPLATE", "default")
+        .env("GRAPH", "default")
         .env("HASH", "abc123")
         .env("CONTEXT_HASH", "c0ffee")
         .output()
@@ -94,10 +94,10 @@ fn role_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
     let json: Value =
         serde_json::from_str(&merge).unwrap_or_else(|error| panic!("{error}: {merge}"));
     let entry = &json["peers"]["bob"];
-    assert_eq!(entry["team"], "demo");
-    assert_eq!(entry["template"], "default");
+    assert_eq!(entry["instance"], "demo");
+    assert_eq!(entry["graph"], "default");
     assert_eq!(entry["hash"], "abc123");
-    assert_eq!(entry["role"], "worker");
+    assert_eq!(entry["node"], "worker");
     assert_eq!(entry["invited_by"], "ann");
     assert!(text.contains("--to ann "), "{text}");
     assert!(
@@ -105,7 +105,7 @@ fn role_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
         "the invitee's own nickname stays a variable: {text}"
     );
     assert!(text.contains("Context hash: c0ffee."), "{text}");
-    assert!(text.contains("send role abc123/worker"), "{text}");
+    assert!(text.contains("send node abc123/worker"), "{text}");
     let unverified = text
         .split("--merge '")
         .skip(1)
@@ -117,8 +117,8 @@ fn role_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
         serde_json::from_str(&unverified).unwrap_or_else(|error| panic!("{error}: {unverified}"));
     let unverified_entry = &unverified_json["peers"]["bob"];
     assert_eq!(unverified_entry["verified"], false);
-    assert_eq!(unverified_entry["team"], "demo");
-    assert_eq!(unverified_entry["role"], "worker");
+    assert_eq!(unverified_entry["instance"], "demo");
+    assert_eq!(unverified_entry["node"], "worker");
 }
 
 /// Run a bash block in `cwd` with the real `agent-graph` and a stub
@@ -148,18 +148,18 @@ fn run_block(block: &str, cwd: &Path, bin: &Path, env: &[(&str, &str)]) -> Strin
 }
 
 #[test]
-fn send_role_gives_the_role_context_that_matches_the_context_hash_of_the_offer() {
+fn send_node_gives_the_node_context_that_matches_the_context_hash_of_the_offer() {
     let tmp = TempDir::new().unwrap();
     let dir = tmp.path();
     let project = dir.join("project");
     fs::create_dir_all(&project).unwrap();
     let init = Command::new(env!("CARGO_BIN_EXE_agent-graph"))
-        .args(["template", "init"])
+        .args(["graph", "init"])
         .current_dir(&project)
         .output()
         .unwrap();
     assert!(init.status.success());
-    let skill = rendered_skill(dir, "role-invite");
+    let skill = rendered_skill(dir, "node-invite");
     let bin = stub(dir);
     let hash = format!("skills-test-{}", std::process::id());
     let env = [
@@ -169,12 +169,12 @@ fn send_role_gives_the_role_context_that_matches_the_context_hash_of_the_offer()
         ("HASH", hash.as_str()),
     ];
 
-    let hash_block = bash_block(&skill, "## Role offer", "CONTEXT_HASH=")
-        .replace("<role>", "worker")
+    let hash_block = bash_block(&skill, "## Node offer", "CONTEXT_HASH=")
+        .replace("<node>", "worker")
         + "\necho \"$CONTEXT_HASH\"\n";
     let context_hash = run_block(&hash_block, &project, &bin, &env);
-    let send_block = bash_block(&skill, "## Drive", "role up")
-        .replace("<role>", "worker")
+    let send_block = bash_block(&skill, "## Drive", "node up")
+        .replace("<node>", "worker")
         .replace("<task id>", "t1");
     run_block(&send_block, &project, &bin, &env);
 
@@ -188,7 +188,7 @@ fn send_role_gives_the_role_context_that_matches_the_context_hash_of_the_offer()
         .stdout;
     fs::remove_file(&sent).unwrap();
     let expected = Command::new(env!("CARGO_BIN_EXE_agent-graph"))
-        .args(["role", "up", "default/worker"])
+        .args(["node", "up", "default/worker"])
         .current_dir(&project)
         .output()
         .unwrap()

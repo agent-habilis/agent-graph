@@ -35,7 +35,7 @@ fn source_skills() -> Vec<String> {
         .filter(|entry| entry.path().is_dir())
         .map(|entry| entry.file_name().to_string_lossy().into_owned())
         .filter(|name| {
-            ["template-", "role-", "team-"]
+            ["graph-", "node-"]
                 .iter()
                 .any(|prefix| name.starts_with(prefix))
         })
@@ -91,17 +91,17 @@ fn unplug_path_removes_only_the_owned_skills() {
 #[test]
 fn plug_replaces_a_link_and_does_not_write_into_its_target() {
     let (_tmp, home) = root();
-    let target = home.join("repo/team-up");
+    let target = home.join("repo/graph-up");
     fs::create_dir_all(&target).unwrap();
     fs::write(target.join("SKILL.md"), "source").unwrap();
     let dest = home.join("skills");
     fs::create_dir_all(&dest).unwrap();
-    std::os::unix::fs::symlink(&target, dest.join("team-up")).unwrap();
+    std::os::unix::fs::symlink(&target, dest.join("graph-up")).unwrap();
 
     let out = run(&home, &["plug", "--path", dest.to_str().unwrap()]);
     assert!(out.status.success(), "{}", stderr(&out));
-    assert!(!dest.join("team-up").is_symlink());
-    assert!(dest.join("team-up/SKILL.md").is_file());
+    assert!(!dest.join("graph-up").is_symlink());
+    assert!(dest.join("graph-up/SKILL.md").is_file());
     assert_eq!(
         fs::read_to_string(target.join("SKILL.md")).unwrap(),
         "source"
@@ -114,7 +114,7 @@ fn plug_installs_only_into_detected_agents() {
     fs::create_dir_all(home.join(".claude")).unwrap();
     let out = run(&home, &["plug"]);
     assert!(out.status.success(), "{}", stderr(&out));
-    assert!(home.join(".claude/skills/team-up/SKILL.md").is_file());
+    assert!(home.join(".claude/skills/graph-up/SKILL.md").is_file());
     assert!(!home.join(".codex").exists());
     assert!(!home.join(".pi").exists());
 }
@@ -134,12 +134,12 @@ fn unplug_removes_the_skills_from_an_agent() {
     assert!(run(&home, &["plug"]).status.success());
     let out = run(&home, &["unplug"]);
     assert!(out.status.success(), "{}", stderr(&out));
-    assert!(!home.join(".claude/skills/team-up").exists());
+    assert!(!home.join(".claude/skills/graph-up").exists());
     assert!(home.join(".claude/skills/other").is_dir());
 }
 
 #[test]
-fn plug_renders_the_shared_team_sections_into_each_skill_that_includes_them() {
+fn plug_renders_the_shared_graph_sections_into_each_skill_that_includes_them() {
     let (_tmp, home) = root();
     let dest = home.join("skills");
     assert!(
@@ -147,13 +147,13 @@ fn plug_renders_the_shared_team_sections_into_each_skill_that_includes_them() {
             .status
             .success()
     );
-    for skill in ["team-up", "role-invite"] {
+    for skill in ["graph-up", "node-invite"] {
         let body = fs::read_to_string(dest.join(skill).join("SKILL.md")).unwrap();
-        for section in ["## Gossip", "## Team meta", "## Role offer", "## Drive"] {
+        for section in ["## Gossip", "## Graph meta", "## Node offer", "## Drive"] {
             assert!(body.contains(section), "{skill}: no {section}");
         }
     }
-    let topology = fs::read_to_string(dest.join("team-topology/SKILL.md")).unwrap();
+    let topology = fs::read_to_string(dest.join("graph-topology/SKILL.md")).unwrap();
     assert!(topology.contains("## Gossip"));
     assert!(!topology.contains("--state"));
 }
@@ -180,17 +180,17 @@ fn plug_and_unplug_print_one_line_per_target() {
 #[test]
 fn unplug_removes_a_link_and_not_its_target() {
     let (_tmp, home) = root();
-    let target = home.join("repo/team-up");
+    let target = home.join("repo/graph-up");
     fs::create_dir_all(&target).unwrap();
     fs::write(target.join("SKILL.md"), "source").unwrap();
     let dest = home.join("skills");
     fs::create_dir_all(&dest).unwrap();
-    std::os::unix::fs::symlink(&target, dest.join("team-up")).unwrap();
+    std::os::unix::fs::symlink(&target, dest.join("graph-up")).unwrap();
 
     let out = run(&home, &["unplug", "--path", dest.to_str().unwrap()]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert!(dest.join("team-up").symlink_metadata().is_err());
+    assert!(dest.join("graph-up").symlink_metadata().is_err());
     assert_eq!(
         fs::read_to_string(target.join("SKILL.md")).unwrap(),
         "source"
@@ -205,43 +205,43 @@ fn plug_installs_pi_skills_under_agent_skills() {
     let out = run(&home, &["plug", "--agent", "pi"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert!(home.join(".pi/agent/skills/team-up/SKILL.md").is_file());
+    assert!(home.join(".pi/agent/skills/graph-up/SKILL.md").is_file());
 }
 
 #[test]
 fn plug_replaces_an_owned_folder_with_extra_files() {
     let (_tmp, home) = root();
     let dest = home.join("skills");
-    fs::create_dir_all(dest.join("team-up")).unwrap();
-    fs::write(dest.join("team-up/old.md"), "old").unwrap();
+    fs::create_dir_all(dest.join("graph-up")).unwrap();
+    fs::write(dest.join("graph-up/old.md"), "old").unwrap();
 
     let out = run(&home, &["plug", "--path", dest.to_str().unwrap()]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert!(!dest.join("team-up/old.md").exists());
-    assert!(dest.join("team-up/SKILL.md").is_file());
+    assert!(!dest.join("graph-up/old.md").exists());
+    assert!(dest.join("graph-up/SKILL.md").is_file());
 }
 
 #[test]
-fn plug_removes_a_graph_skill_that_an_older_plug_installed() {
+fn plug_removes_a_team_skill_that_an_older_plug_installed() {
     let (_tmp, home) = root();
     let dest = home.join("skills");
     let dest_text = dest.to_str().unwrap();
     assert!(run(&home, &["plug", "--path", dest_text]).status.success());
     let manifest = dest.join(".agent-graph-plug");
     let mut names = fs::read_to_string(&manifest).unwrap();
-    names.push_str("graph-old\n");
+    names.push_str("team-up\n");
     fs::write(&manifest, names).unwrap();
-    fs::create_dir_all(dest.join("graph-old")).unwrap();
-    fs::write(dest.join("graph-old/SKILL.md"), "old").unwrap();
+    fs::create_dir_all(dest.join("team-up")).unwrap();
+    fs::write(dest.join("team-up/SKILL.md"), "old").unwrap();
     fs::create_dir_all(dest.join("graph-mine")).unwrap();
 
     let out = run(&home, &["plug", "--path", dest_text]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert!(!dest.join("graph-old").exists());
+    assert!(!dest.join("team-up").exists());
     assert!(dest.join("graph-mine").is_dir());
-    assert!(!fs::read_to_string(&manifest).unwrap().contains("graph-old"));
+    assert!(!fs::read_to_string(&manifest).unwrap().contains("team-up"));
 }
 
 #[test]

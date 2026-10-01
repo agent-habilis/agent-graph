@@ -1,4 +1,4 @@
-//! `agent-graph plug` / `unplug`: install or remove the team skills in each
+//! `agent-graph plug` / `unplug`: install or remove the graph skills in each
 //! agent. The skills are rendered by `build.rs` and embedded, so the binary
 //! needs no repo checkout. Ported from agent-gossip `src/cli/plug.rs`.
 
@@ -156,10 +156,11 @@ const STAGING: &str = ".agent-graph-plug.tmp";
 fn owned_dirs(root: &Path) -> Vec<PathBuf> {
     let manifest = fs::read_to_string(root.join(MANIFEST)).unwrap_or_default();
     // Only names with a skill prefix: a changed manifest must not remove other
-    // folders. `graph-` is the prefix of the skills before the rename to
-    // team-template, role, and team, so an upgrade removes them too.
+    // folders. `template-`, `role-`, and `team-` are the prefixes of the
+    // skills from before the rename back to graph and node, so an upgrade
+    // removes them too.
     let listed = manifest.lines().filter(|name| {
-        ["template-", "role-", "team-", "graph-"]
+        ["graph-", "node-", "template-", "role-", "team-"]
             .iter()
             .any(|prefix| name.starts_with(prefix))
             && !name.contains(['/', '\\'])

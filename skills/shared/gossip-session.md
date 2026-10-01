@@ -10,5 +10,5 @@ Hold `$GOSSIP` and `$NICKNAME` from the output. If there is no session, print
 this line, then stop:
 
 ```text
-team · no gossip · create or join a gossip first
+graph · no gossip · create or join a gossip first
 ```

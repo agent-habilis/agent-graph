@@ -4,26 +4,21 @@ use std::{fs, io};
 use anyhow::Result;
 use serde_json::{Map, Value};
 
-use crate::role::Role;
-use crate::template::Template;
+use crate::graph::Graph;
+use crate::node::Node;
 
 const DIR: &str = "/tmp/agent-graph";
 
-/// Write `/tmp/agent-graph/<pid>.json`: the template and role of the agent
+/// Write `/tmp/agent-graph/<pid>.json`: the graph and node of the agent
 /// with that pid, for the statusline. The keys stay `graph` and `node`,
 /// because agent-statusline reads them. The write is atomic, so a statusline
 /// never reads half a file.
-pub(crate) fn write(pid: u32, template: (&str, &Template), role: (&str, &Role)) -> Result<()> {
+pub(crate) fn write(pid: u32, graph: (&str, &Graph), node: (&str, &Node)) -> Result<()> {
     let mut state = Map::new();
     state.insert("pid".into(), pid.into());
-    let template_name = template.1.title.as_deref().unwrap_or(template.0);
-    insert(
-        &mut state,
-        "graph",
-        template_name,
-        template.1.icon.as_deref(),
-    );
-    insert(&mut state, "node", role.0, role.1.icon.as_deref());
+    let graph_name = graph.1.title.as_deref().unwrap_or(graph.0);
+    insert(&mut state, "graph", graph_name, graph.1.icon.as_deref());
+    insert(&mut state, "node", node.0, node.1.icon.as_deref());
     let dir = PathBuf::from(DIR);
     fs::create_dir_all(&dir)?;
     let path = dir.join(format!("{pid}.json"));
@@ -34,7 +29,7 @@ pub(crate) fn write(pid: u32, template: (&str, &Template), role: (&str, &Role)) 
 }
 
 /// Remove `/tmp/agent-graph/<pid>.json`. A missing file is not an error: the
-/// agent has no role either way.
+/// agent has no node either way.
 pub(crate) fn remove(pid: u32) -> Result<()> {
     match fs::remove_file(PathBuf::from(DIR).join(format!("{pid}.json"))) {
         Err(err) if err.kind() != io::ErrorKind::NotFound => Err(err.into()),
