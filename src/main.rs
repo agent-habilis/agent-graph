@@ -79,7 +79,7 @@ enum GraphCommand {
     /// Check one graph, or all graphs. Prints `path:line: reason` per
     /// error.
     Lint { name: Option<String> },
-    /// Write the default graph into `<dir>/.agent-graph/`. Does nothing if
+    /// Write the default graphs into `<dir>/.agent-graph/`. Does nothing if
     /// `.agent-graph` exists.
     Init {
         /// The folder to write into. The default is the current directory.
@@ -89,7 +89,7 @@ enum GraphCommand {
     /// edges between them. Prints one `warning:` line per problem to
     /// stderr.
     Topology {
-        /// The graph instance name, for example `default@main`. The default
+        /// The graph instance name, for example `squad@main`. The default
         /// is the graph of `--me`.
         instance: Option<String>,
         /// The output of `agent-gossip meta get`.

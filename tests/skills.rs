@@ -70,7 +70,7 @@ fn node_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
         .env("INVITER", "ann")
         .env("PEER", "bob")
         .env("INSTANCE", "demo")
-        .env("GRAPH", "default")
+        .env("GRAPH", "squad")
         .env("HASH", "abc123")
         .env("CONTEXT_HASH", "c0ffee")
         .output()
@@ -95,7 +95,7 @@ fn node_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
         serde_json::from_str(&merge).unwrap_or_else(|error| panic!("{error}: {merge}"));
     let entry = &json["peers"]["bob"];
     assert_eq!(entry["instance"], "demo");
-    assert_eq!(entry["graph"], "default");
+    assert_eq!(entry["graph"], "squad");
     assert_eq!(entry["hash"], "abc123");
     assert_eq!(entry["node"], "worker");
     assert_eq!(entry["invited_by"], "ann");
@@ -165,7 +165,7 @@ fn send_node_gives_the_node_context_that_matches_the_context_hash_of_the_offer()
     let env = [
         ("GOSSIP", "g1"),
         ("NICKNAME", "ann"),
-        ("SOURCE", "default"),
+        ("SOURCE", "squad"),
         ("HASH", hash.as_str()),
     ];
 
@@ -188,7 +188,7 @@ fn send_node_gives_the_node_context_that_matches_the_context_hash_of_the_offer()
         .stdout;
     fs::remove_file(&sent).unwrap();
     let expected = Command::new(env!("CARGO_BIN_EXE_agent-graph"))
-        .args(["node", "up", "default/worker"])
+        .args(["node", "up", "squad/worker"])
         .current_dir(&project)
         .output()
         .unwrap()

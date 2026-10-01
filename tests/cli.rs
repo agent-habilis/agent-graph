@@ -375,7 +375,13 @@ fn graph_init_writes_defaults_into_cwd() {
         .collect();
     assert_eq!(
         names,
-        ["default/advisor", "default/orchestrator", "default/worker"]
+        [
+            "pair/advisor",
+            "pair/worker",
+            "squad/advisor",
+            "squad/orchestrator",
+            "squad/worker"
+        ]
     );
 }
 
@@ -384,14 +390,14 @@ fn graph_init_defaults_have_opus_orchestrator_sonnet_workers_and_fable_advisor()
     let (_tmp, root) = root();
     run(&root, &["graph", "init"]);
 
-    let out = run(&root, &["graph", "nodes", "default"]);
+    let out = run(&root, &["graph", "nodes", "squad"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(
         stdout(&out),
-        "orchestrator\tdefault/orchestrator\tlead\t1\topus\n\
-         worker\tdefault/worker\t-\t2\tsonnet\n\
-         advisor\tdefault/advisor\t-\t1\tfable\n"
+        "orchestrator\tsquad/orchestrator\tlead\t1\topus\n\
+         worker\tsquad/worker\t-\t2\tsonnet\n\
+         advisor\tsquad/advisor\t-\t1\tfable\n"
     );
 }
 
@@ -422,7 +428,7 @@ fn graph_init_writes_into_dir_argument() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
         target
-            .join(".agent-graph/default/nodes/worker/index.md")
+            .join(".agent-graph/squad/nodes/worker/index.md")
             .is_file()
     );
     assert!(!root.join(".agent-graph").exists());

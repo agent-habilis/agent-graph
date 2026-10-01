@@ -2,25 +2,25 @@
 
 A graph is a team of agents. A node is one position in the graph, and a peer fills it. Its text goes into the context of an agent and changes how the agent behaves.
 Edges are the named relationships between nodes.
-The same words apply on disk and at run time: a graph runs in a gossip as an instance, for example `default@main`, and each agent in a node is a peer of the graph.
+The same words apply on disk and at run time: a graph runs in a gossip as an instance, for example `squad@main`, and each agent in a node is a peer of the graph.
 `agent-graph` finds graphs on disk, checks them, prints them, and draws running graphs.
 
 ## Layout
 
 ```
 .agent-graph/
-  default/
+  squad/
     index.md        # the graph: mermaid block, boundaries, edges
     shared/         # optional files that the nodes can include
     nodes/
       worker/
-        index.md    # the node "default/worker"
+        index.md    # the node "squad/worker"
         tone.md     # printed only if index.md includes it
 ```
 
 Each graph folder and each node folder is an [OKF](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) bundle.
 A graph folder is self-contained: it holds its nodes, so you can share the graph as one folder.
-Every node lives in a graph. A node has the name `<graph>/<node>`, for example `default/worker`.
+Every node lives in a graph. A node has the name `<graph>/<node>`, for example `squad/worker`.
 
 A graph `index.md` starts with this frontmatter:
 
@@ -61,15 +61,15 @@ If two directories have a graph with the same name, the graph nearer to the curr
 
 ```sh
 agent-graph graph list                     # name<TAB>description<TAB>scope<TAB>path
-agent-graph graph get default              # the body of the graph, with includes expanded
-agent-graph graph nodes default            # id<TAB><graph>/<node><TAB>lead|-<TAB>count<TAB>model
-agent-graph graph lint [default]           # path:line: reason, for each error
-agent-graph graph hash default             # SHA-256 of the graph folder: the graph id between peers
-agent-graph graph init [<dir>]             # write the default graph into <dir>/.agent-graph/
+agent-graph graph get squad                # the body of the graph, with includes expanded
+agent-graph graph nodes squad              # id<TAB><graph>/<node><TAB>lead|-<TAB>count<TAB>model
+agent-graph graph lint [squad]             # path:line: reason, for each error
+agent-graph graph hash squad               # SHA-256 of the graph folder: the graph id between peers
+agent-graph graph init [<dir>]             # write the default graphs into <dir>/.agent-graph/
 agent-graph node list                      # name<TAB>description<TAB>tags<TAB>path
 agent-graph node list --tag '^go$'         # only nodes with a tag that matches the regex
-agent-graph node up default/worker         # the body of the graph, then the body of the node
-agent-graph node up default/worker --pid N # also write /tmp/agent-graph/N.json for the statusline
+agent-graph node up squad/worker           # the body of the graph, then the body of the node
+agent-graph node up squad/worker --pid N   # also write /tmp/agent-graph/N.json for the statusline
 agent-graph node down --pid N              # remove /tmp/agent-graph/N.json
 agent-graph graph topology --meta F --peers F --me NICK  # draw the running graph from gossip meta JSON; --mermaid for the source
 agent-graph plug [--agent A] [--path DIR]  # install the graph skills into each detected agent
@@ -81,7 +81,7 @@ The `--tag` regex is not anchored, so `go` also matches `mongo`.
 
 ## Defaults
 
-`agent-graph graph init` writes the files in [`defaults/`](defaults/) into `.agent-graph/`: the `default` graph with its `orchestrator`, `worker`, and `advisor` nodes.
+`agent-graph graph init` writes the files in [`defaults/`](defaults/) into `.agent-graph/`: the `squad` graph with its `orchestrator`, `worker`, and `advisor` nodes, and the `pair` graph with one `worker` (the lead) and one `advisor`.
 The build puts these files into the binary, so a user needs only the binary.
 If `.agent-graph` exists, `init` writes nothing and exits 0.
 
@@ -99,7 +99,7 @@ In `index.md`, a line that contains only `@<path>` is replaced with the body of 
 `node up --pid <pid>` writes the graph, the node, and their icons to `/tmp/agent-graph/<pid>.json`:
 
 ```json
-{"graph":"default","graph_icon":"󰡉","node":"worker","node_icon":"󱌢","pid":123}
+{"graph":"squad","graph_icon":"󰡉","node":"worker","node_icon":"󱌢","pid":123}
 ```
 
 `pid` is the Claude Code process. A statusline script gets the same pid as its parent process.

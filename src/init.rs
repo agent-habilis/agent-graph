@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 
 include!(concat!(env!("OUT_DIR"), "/defaults.rs"));
 
-/// Write the default graph into `dir/.agent-graph/`, and return the written
+/// Write the default graphs into `dir/.agent-graph/`, and return the written
 /// paths. Return `None` and write nothing if `.agent-graph` exists.
 pub(crate) fn init(dir: &Path) -> Result<Option<Vec<PathBuf>>> {
     let root = dir.join(".agent-graph");

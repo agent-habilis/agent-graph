@@ -27,7 +27,7 @@ If the command is not found, tell the user to run `cargo task install` in the
 ## Arguments
 
 `<instance>`: optional. The instance name of the graph, for example
-`default@main`. With no argument, the command draws the graph of this agent.
+`squad@main`. With no argument, the command draws the graph of this agent.
 
 <!-- include path="../shared/gossip-session.md" -->
 

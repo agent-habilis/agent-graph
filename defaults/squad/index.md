@@ -1,14 +1,14 @@
 ---
 type: Graph
 description: One orchestrator, two workers, and one advisor per git branch.
-title: default
+title: squad
 scope: branch
 icon: 󰡉
 ---
 
 ```mermaid
 flowchart LR
-  subgraph default
+  subgraph squad
     orchestrator(("orchestrator")):::lead
     worker(("worker"))
     advisor(("advisor"))
