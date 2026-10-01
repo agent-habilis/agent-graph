@@ -27,6 +27,8 @@ flowchart LR
 - Graph management (`/graph-up`, `/graph-down`, `/node-invite`, `/node-down`)
   is permitted with any gossip peer.
 - No file changes outside the git branch of the graph.
+- Reading files outside the working tree is permitted. No file changes
+  outside the working tree.
 - All nodes work on the same host, in the same working tree. The workers
   share one git index.
 
