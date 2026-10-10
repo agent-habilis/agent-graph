@@ -5,19 +5,20 @@ use std::path::{Path, PathBuf};
 use crate::{frontmatter, markdown};
 
 #[derive(Debug)]
-pub(crate) struct Node {
-    pub(crate) description: String,
-    pub(crate) tags: Vec<String>,
-    pub(crate) icon: Option<String>,
+pub struct Node {
+    pub description: String,
+    pub tags: Vec<String>,
+    pub icon: Option<String>,
     /// How many peers the node needs.
-    pub(crate) count: u32,
+    pub count: u32,
     /// The model the node prefers, matched against a peer's model.
-    pub(crate) model: Option<String>,
+    pub model: Option<String>,
 }
 
 /// Graph folders in `.agent-graph/` from `start` up to `/`, by name.
 /// A nearer folder shadows a farther one with the same name, valid or not.
-pub(crate) fn discover_graphs(start: &Path) -> BTreeMap<String, PathBuf> {
+#[must_use]
+pub fn discover_graphs(start: &Path) -> BTreeMap<String, PathBuf> {
     let mut graphs = BTreeMap::new();
     for level in start.ancestors() {
         // A missing or unreadable level has no graphs for us; it must not
@@ -35,7 +36,8 @@ pub(crate) fn discover_graphs(start: &Path) -> BTreeMap<String, PathBuf> {
 /// Node folders from `start` up to `/`, named `<graph>/<node>`. A node
 /// comes only from the nearest graph of that name, so a graph is
 /// shadowed as one unit.
-pub(crate) fn discover_nodes(start: &Path) -> BTreeMap<String, PathBuf> {
+#[must_use]
+pub fn discover_nodes(start: &Path) -> BTreeMap<String, PathBuf> {
     let mut nodes = BTreeMap::new();
     for (graph, dir) in discover_graphs(start) {
         let Ok(entries) = fs::read_dir(dir.join("nodes")) else {
@@ -57,7 +59,11 @@ fn subfolders(entries: fs::ReadDir) -> impl Iterator<Item = (String, PathBuf)> {
 }
 
 /// Read and validate `<dir>/index.md`. The error is a reason for the user.
-pub(crate) fn load(dir: &Path) -> Result<Node, String> {
+///
+/// # Errors
+///
+/// Fails when `index.md` cannot be read or is not a valid node.
+pub fn load(dir: &Path) -> Result<Node, String> {
     let content =
         fs::read_to_string(dir.join("index.md")).map_err(|err| format!("index.md: {err}"))?;
     let frontmatter =

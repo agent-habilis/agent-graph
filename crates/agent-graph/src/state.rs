@@ -1,11 +1,10 @@
 use std::path::PathBuf;
 use std::{fs, io};
 
+use agent_graph_core::graph::Graph;
+use agent_graph_core::node::Node;
 use anyhow::Result;
 use serde_json::{Map, Value};
-
-use crate::graph::Graph;
-use crate::node::Node;
 
 const DIR: &str = "/tmp/agent-graph";
 

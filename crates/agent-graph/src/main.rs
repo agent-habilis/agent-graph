@@ -1,12 +1,6 @@
-mod frontmatter;
-mod graph;
-mod include;
 mod init;
-mod markdown;
-mod node;
 mod plug;
 mod state;
-mod topology;
 
 use std::collections::BTreeMap;
 use std::env;
@@ -14,6 +8,8 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use agent_graph_core::{graph, include, node};
+use agent_graph_topology as topology;
 use anyhow::{Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use regex::Regex;

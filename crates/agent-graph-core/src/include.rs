@@ -7,7 +7,12 @@ use crate::frontmatter;
 
 /// The body of `file` with each `@path` line replaced by the body of that
 /// file, recursively. Every included file must be inside `root`.
-pub(crate) fn expand(root: &Path, file: &Path) -> Result<String> {
+///
+/// # Errors
+///
+/// Fails when a file cannot be read, an include is outside `root`, or an
+/// include forms a cycle.
+pub fn expand(root: &Path, file: &Path) -> Result<String> {
     let root = root.canonicalize()?;
     let mut out = String::new();
     expand_into(&root, &file.canonicalize()?, &mut Vec::new(), &mut out)?;

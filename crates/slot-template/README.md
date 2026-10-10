@@ -5,7 +5,7 @@ Copied from agent-gossip `crates/slot-template` at commit `6fc4060`
 
 Pure-function markdown templating over exactly two HTML-comment directives, so
 a template source stays valid, cleanly-rendering markdown. It has one job:
-turn the multi-file [`skills/`](../skills) sources into the single-file
+turn the multi-file [`skills/`](../agent-graph/skills) sources into the single-file
 `SKILL.md` tree the `agent-graph` binary embeds.
 
 No engine, no ambient context, no escaping of substituted values, no
@@ -21,7 +21,7 @@ But the skills share text — the pod meta rules, the node offer brief, the
 drive rules. Copies kept in sync by hand drift. So the sources stay
 multi-file (`skills/<name>/SKILL.md`, splicing `skills/shared/*.md`
 partials) and
-[`agent-graph`'s `build.rs`](../build.rs) renders them at build
+[`agent-graph`'s `build.rs`](../agent-graph/build.rs) renders them at build
 time. Adding a skill needs no change to the build script.
 
 The directives are HTML comments for a reason: a skill source is read and

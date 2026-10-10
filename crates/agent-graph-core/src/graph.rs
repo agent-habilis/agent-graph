@@ -15,36 +15,36 @@ const LEAD: &str = "lead";
 
 /// A vertex in the mermaid block: a node, or an external party.
 #[derive(Debug)]
-pub(crate) struct Vertex {
-    pub(crate) id: String,
+pub struct Vertex {
+    pub id: String,
     /// The label, which names a folder in `<graph>/nodes/`.
-    pub(crate) label: String,
-    pub(crate) lead: bool,
+    pub label: String,
+    pub lead: bool,
     /// The subgraph that holds the node. `None` for an external party.
-    pub(crate) subgraph: Option<String>,
+    pub subgraph: Option<String>,
     line: usize,
 }
 
 #[derive(Debug)]
-pub(crate) struct Edge {
-    pub(crate) name: Option<String>,
-    pub(crate) from: String,
-    pub(crate) to: String,
+pub struct Edge {
+    pub name: Option<String>,
+    pub from: String,
+    pub to: String,
     /// `-->`, `<-->`, or `---`.
-    pub(crate) arrow: String,
+    pub arrow: String,
     /// The `|label|` text, without quotes.
-    pub(crate) label: Option<String>,
+    pub label: Option<String>,
     line: usize,
 }
 
 #[derive(Debug)]
-pub(crate) struct Graph {
-    pub(crate) description: String,
-    pub(crate) scope: String,
-    pub(crate) title: Option<String>,
-    pub(crate) icon: Option<String>,
-    pub(crate) vertices: Vec<Vertex>,
-    pub(crate) edges: Vec<Edge>,
+pub struct Graph {
+    pub description: String,
+    pub scope: String,
+    pub title: Option<String>,
+    pub icon: Option<String>,
+    pub vertices: Vec<Vertex>,
+    pub edges: Vec<Edge>,
     content: String,
     /// Problems found while reading, as (line, reason). `lint` reports them.
     problems: Vec<(usize, String)>,
@@ -61,7 +61,11 @@ static VERTEX: LazyLock<Regex> = LazyLock::new(|| {
 /// Read `<dir>/index.md` of a graph. Frontmatter errors fail the
 /// load; mermaid problems are kept for `lint`, so that `nodes` can still read
 /// a graph with a missing edge section.
-pub(crate) fn load(dir: &Path) -> Result<Graph, String> {
+///
+/// # Errors
+///
+/// Fails when `index.md` cannot be read or its frontmatter is not valid.
+pub fn load(dir: &Path) -> Result<Graph, String> {
     let content =
         fs::read_to_string(dir.join("index.md")).map_err(|err| format!("index.md: {err}"))?;
     let frontmatter =
@@ -202,7 +206,11 @@ fn parse_mermaid(content: &str, graph: &mut Graph) {
 /// graph between peers. It covers the relative path and the content of each file,
 /// in path order, and no timestamps, so a copy of the folder has the same
 /// hash.
-pub(crate) fn hash(dir: &Path) -> io::Result<String> {
+///
+/// # Errors
+///
+/// Fails when a file in `dir` cannot be read.
+pub fn hash(dir: &Path) -> io::Result<String> {
     let mut files = Vec::new();
     collect_files(dir, &mut files)?;
     files.sort();
@@ -235,13 +243,15 @@ fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> io::Result<()> {
 }
 
 /// The node folder of a vertex in the graph at `dir`.
-pub(crate) fn node_dir(dir: &Path, vertex: &Vertex) -> PathBuf {
+#[must_use]
+pub fn node_dir(dir: &Path, vertex: &Vertex) -> PathBuf {
     dir.join("nodes").join(&vertex.label)
 }
 
 /// Check the graph against the lint rules. Each error is (line,
 /// reason).
-pub(crate) fn lint(dir: &Path, graph: &Graph) -> Vec<(usize, String)> {
+#[must_use]
+pub fn lint(dir: &Path, graph: &Graph) -> Vec<(usize, String)> {
     let mut errors = graph.problems.clone();
     let by_id: HashMap<&str, &Vertex> = graph
         .vertices

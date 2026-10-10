@@ -81,7 +81,7 @@ The `--tag` regex is not anchored, so `go` also matches `mongo`.
 
 ## Defaults
 
-`agent-graph graph init` writes the files in [`defaults/`](defaults/) into `.agent-graph/`: the `squad` graph with its `orchestrator`, `worker`, and `advisor` nodes, and the `pair` graph with one `worker` (the lead) and one `advisor`.
+`agent-graph graph init` writes the files in [`defaults/`](crates/agent-graph/defaults/) into `.agent-graph/`: the `squad` graph with its `orchestrator`, `worker`, and `advisor` nodes, and the `pair` graph with one `worker` (the lead) and one `advisor`.
 The build puts these files into the binary, so a user needs only the binary.
 If `.agent-graph` exists, `init` writes nothing and exits 0.
 
@@ -114,7 +114,7 @@ An agent that is not on the machine is skipped.
 Run `plug` again after each install of a new binary. It also removes the `template-*`, `role-*`, and `team-*` skills of a binary from before the rename back to graph and node.
 `plug` replaces a symbolic link to an old skill folder, and it does not change the target of the link.
 
-The skill sources in [`skills/`](skills/) are templates. See [`skills/README.md`](skills/README.md).
+The skill sources in [`crates/agent-graph/skills/`](crates/agent-graph/skills/) are templates. See [`skills/README.md`](crates/agent-graph/skills/README.md).
 
 ## Exit codes
 
@@ -134,6 +134,6 @@ All development commands go through `cargo task <name>`.
 | `fmt` | `cargo fmt --all` |
 | `coverage` | `cargo llvm-cov`, installed on demand |
 | `run` | `cargo run --` with the rest forwarded (`cargo task run node list`) |
-| `install` | `cargo install --force --locked` from the repo root |
+| `install` | `cargo install --path crates/agent-graph --force --locked` |
 | `release` | Builds the release binary |
 | `clean` | `cargo clean` plus the llvm-cov target dir |

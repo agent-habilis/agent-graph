@@ -3,21 +3,26 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 
+use agent_graph_core::graph::{self, Graph};
+use agent_graph_core::node;
 use anyhow::{Context, Result, anyhow, bail};
 use serde_json::Value;
 
-use crate::graph::{self, Graph};
-use crate::node;
-
 /// The gossip documents, as printed by `agent-gossip meta get` and `peers`.
 #[derive(Debug)]
-pub(crate) struct Gossip {
+pub struct Gossip {
     meta: Value,
     roster: Value,
 }
 
 impl Gossip {
-    pub(crate) fn read(meta: &Path, roster: &Path) -> Result<Self> {
+    /// Read the meta and roster JSON files.
+    ///
+    /// # Errors
+    ///
+    /// Fails when a file cannot be read or parsed, or holds an
+    /// `agent-gossip` error.
+    pub fn read(meta: &Path, roster: &Path) -> Result<Self> {
         let read = |path: &Path| -> Result<Value> {
             let text =
                 fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
@@ -72,7 +77,12 @@ impl Gossip {
 
 /// Draw the graph `instance`, or the graph of `me`, as a Mermaid flowchart.
 /// Also return one warning per problem, sorted.
-pub(crate) fn draw(
+///
+/// # Errors
+///
+/// Fails when the graph has no peers, its hash is not clear, or no local
+/// graph has that hash.
+pub fn draw(
     graphs: &BTreeMap<String, PathBuf>,
     gossip: &Gossip,
     instance: Option<&str>,
@@ -447,6 +457,10 @@ fn hash_prefix(hash: &str) -> &str {
 }
 
 /// Draw Mermaid source as terminal text, with the vendored render.
-pub(crate) fn render_mermaid(source: &str) -> Result<String> {
+///
+/// # Errors
+///
+/// Fails when the source is not valid Mermaid.
+pub fn render_mermaid(source: &str) -> Result<String> {
     agent_habilis_render::mermaid::mermaid(source)
 }
