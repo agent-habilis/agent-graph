@@ -376,12 +376,52 @@ fn graph_init_writes_defaults_into_cwd() {
     assert_eq!(
         names,
         [
+            "audit/auditor",
+            "audit/breaker",
+            "audit/lead",
+            "audit/worker",
             "pair/advisor",
             "pair/worker",
+            "port/breaker",
+            "port/lead",
+            "port/worker",
             "squad/advisor",
             "squad/orchestrator",
             "squad/worker"
         ]
+    );
+}
+
+#[test]
+fn graph_init_audit_has_one_worker_and_two_reviewers() {
+    let (_tmp, root) = root();
+    run(&root, &["graph", "init"]);
+
+    let out = run(&root, &["graph", "nodes", "audit"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        stdout(&out),
+        "lead\taudit/lead\tlead\t1\topus\n\
+         worker\taudit/worker\t-\t1\tsonnet\n\
+         breaker\taudit/breaker\t-\t1\tfable\n\
+         auditor\taudit/auditor\t-\t1\topus\n"
+    );
+}
+
+#[test]
+fn graph_init_port_has_two_workers_and_one_reviewer() {
+    let (_tmp, root) = root();
+    run(&root, &["graph", "init"]);
+
+    let out = run(&root, &["graph", "nodes", "port"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        stdout(&out),
+        "lead\tport/lead\tlead\t1\topus\n\
+         worker\tport/worker\t-\t2\tsonnet\n\
+         breaker\tport/breaker\t-\t1\tfable\n"
     );
 }
 

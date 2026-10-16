@@ -81,7 +81,9 @@ The `--tag` regex is not anchored, so `go` also matches `mongo`.
 
 ## Defaults
 
-`agent-graph graph init` writes the files in [`defaults/`](defaults/) into `.agent-graph/`: the `squad` graph with its `orchestrator`, `worker`, and `advisor` nodes, and the `pair` graph with one `worker` (the lead) and one `advisor`.
+`agent-graph graph init` writes the files in [`defaults/`](defaults/) into `.agent-graph/`: the `squad` graph with its `orchestrator`, `worker`, and `advisor` nodes, the `pair` graph with one `worker` (the lead) and one `advisor`, the `audit` graph with one `lead`, one `worker`, and two reviewers (`breaker` and `auditor`), and the `port` graph with one `lead`, two `worker` peers, and one `breaker`.
+
+Use `audit` for a change to shared code: one writer and two reviewers with different inputs. Use `port` for a port or a migration of independent files with a strong test suite: two writers, and one reviewer.
 The build puts these files into the binary, so a user needs only the binary.
 If `.agent-graph` exists, `init` writes nothing and exits 0.
 
