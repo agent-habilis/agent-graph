@@ -21,8 +21,8 @@ flowchart LR
 ## Boundaries
 
 - No communication with nodes outside the graph, except through `external`.
-- Graph management (`/graph-up`, `/graph-down`, `/node-invite`, `/node-down`)
-  is permitted with any gossip peer.
+- Graph management (`/graph-up`, `/graph-down`, `/node-invite`,
+  `/graph-leave`) is permitted with any gossip peer.
 - No file changes outside the git branch of the graph.
 - Reading files outside the working tree is permitted. No file changes
   outside the working tree.

@@ -21,7 +21,7 @@ const GRAPH_INDEX: &str = "---\ntype: Graph\ndescription: g\nscope: branch\n---\
 
 fn node_dir(level: &Path, graph: &str, name: &str) -> PathBuf {
     level
-        .join(".agent-graph")
+        .join(".agent-graph/graphs")
         .join(graph)
         .join("nodes")
         .join(name)
@@ -31,7 +31,10 @@ fn node_dir(level: &Path, graph: &str, name: &str) -> PathBuf {
 /// `level`, and return the node folder.
 fn graph_node(level: &Path, graph: &str, name: &str, index: &str) -> PathBuf {
     write(
-        &level.join(".agent-graph").join(graph).join("index.md"),
+        &level
+            .join(".agent-graph/graphs")
+            .join(graph)
+            .join("index.md"),
         GRAPH_INDEX,
     );
     let dir = node_dir(level, graph, name);
@@ -39,9 +42,12 @@ fn graph_node(level: &Path, graph: &str, name: &str, index: &str) -> PathBuf {
     dir
 }
 
-/// Write the node `<name>` in the graph `g` under `level`.
+/// Write the standalone node `<name>` in `.agent-graph/nodes/` under `level`,
+/// and return its folder.
 fn node(level: &Path, name: &str, index: &str) -> PathBuf {
-    graph_node(level, "g", name, index)
+    let dir = level.join(".agent-graph/nodes").join(name);
+    write(&dir.join("index.md"), index);
+    dir
 }
 
 fn index(description: &str, tags: Option<&str>, body: &str) -> String {
@@ -75,21 +81,15 @@ fn line(name: &str, description: &str, tags: &str, dir: &Path) -> String {
 #[test]
 fn node_list_shows_nodes_from_cwd_and_parents() {
     let (_tmp, root) = root();
-    let outer = graph_node(&root, "outer", "alpha", &index("outer node", None, "A\n"));
-    let inner = graph_node(
-        &root.join("x"),
-        "inner",
-        "beta",
-        &index("inner node", None, "B\n"),
-    );
+    let outer = node(&root, "alpha", &index("outer node", None, "A\n"));
+    let inner = node(&root.join("x"), "beta", &index("inner node", None, "B\n"));
 
     let out = run(&root.join("x/y"), &["node", "list"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(
         stdout(&out),
-        line("inner/beta", "inner node", "", &inner)
-            + &line("outer/alpha", "outer node", "", &outer)
+        line("alpha", "outer node", "", &outer) + &line("beta", "inner node", "", &inner)
     );
 }
 
@@ -105,9 +105,9 @@ fn nearest_node_shadows_parent_node() {
     let cwd = root.join("x/y");
 
     let list = run(&cwd, &["node", "list"]);
-    let get = run(&cwd, &["node", "up", "g/advisor"]);
+    let get = run(&cwd, &["node", "up", "advisor"]);
 
-    assert_eq!(stdout(&list), line("g/advisor", "inner", "", &inner));
+    assert_eq!(stdout(&list), line("advisor", "inner", "", &inner));
     assert_eq!(stdout(&get), "inner body\n");
 }
 
@@ -115,7 +115,7 @@ fn nearest_node_shadows_parent_node() {
 fn node_list_warns_and_skips_invalid_node() {
     let (_tmp, root) = root();
     let ok = node(&root, "ok", &index("fine", None, ""));
-    fs::create_dir_all(node_dir(&root, "g", "no-index")).unwrap();
+    fs::create_dir_all(root.join(".agent-graph/nodes/no-index")).unwrap();
     node(
         &root,
         "wrong-type",
@@ -131,7 +131,7 @@ fn node_list_warns_and_skips_invalid_node() {
     let out = run(&root, &["node", "list"]);
 
     assert!(out.status.success());
-    assert_eq!(stdout(&out), line("g/ok", "fine", "", &ok));
+    assert_eq!(stdout(&out), line("ok", "fine", "", &ok));
     let err = stderr(&out);
     for name in ["no-index", "wrong-type", "no-description", "block-tags"] {
         assert!(
@@ -149,7 +149,7 @@ fn node_list_prints_tags_column() {
 
     let out = run(&root, &["node", "list"]);
 
-    assert_eq!(stdout(&out), line("g/advisor", "d", "review,go", &dir));
+    assert_eq!(stdout(&out), line("advisor", "d", "review,go", &dir));
 }
 
 #[test]
@@ -163,10 +163,10 @@ fn node_list_filters_by_tag_regex() {
     let anchored = run(&root, &["node", "list", "--tag", "^go"]);
     let unanchored = run(&root, &["node", "list", "--tag", "go"]);
 
-    assert_eq!(stdout(&anchored), line("g/go-dev", "d", "golang", &go));
+    assert_eq!(stdout(&anchored), line("go-dev", "d", "golang", &go));
     assert_eq!(
         stdout(&unanchored),
-        line("g/go-dev", "d", "golang", &go) + &line("g/mongo", "d", "db,mongo", &mongo)
+        line("go-dev", "d", "golang", &go) + &line("mongo", "d", "db,mongo", &mongo)
     );
 }
 
@@ -181,7 +181,7 @@ fn node_list_tag_filter_runs_after_shadowing() {
 
     assert!(parent_tag.status.success());
     assert_eq!(stdout(&parent_tag), "");
-    assert_eq!(stdout(&inner_tag), line("g/advisor", "inner", "y", &inner));
+    assert_eq!(stdout(&inner_tag), line("advisor", "inner", "y", &inner));
 }
 
 #[test]
@@ -203,7 +203,7 @@ fn node_up_prints_body_without_frontmatter() {
         &index("d", None, "# Advisor\n\nBe blunt.\n"),
     );
 
-    let out = run(&root, &["node", "up", "g/advisor"]);
+    let out = run(&root, &["node", "up", "advisor"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), "# Advisor\n\nBe blunt.\n");
@@ -217,7 +217,7 @@ fn node_up_expands_nested_includes() {
     write(&dir.join("parts/c.md"), "C1\n");
     write(&dir.join("unused.md"), "never printed\n");
 
-    let out = run(&root, &["node", "up", "g/advisor"]);
+    let out = run(&root, &["node", "up", "advisor"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), "A\nB1\nC1\nC\n");
@@ -230,7 +230,7 @@ fn node_up_rejects_include_cycle() {
     write(&dir.join("a.md"), "@b.md\n");
     write(&dir.join("b.md"), "@a.md\n");
 
-    let out = run(&root, &["node", "up", "g/advisor"]);
+    let out = run(&root, &["node", "up", "advisor"]);
 
     assert_eq!(out.status.code(), Some(1));
     assert!(stderr(&out).starts_with("error: "), "{}", stderr(&out));
@@ -250,7 +250,7 @@ fn node_up_rejects_include_outside_graph() {
     node(&root, "absolute", &index("d", None, &absolute));
 
     for name in ["relative", "absolute"] {
-        let out = run(&root, &["node", "up", &format!("g/{name}")]);
+        let out = run(&root, &["node", "up", name]);
 
         assert_eq!(out.status.code(), Some(1), "{name}");
         assert!(stderr(&out).starts_with("error: "), "{}", stderr(&out));
@@ -264,7 +264,7 @@ fn node_up_ignores_include_in_code_fence() {
     let body = "```md\n@missing.md\n```\n";
     node(&root, "advisor", &index("d", None, body));
 
-    let out = run(&root, &["node", "up", "g/advisor"]);
+    let out = run(&root, &["node", "up", "advisor"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), body);
@@ -274,7 +274,7 @@ fn node_up_ignores_include_in_code_fence() {
 fn node_up_unknown_node_exits_1() {
     let (_tmp, root) = root();
 
-    let out = run(&root, &["node", "up", "g/nope"]);
+    let out = run(&root, &["node", "up", "nope"]);
 
     assert_eq!(out.status.code(), Some(1));
     assert!(stderr(&out).starts_with("error: "), "{}", stderr(&out));
@@ -286,7 +286,7 @@ fn node_up_prints_node_with_valid_boundaries() {
     let body = "# Worker\n\n## Boundaries\n\n- No `git merge`.\n- No file changes\n  outside the branch.\n\n## Tone\n\nBe brief.\n";
     node(&root, "worker", &index("d", None, body));
 
-    let out = run(&root, &["node", "up", "g/worker"]);
+    let out = run(&root, &["node", "up", "worker"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), body);
@@ -307,7 +307,7 @@ fn node_up_rejects_node_with_bad_boundaries() {
     );
 
     for name in ["empty", "prose"] {
-        let out = run(&root, &["node", "up", &format!("g/{name}")]);
+        let out = run(&root, &["node", "up", name]);
 
         assert_eq!(out.status.code(), Some(1), "{name}");
         assert!(stderr(&out).contains("Boundaries"), "{}", stderr(&out));
@@ -327,7 +327,7 @@ fn node_list_warns_on_node_with_bad_boundaries() {
     let out = run(&root, &["node", "list"]);
 
     assert!(out.status.success());
-    assert_eq!(stdout(&out), line("g/ok", "fine", "", &ok));
+    assert_eq!(stdout(&out), line("ok", "fine", "", &ok));
     assert!(
         stderr(&out).contains("empty") && stderr(&out).contains("Boundaries"),
         "{}",
@@ -373,16 +373,7 @@ fn graph_init_writes_defaults_into_cwd() {
         .lines()
         .map(|line| line.split('\t').next().unwrap().to_string())
         .collect();
-    assert_eq!(
-        names,
-        [
-            "pair/advisor",
-            "pair/worker",
-            "squad/advisor",
-            "squad/orchestrator",
-            "squad/worker"
-        ]
-    );
+    assert_eq!(names, ["advisor", "worker"]);
 }
 
 #[test]
@@ -428,7 +419,7 @@ fn graph_init_writes_into_dir_argument() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
         target
-            .join(".agent-graph/squad/nodes/worker/index.md")
+            .join(".agent-graph/graphs/squad/nodes/worker/index.md")
             .is_file()
     );
     assert!(!root.join(".agent-graph").exists());
@@ -471,13 +462,19 @@ fn node_index_with_icon(icon: &str, body: &str) -> String {
     format!("---\ntype: Node\ndescription: d\nicon: {icon}\n---\n{body}")
 }
 
-/// Run `node up <name> --pid <pid>` and return the state file it wrote. Each
+/// Run `node up <name>`, or `graph node-up <graph>/<node>`, with `--pid <pid>`
+/// and return the state file it wrote. Each
 /// test uses its own pid, because the state folder is shared.
 fn up_state(cwd: &Path, name: &str, pid: u32) -> String {
     let path = PathBuf::from(format!("/tmp/agent-graph/{pid}.json"));
     let _ = fs::remove_file(&path);
 
-    let out = run(cwd, &["node", "up", name, "--pid", &pid.to_string()]);
+    let up = if name.contains('/') {
+        ["graph", "node-up"]
+    } else {
+        ["node", "up"]
+    };
+    let out = run(cwd, &[up[0], up[1], name, "--pid", &pid.to_string()]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     let state = fs::read_to_string(&path).unwrap();
@@ -486,14 +483,14 @@ fn up_state(cwd: &Path, name: &str, pid: u32) -> String {
 }
 
 #[test]
-fn node_list_names_nodes_graph_slash_node() {
+fn node_list_skips_nodes_of_graphs() {
     let (_tmp, root) = root();
-    let worker = graph_node(&root, "graph", "worker", &index("w", None, ""));
+    graph_node(&root, "graph", "worker", &index("w", None, ""));
 
     let out = run(&root, &["node", "list"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert_eq!(stdout(&out), line("graph/worker", "w", "", &worker));
+    assert_eq!(stdout(&out), "");
 }
 
 #[test]
@@ -511,29 +508,151 @@ fn node_list_ignores_old_standalone_nodes() {
 }
 
 #[test]
+fn node_list_names_standalone_nodes_bare() {
+    let (_tmp, root) = root();
+    let solo = node(&root, "solo", &index("alone", None, ""));
+    graph_node(&root, "graph", "worker", &index("w", None, ""));
+
+    let out = run(&root, &["node", "list"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), line("solo", "alone", "", &solo));
+}
+
+#[test]
+fn node_up_prints_only_the_body_of_a_node() {
+    let (_tmp, root) = root();
+    graph_node(
+        &root,
+        "graph",
+        "solo",
+        &index("in a graph", None, "graph body\n"),
+    );
+    node(&root, "solo", &index("alone", None, "solo body\n"));
+
+    let out = run(&root, &["node", "up", "solo"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "solo body\n");
+}
+
+#[test]
+fn node_up_takes_the_nearest_node() {
+    let (_tmp, root) = root();
+    node(&root, "solo", &index("far", None, "far\n"));
+    let near = root.join("project");
+    node(&near, "solo", &index("near", None, "near\n"));
+
+    let out = run(&near, &["node", "up", "solo"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "near\n");
+}
+
+#[test]
+fn node_up_records_a_standalone_node_without_a_graph() {
+    let (_tmp, root) = root();
+    node(&root, "solo", &node_index_with_icon("S", ""));
+
+    let state = up_state(&root, "solo", 4_000_006);
+
+    assert_eq!(
+        state,
+        "{\"node\":\"solo\",\"node_icon\":\"S\",\"pid\":4000006}\n"
+    );
+}
+
+#[test]
+fn node_up_ignores_a_graph_outside_graphs_folder() {
+    let (_tmp, root) = root();
+    write(&root.join(".agent-graph/old/index.md"), GRAPH_INDEX);
+    write(
+        &root.join(".agent-graph/old/nodes/worker/index.md"),
+        &index("w", None, ""),
+    );
+
+    let out = run(&root, &["graph", "node-up", "old/worker"]);
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("not found"), "{}", stderr(&out));
+}
+
+#[test]
 fn node_up_prints_graph_then_node() {
     let (_tmp, root) = root();
     graph_node(&root, "graph", "worker", &index("w", None, "# Worker\n"));
     write(
-        &root.join(".agent-graph/graph/index.md"),
+        &root.join(".agent-graph/graphs/graph/index.md"),
         &graph_index("P", "# Graph\n"),
     );
 
-    let out = run(&root, &["node", "up", "graph/worker"]);
+    let out = run(&root, &["graph", "node-up", "graph/worker"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), "# Graph\n# Worker\n");
 }
 
 #[test]
-fn node_up_needs_graph_slash_node() {
+fn graph_node_up_needs_graph_slash_node() {
     let (_tmp, root) = root();
     graph_node(&root, "graph", "worker", &index("w", None, ""));
 
-    let out = run(&root, &["node", "up", "worker"]);
+    let out = run(&root, &["graph", "node-up", "worker"]);
 
     assert_eq!(out.status.code(), Some(1));
     assert!(stderr(&out).contains("<graph>/<node>"), "{}", stderr(&out));
+}
+
+#[test]
+fn node_up_does_not_load_a_node_of_a_graph() {
+    let (_tmp, root) = root();
+    graph_node(
+        &root,
+        "graph",
+        "worker",
+        &index("w", None, "graph worker\n"),
+    );
+
+    let out = run(&root, &["node", "up", "graph/worker"]);
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("not found"), "{}", stderr(&out));
+    assert!(!stdout(&out).contains("graph worker"));
+}
+
+#[test]
+fn graph_node_down_removes_state_file() {
+    let (_tmp, root) = root();
+    graph_node(&root, "graph", "worker", &index("w", None, ""));
+    let path = PathBuf::from("/tmp/agent-graph/4000007.json");
+    assert!(
+        run(
+            &root,
+            &["graph", "node-up", "graph/worker", "--pid", "4000007"]
+        )
+        .status
+        .success()
+    );
+    assert!(path.is_file());
+
+    let out = run(&root, &["graph", "node-down", "--pid", "4000007"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(!path.exists());
+}
+
+#[test]
+fn graph_node_up_rejects_a_path_as_node_name() {
+    let (_tmp, root) = root();
+    graph_node(&root, "graph", "worker", &index("w", None, ""));
+    graph_node(&root, "other", "worker", &index("w", None, "other\n"));
+
+    for name in ["graph/../../other/nodes/worker", "graph/..", "graph/"] {
+        let out = run(&root, &["graph", "node-up", name]);
+
+        assert_eq!(out.status.code(), Some(1), "{name}");
+        assert!(!stdout(&out).contains("other"), "{name}");
+    }
 }
 
 #[test]
@@ -553,8 +672,8 @@ fn node_up_includes_files_of_its_graph_only() {
         &index("w", None, "@../../../graph/shared/rules.md\n"),
     );
 
-    let shared = run(&root, &["node", "up", "graph/worker"]);
-    let leak = run(&root, &["node", "up", "leak/worker"]);
+    let shared = run(&root, &["graph", "node-up", "graph/worker"]);
+    let leak = run(&root, &["graph", "node-up", "leak/worker"]);
 
     assert_eq!(stdout(&shared), "shared rules\n", "{}", stderr(&shared));
     assert_eq!(leak.status.code(), Some(1));
@@ -571,7 +690,7 @@ fn node_up_with_pid_writes_graph_and_node_state() {
         &node_index_with_icon("\u{f1322}", ""),
     );
     write(
-        &root.join(".agent-graph/graph/index.md"),
+        &root.join(".agent-graph/graphs/graph/index.md"),
         &graph_index("\u{f0849}", ""),
     );
 
@@ -586,7 +705,7 @@ fn node_up_with_pid_writes_graph_and_node_state() {
 #[test]
 fn node_up_with_pid_omits_missing_icons() {
     let (_tmp, root) = root();
-    node(&root, "solo", &index("d", None, ""));
+    graph_node(&root, "g", "solo", &index("d", None, ""));
 
     let state = up_state(&root, "g/solo", 4_000_002);
 
@@ -615,7 +734,7 @@ fn node_list_warns_on_bad_count() {
     let out = run(&root, &["node", "list"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert_eq!(stdout(&out), line("g/ok", "d", "", &ok));
+    assert_eq!(stdout(&out), line("ok", "d", "", &ok));
     for name in ["zero", "word", "minus"] {
         assert!(
             stderr(&out)
@@ -633,7 +752,7 @@ fn node_down_removes_state_file() {
     node(&root, "solo", &index("d", None, ""));
     let path = PathBuf::from("/tmp/agent-graph/4000003.json");
     assert!(
-        run(&root, &["node", "up", "g/solo", "--pid", "4000003"])
+        run(&root, &["node", "up", "solo", "--pid", "4000003"])
             .status
             .success()
     );
@@ -660,7 +779,7 @@ fn node_up_state_uses_graph_title() {
     let (_tmp, root) = root();
     graph_node(&root, "graph", "worker", &index("w", None, ""));
     write(
-        &root.join(".agent-graph/graph/index.md"),
+        &root.join(".agent-graph/graphs/graph/index.md"),
         "---\ntype: Graph\ndescription: d\ntitle: Default graph\nscope: branch\n---\n",
     );
 

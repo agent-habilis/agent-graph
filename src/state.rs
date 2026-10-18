@@ -10,14 +10,17 @@ use crate::node::Node;
 const DIR: &str = "/tmp/agent-graph";
 
 /// Write `/tmp/agent-graph/<pid>.json`: the graph and node of the agent
-/// with that pid, for the statusline. The keys stay `graph` and `node`,
+/// with that pid, for the statusline. A standalone node has no graph, so the
+/// file has no `graph` key. The keys stay `graph` and `node`,
 /// because agent-statusline reads them. The write is atomic, so a statusline
 /// never reads half a file.
-pub(crate) fn write(pid: u32, graph: (&str, &Graph), node: (&str, &Node)) -> Result<()> {
+pub(crate) fn write(pid: u32, graph: Option<(&str, &Graph)>, node: (&str, &Node)) -> Result<()> {
     let mut state = Map::new();
     state.insert("pid".into(), pid.into());
-    let graph_name = graph.1.title.as_deref().unwrap_or(graph.0);
-    insert(&mut state, "graph", graph_name, graph.1.icon.as_deref());
+    if let Some((name, graph)) = graph {
+        let title = graph.title.as_deref().unwrap_or(name);
+        insert(&mut state, "graph", title, graph.icon.as_deref());
+    }
     insert(&mut state, "node", node.0, node.1.icon.as_deref());
     let dir = PathBuf::from(DIR);
     fs::create_dir_all(&dir)?;

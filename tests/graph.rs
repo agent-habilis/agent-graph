@@ -53,7 +53,7 @@ fn root() -> (TempDir, PathBuf) {
     for name in ["worker", "advisor"] {
         write(
             &path
-                .join(".agent-graph/coding/nodes")
+                .join(".agent-graph/graphs/coding/nodes")
                 .join(name)
                 .join("index.md"),
             NODE_INDEX,
@@ -67,10 +67,10 @@ fn write(path: &Path, content: &str) {
     fs::write(path, content).unwrap();
 }
 
-/// Write `<name>/index.md` in `.agent-graph/` under `level` and return the
+/// Write `<name>/index.md` in `.agent-graph/graphs/` under `level` and return the
 /// graph folder.
 fn graph(level: &Path, name: &str, index: &str) -> PathBuf {
-    let dir = level.join(".agent-graph").join(name);
+    let dir = level.join(".agent-graph/graphs").join(name);
     write(&dir.join("index.md"), index);
     dir
 }

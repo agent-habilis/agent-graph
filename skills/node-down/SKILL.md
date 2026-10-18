@@ -1,7 +1,7 @@
 ---
 name: node-down
-description: Unset the node of this agent with the `agent-graph` CLI. The agent stops acting as the node, leaves its graph, and the node pill leaves the statusline. Use when the user says "/node-down", "unset the node", "drop the node", or "stop acting as the node".
-allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*)
+description: Unset the standalone node of this agent with the `agent-graph` CLI. The agent stops acting as the node, and the node pill leaves the statusline. Use when the user says "/node-down", "unset the node", "drop the node", or "stop acting as the node".
+allowed-tools: Bash(agent-graph:*)
 ---
 
 # node-down
@@ -10,6 +10,9 @@ allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*)
 `agent-graph node up` wrote for the statusline. The text of the node stays in
 the context of this session, so this skill also tells the agent to stop
 acting on it.
+
+This skill is for a standalone node. To leave a node of a running graph, the
+user runs `/graph-leave`.
 
 ## Preflight
 
@@ -31,31 +34,9 @@ agent-graph node down --pid "$PPID"
 `$PPID` is the agent process. The command also succeeds when this agent has
 no node. If the command fails, show its `error:` line and stop.
 
-When the command succeeds, leave the graph. Run:
+When the command succeeds:
 
-```bash
-agent-gossip session --session-pid "$PPID"
-```
-
-If this session is in a gossip, hold `$GOSSIP` and `$NICKNAME` from the
-output, and read your meta entry:
-
-```bash
-agent-gossip meta get --gossip "$GOSSIP" --nickname "$NICKNAME"
-```
-
-If your entry `/peers/$NICKNAME` has an `instance`, remove your place. Then the
-graph does not count you, and you are a free peer again. If it has no `instance`,
-write nothing:
-
-```bash
-agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":null,"graph":null,"hash":null,"node":null,"invited_by":null,"verified":null,"status":"idle"}}}'
-```
-
-Then:
-
-1. Stop acting as the node and as a peer of its graph. The boundaries of
-   the node and of its graph do not apply any more.
+1. Stop acting as the node. Its boundaries do not apply any more.
 2. Print only this line:
 
 ```text

@@ -133,14 +133,14 @@ fn graph_hash<'a>(entries: &[(&str, &'a Value)], me: &str, instance: &str) -> Re
 }
 
 /// The graph folder with this hash: a graph that the cwd sees, else a
-/// graph that a peer received in `~/.agent-graph/<hash>`.
+/// graph that a peer received in `~/.agent-graph/graphs/<hash>`.
 fn find_graph(
     graphs: &BTreeMap<String, PathBuf>,
     name: Option<&str>,
     hash: &str,
 ) -> Result<PathBuf> {
     let received =
-        env::var_os("HOME").map(|home| PathBuf::from(home).join(".agent-graph").join(hash));
+        env::var_os("HOME").map(|home| PathBuf::from(home).join(".agent-graph/graphs").join(hash));
     if let Some(dir) = graphs
         .values()
         .chain(&received)

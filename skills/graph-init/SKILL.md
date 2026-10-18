@@ -1,6 +1,6 @@
 ---
 name: graph-init
-description: Create a starter `.agent-graph/` folder in the current project, with the squad graph (orchestrator, workers, advisor) and the pair graph (worker, advisor). Does nothing if the folder exists. Use when the user says "/graph-init", "init graph", or "set up agent graphs for this project".
+description: Create a starter `.agent-graph/` folder in the current project, with the squad graph (orchestrator, workers, advisor), the pair graph (worker, advisor), and the standalone worker and advisor nodes. Does nothing if the folder exists. Use when the user says "/graph-init", "init graph", or "set up agent graphs for this project".
 allowed-tools: Bash(git rev-parse:*), Bash(agent-graph:*)
 ---
 
@@ -18,6 +18,9 @@ The defaults are:
 - `pair`: 1 worker (lead) and 1 advisor, per git branch.
   - `pair/worker`: writes the code, gets a review, and talks to the user (model sonnet).
   - `pair/advisor`: reviews the plan and the diff (model fable).
+- Standalone nodes, outside of any graph:
+  - `worker`: writes the code for a task and reports the result (model sonnet).
+  - `advisor`: reviews a plan or a diff (model fable).
 
 ## Target
 
@@ -57,10 +60,10 @@ If the output says `already exists`, print this line, then stop:
 graph · exists · $TARGET/.agent-graph
 ```
 
-Else show the new nodes:
+Else show the new graphs and standalone nodes:
 
 ```sh
-cd "$TARGET" && agent-graph node list
+cd "$TARGET" && agent-graph graph list && agent-graph node list
 ```
 
 Show the nodes as a Markdown table with the columns name and description.

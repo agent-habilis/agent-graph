@@ -1,26 +1,32 @@
 # agent-graph
 
-A graph is a team of agents. A node is one position in the graph, and a peer fills it. Its text goes into the context of an agent and changes how the agent behaves.
-Edges are the named relationships between nodes.
-The same words apply on disk and at run time: a graph runs in a gossip as an instance, for example `squad@main`, and each agent in a node is a peer of the graph.
-`agent-graph` finds graphs on disk, checks them, prints them, and draws running graphs.
+A node is one position that an agent can take. Its text goes into the context of the agent and changes how the agent behaves.
+A graph is a team of agents: its own nodes, and the edges, the named relationships between them.
+A graph runs in a gossip as an instance, for example `squad@main`, and each agent in a node of it is a peer of the graph.
+A standalone node lives outside of any graph. It is self-contained and points at no other node.
+`agent-graph` finds graphs and standalone nodes on disk, checks them, prints them, and draws running graphs.
 
 ## Layout
 
 ```
 .agent-graph/
-  squad/
-    index.md        # the graph: mermaid block, boundaries, edges
-    shared/         # optional files that the nodes can include
-    nodes/
-      worker/
-        index.md    # the node "squad/worker"
-        tone.md     # printed only if index.md includes it
+  graphs/
+    squad/
+      index.md      # the graph: mermaid block, boundaries, edges
+      shared/       # optional files that the nodes can include
+      nodes/
+        worker/
+          index.md  # the node "squad/worker"
+          tone.md   # printed only if index.md includes it
+  nodes/
+    worker/
+      index.md      # the standalone node "worker"
 ```
 
 Each graph folder and each node folder is an [OKF](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) bundle.
-A graph folder is self-contained: it holds its nodes, so you can share the graph as one folder.
-Every node lives in a graph. A node has the name `<graph>/<node>`, for example `squad/worker`.
+A graph folder is self-contained: it holds its nodes, so you can share the graph as one folder. A node of a graph has the name `<graph>/<node>`, for example `squad/worker`.
+A standalone node folder is self-contained too. It has a bare name, for example `worker`. It is not the same node as `squad/worker`.
+The two kinds have separate commands: `agent-graph graph …` for graphs and their nodes, `agent-graph node …` for standalone nodes.
 
 A graph `index.md` starts with this frontmatter:
 
@@ -45,7 +51,7 @@ description: Challenge plans and point out risks.   # required, one line
 title: Advisor              # optional
 tags: [review, go]          # optional, inline list only
 icon: 󰌵                     # optional, one Nerd Font glyph for the statusline
-count: 2                    # optional, the number of peers in this node (default 1)
+count: 2                    # optional, in a graph: the number of peers in this node (default 1)
 model: fable                # optional, the model the node prefers; graph-up offers it to a matching peer first
 ---
 ```
@@ -54,8 +60,8 @@ All peers of one node have the same node name. Their gossip nicknames tell them 
 
 ## Discovery
 
-`agent-graph` reads `.agent-graph/` in the current directory and in each parent directory, up to `/`.
-If two directories have a graph with the same name, the graph nearer to the current directory wins, with all its nodes.
+`agent-graph` reads `.agent-graph/graphs/` and `.agent-graph/nodes/` in the current directory and in each parent directory, up to `/`.
+If two directories have a graph with the same name, the graph nearer to the current directory wins, with all its nodes. The same goes for standalone nodes.
 
 ## Commands
 
@@ -65,13 +71,16 @@ agent-graph graph get squad                # the body of the graph, with include
 agent-graph graph nodes squad              # id<TAB><graph>/<node><TAB>lead|-<TAB>count<TAB>model
 agent-graph graph lint [squad]             # path:line: reason, for each error
 agent-graph graph hash squad               # SHA-256 of the graph folder: the graph id between peers
-agent-graph graph init [<dir>]             # write the default graphs into <dir>/.agent-graph/
-agent-graph node list                      # name<TAB>description<TAB>tags<TAB>path
-agent-graph node list --tag '^go$'         # only nodes with a tag that matches the regex
-agent-graph node up squad/worker           # the body of the graph, then the body of the node
-agent-graph node up squad/worker --pid N   # also write /tmp/agent-graph/N.json for the statusline
-agent-graph node down --pid N              # remove /tmp/agent-graph/N.json
+agent-graph graph init [<dir>]             # write the default graphs and nodes into <dir>/.agent-graph/
+agent-graph graph node-up squad/worker     # the body of the graph, then the body of the node
+agent-graph graph node-up squad/worker --pid N  # also write /tmp/agent-graph/N.json for the statusline
+agent-graph graph node-down --pid N        # remove /tmp/agent-graph/N.json
 agent-graph graph topology --meta F --peers F --me NICK  # draw the running graph from gossip meta JSON; --mermaid for the source
+agent-graph node list                      # standalone nodes: name<TAB>description<TAB>tags<TAB>path
+agent-graph node list --tag '^go$'         # only nodes with a tag that matches the regex
+agent-graph node up worker                 # the body of the standalone node
+agent-graph node up worker --pid N         # also write /tmp/agent-graph/N.json for the statusline
+agent-graph node down --pid N              # remove /tmp/agent-graph/N.json
 agent-graph plug [--agent A] [--path DIR]  # install the graph skills into each detected agent
 agent-graph unplug [--agent A] [--path DIR] # remove the graph skills that plug installed
 ```
@@ -81,7 +90,7 @@ The `--tag` regex is not anchored, so `go` also matches `mongo`.
 
 ## Defaults
 
-`agent-graph graph init` writes the files in [`defaults/`](defaults/) into `.agent-graph/`: the `squad` graph with its `orchestrator`, `worker`, and `advisor` nodes, and the `pair` graph with one `worker` (the lead) and one `advisor`.
+`agent-graph graph init` writes the files in [`defaults/`](defaults/) into `.agent-graph/`: the `squad` graph with its `orchestrator`, `worker`, and `advisor` nodes, the `pair` graph with one `worker` (the lead) and one `advisor`, and the standalone `worker` and `advisor` nodes.
 The build puts these files into the binary, so a user needs only the binary.
 If `.agent-graph` exists, `init` writes nothing and exits 0.
 
@@ -91,15 +100,21 @@ In `index.md`, a line that contains only `@<path>` is replaced with the body of 
 
 - The path is relative to the file that contains the include.
 - Included files can include other files. A cycle is an error.
-- The path must stay inside the graph folder.
+- The path must stay inside the graph folder, or inside the folder of a standalone node.
 - The CLI ignores `@` lines inside fenced code blocks.
 
 ## Statusline
 
-`node up --pid <pid>` writes the graph, the node, and their icons to `/tmp/agent-graph/<pid>.json`:
+`graph node-up --pid <pid>` writes the graph, the node, and their icons to `/tmp/agent-graph/<pid>.json`:
 
 ```json
 {"graph":"squad","graph_icon":"󰡉","node":"worker","node_icon":"󱌢","pid":123}
+```
+
+`node up --pid <pid>` writes a standalone node, so the file has no `graph` key:
+
+```json
+{"node":"worker","node_icon":"󱌢","pid":123}
 ```
 
 `pid` is the Claude Code process. A statusline script gets the same pid as its parent process.
@@ -108,7 +123,7 @@ A graph or node without an `icon` has no icon key.
 
 ## Skills
 
-The agent skills (`/graph-up`, `/graph-down`, `/node-up`, `/node-down`, `/node-invite`, `/graph-topology`, and more) are in the binary.
+The agent skills (`/graph-up`, `/graph-down`, `/graph-leave`, `/node-invite`, `/graph-topology` for graphs; `/node-up`, `/node-down`, `/node-list` for standalone nodes; and more) are in the binary.
 `agent-graph plug` writes them into each agent on this machine: Claude Code, pi, Codex, Cursor, and opencode.
 An agent that is not on the machine is skipped.
 Run `plug` again after each install of a new binary. It also removes the `template-*`, `role-*`, and `team-*` skills of a binary from before the rename back to graph and node.

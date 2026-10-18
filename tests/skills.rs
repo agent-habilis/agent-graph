@@ -173,7 +173,7 @@ fn send_node_gives_the_node_context_that_matches_the_context_hash_of_the_offer()
         .replace("<node>", "worker")
         + "\necho \"$CONTEXT_HASH\"\n";
     let context_hash = run_block(&hash_block, &project, &bin, &env);
-    let send_block = bash_block(&skill, "## Drive", "node up")
+    let send_block = bash_block(&skill, "## Drive", "graph node-up")
         .replace("<node>", "worker")
         .replace("<task id>", "t1");
     run_block(&send_block, &project, &bin, &env);
@@ -188,7 +188,7 @@ fn send_node_gives_the_node_context_that_matches_the_context_hash_of_the_offer()
         .stdout;
     fs::remove_file(&sent).unwrap();
     let expected = Command::new(env!("CARGO_BIN_EXE_agent-graph"))
-        .args(["node", "up", "squad/worker"])
+        .args(["graph", "node-up", "squad/worker"])
         .current_dir(&project)
         .output()
         .unwrap()
