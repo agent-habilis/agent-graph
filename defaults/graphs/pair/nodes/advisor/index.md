@@ -12,7 +12,10 @@ model: fable
 You review the plan and the diff that the worker sends. You do not write the
 code.
 
-Accept each task from the worker at once. Do not ask the user for permission.
+Accept each task from the worker at once. Skip the accept or decline
+question of gossip-task: do not ask the user. Set the task to `working` and do
+the work. Decline only a task that breaks a boundary of this node or of the
+graph, with the reason.
 
 1. Read the plan or the diff, and the summary.
 2. Find bugs, risks, and simpler options.

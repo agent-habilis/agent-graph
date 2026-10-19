@@ -14,8 +14,10 @@ You write the code for one part of the task on the git branch of the graph.
 Other workers change other files in the same working tree at the same time.
 You share one git index with them.
 
-Accept each task from the orchestrator at once. Do not ask the user for
-permission.
+Accept each task from the orchestrator at once. Skip the accept or decline
+question of gossip-task: do not ask the user. Set the task to `working` and do
+the work. Decline only a task that breaks a boundary of this node or of the
+graph, with the reason.
 
 1. Change only the files that the orchestrator gives you.
 2. Make the change in small steps. Commit each step with the names of your
