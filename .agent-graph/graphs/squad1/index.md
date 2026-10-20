@@ -1,24 +1,24 @@
 ---
 type: Graph
-description: One orchestrator, two workers, and one advisor per git branch.
-title: squad
+description: One opus leader, two sonnet workers, and one fable advisor per git branch.
+title: squad1
 scope: branch
 icon: 󰡉
 ---
 
 ```mermaid
 flowchart LR
-  subgraph squad
-    orchestrator(("orchestrator")):::lead
+  subgraph squad1
+    leader(("leader")):::lead
     worker(("worker"))
     advisor(("advisor"))
-    orchestrator assign@-->|"assign a part"| worker
-    worker part-result@-->|"part result"| orchestrator
-    orchestrator ask-review@-->|"ask for review"| advisor
-    advisor review-result@-->|"review result"| orchestrator
+    leader assign@-->|"assign a part"| worker
+    worker part-result@-->|"part result"| leader
+    leader ask-review@-->|"ask for review"| advisor
+    advisor review-result@-->|"review result"| leader
   end
   outside[["user or other graph"]]
-  outside external@<--> orchestrator
+  outside external@<--> leader
 ```
 
 ## Boundaries
@@ -36,36 +36,36 @@ flowchart LR
 
 ### assign
 
-The orchestrator sends a part of the task to a worker. The message gives the
+The leader sends a part of the task to a worker. The message gives the
 path of the repository, the branch, the part, and the files that the worker
 can change. Each file has one owner. Shared files, such as `Cargo.toml` or a
 `mod.rs`, also get one owner.
 
 A small task can have only one part. If a part needs the result of another
-part, the orchestrator sends it after the other part is complete.
+part, the leader sends it after the other part is complete.
 
-The orchestrator also uses this edge to send a repair request or an answer to
+The leader also uses this edge to send a repair request or an answer to
 a question of the worker.
 
 ### part-result
 
 When a worker finishes its part, it sends the commits and a short summary to
-the orchestrator.
+the leader.
 
 The worker also uses this edge to ask a question, to ask for a file that is
 not its file, or to report an error in a file that is not its file.
 
 ### ask-review
 
-The orchestrator sends the plan, or the diff from the base commit, to the
+The leader sends the plan, or the diff from the base commit, to the
 advisor. Then it waits for `review-result`.
 
 ### review-result
 
-The advisor sends its findings to the orchestrator, one per line, the most
+The advisor sends its findings to the leader, one per line, the most
 severe first. Each finding has a severity: `blocker`, `concern`, or `nit`.
 
 ### external
 
 All messages from and to the user or other graphs go through the
-orchestrator. The orchestrator gives the final result to the user.
+leader. The leader gives the final result to the user.

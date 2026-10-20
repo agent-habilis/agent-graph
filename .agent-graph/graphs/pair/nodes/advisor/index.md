@@ -4,7 +4,7 @@ description: Review the plan and the diff that the worker sends, and find risks,
 title: Advisor
 tags: [dev, review]
 icon: 󰌵
-model: fable
+model: opus
 ---
 
 # Advisor

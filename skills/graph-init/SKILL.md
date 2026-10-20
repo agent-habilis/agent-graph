@@ -1,6 +1,6 @@
 ---
 name: graph-init
-description: Create a starter `.agent-graph/` folder in the current project, with the squad graph (orchestrator, workers, advisor), the pair graph (worker, advisor), and the standalone worker and advisor nodes. Does nothing if the folder exists. Use when the user says "/graph-init", "init graph", or "set up agent graphs for this project".
+description: Create a starter `.agent-graph/` folder in the current project, with the squad1 and squad2 graphs (leader, workers, advisor), the pair graph (worker, advisor), and the standalone worker and advisor nodes. Does nothing if the folder exists. Use when the user says "/graph-init", "init graph", or "set up agent graphs for this project".
 allowed-tools: Bash(git rev-parse:*), Bash(agent-graph:*)
 ---
 
@@ -11,13 +11,17 @@ Create `.agent-graph/` in the current project with
 
 The defaults are:
 
-- `squad`: 1 orchestrator (lead), 2 workers, and 1 advisor, per git branch.
-  - `squad/orchestrator`: divides the task and manages the work (model opus).
-  - `squad/worker`: writes the code for one part (count 2, model sonnet).
-  - `squad/advisor`: reviews the plan and the diff (model fable).
+- `squad1`: 1 leader, 2 workers, and 1 advisor, per git branch.
+  - `squad1/leader`: divides the task and manages the work (model opus).
+  - `squad1/worker`: writes the code for one part (count 2, model sonnet).
+  - `squad1/advisor`: reviews the plan and the diff (model fable).
+- `squad2`: the same nodes as `squad1`, with other models.
+  - `squad2/leader`: divides the task and manages the work (model sonnet).
+  - `squad2/worker`: writes the code for one part (count 2, model haiku).
+  - `squad2/advisor`: reviews the plan and the diff (model opus).
 - `pair`: 1 worker (lead) and 1 advisor, per git branch.
   - `pair/worker`: writes the code, gets a review, and talks to the user (model sonnet).
-  - `pair/advisor`: reviews the plan and the diff (model fable).
+  - `pair/advisor`: reviews the plan and the diff (model opus).
 - Standalone nodes, outside of any graph:
   - `worker`: writes the code for a task and reports the result (model sonnet).
   - `advisor`: reviews a plan or a diff (model fable).

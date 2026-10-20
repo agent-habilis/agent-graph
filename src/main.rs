@@ -110,7 +110,7 @@ enum GraphCommand {
     /// edges between them. Prints one `warning:` line per problem to
     /// stderr.
     Topology {
-        /// The graph instance name, for example `squad@main`. The default
+        /// The graph instance name, for example `squad1@main`. The default
         /// is the graph of `--me`.
         instance: Option<String>,
         /// The output of `agent-gossip meta get`.

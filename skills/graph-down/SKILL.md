@@ -19,7 +19,7 @@ joined the gossip. Obey them here too: keep the bell armed.
 ## Arguments
 
 `<instance>`: optional. The instance name of the graph, for example
-`squad@main`. With no argument, take down the graph of this agent.
+`squad1@main`. With no argument, take down the graph of this agent.
 
 <!-- include path="../shared/gossip-session.md" -->
 

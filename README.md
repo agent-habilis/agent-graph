@@ -2,7 +2,7 @@
 
 A node is one position that an agent can take. Its text goes into the context of the agent and changes how the agent behaves.
 A graph is a team of agents: its own nodes, and the edges, the named relationships between them.
-A graph runs in a gossip as an instance, for example `squad@main`, and each agent in a node of it is a peer of the graph.
+A graph runs in a gossip as an instance, for example `squad1@main`, and each agent in a node of it is a peer of the graph.
 A standalone node lives outside of any graph. It is self-contained and points at no other node.
 `agent-graph` finds graphs and standalone nodes on disk, checks them, prints them, and draws running graphs.
 
@@ -11,12 +11,12 @@ A standalone node lives outside of any graph. It is self-contained and points at
 ```
 .agent-graph/
   graphs/
-    squad/
+    squad1/
       index.md      # the graph: mermaid block, boundaries, edges
       shared/       # optional files that the nodes can include
       nodes/
         worker/
-          index.md  # the node "squad/worker"
+          index.md  # the node "squad1/worker"
           tone.md   # printed only if index.md includes it
   nodes/
     worker/
@@ -24,8 +24,8 @@ A standalone node lives outside of any graph. It is self-contained and points at
 ```
 
 Each graph folder and each node folder is an [OKF](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) bundle.
-A graph folder is self-contained: it holds its nodes, so you can share the graph as one folder. A node of a graph has the name `<graph>/<node>`, for example `squad/worker`.
-A standalone node folder is self-contained too. It has a bare name, for example `worker`. It is not the same node as `squad/worker`.
+A graph folder is self-contained: it holds its nodes, so you can share the graph as one folder. A node of a graph has the name `<graph>/<node>`, for example `squad1/worker`.
+A standalone node folder is self-contained too. It has a bare name, for example `worker`. It is not the same node as `squad1/worker`.
 The two kinds have separate commands: `agent-graph graph …` for graphs and their nodes, `agent-graph node …` for standalone nodes.
 
 A graph `index.md` starts with this frontmatter:
@@ -33,14 +33,14 @@ A graph `index.md` starts with this frontmatter:
 ```yaml
 ---
 type: Graph                 # required
-description: One orchestrator, two workers, and one advisor per git branch.   # required
+description: One leader, two workers, and one advisor per git branch.   # required
 scope: branch               # required: branch or project
 title: Default graph        # optional, the graph name on the statusline
 icon: 󰡉                     # optional, one Nerd Font glyph for the statusline
 ---
 ```
 
-In the mermaid block, the node that talks to the user or to other graphs has the class `lead` (`orchestrator(("orchestrator")):::lead`). Each subgraph has exactly one lead. The other nodes need no class.
+In the mermaid block, the node that talks to the user or to other graphs has the class `lead` (`leader(("leader")):::lead`). Each subgraph has exactly one lead. The other nodes need no class.
 
 A node `index.md` starts with this frontmatter:
 
@@ -67,13 +67,13 @@ If two directories have a graph with the same name, the graph nearer to the curr
 
 ```sh
 agent-graph graph list                     # name<TAB>description<TAB>scope<TAB>path
-agent-graph graph get squad                # the body of the graph, with includes expanded
-agent-graph graph nodes squad              # id<TAB><graph>/<node><TAB>lead|-<TAB>count<TAB>model
-agent-graph graph lint [squad]             # path:line: reason, for each error
-agent-graph graph hash squad               # SHA-256 of the graph folder: the graph id between peers
+agent-graph graph get squad1               # the body of the graph, with includes expanded
+agent-graph graph nodes squad1             # id<TAB><graph>/<node><TAB>lead|-<TAB>count<TAB>model
+agent-graph graph lint [squad1]            # path:line: reason, for each error
+agent-graph graph hash squad1              # SHA-256 of the graph folder: the graph id between peers
 agent-graph graph init [<dir>]             # write the default graphs and nodes into <dir>/.agent-graph/
-agent-graph graph node-up squad/worker     # the body of the graph, then the body of the node
-agent-graph graph node-up squad/worker --pid N  # also write /tmp/agent-graph/N.json for the statusline
+agent-graph graph node-up squad1/worker    # the body of the graph, then the body of the node
+agent-graph graph node-up squad1/worker --pid N  # also write /tmp/agent-graph/N.json for the statusline
 agent-graph graph node-down --pid N        # remove /tmp/agent-graph/N.json
 agent-graph graph topology --meta F --peers F --me NICK  # draw the running graph from gossip meta JSON; --mermaid for the source
 agent-graph node list                      # standalone nodes: name<TAB>description<TAB>tags<TAB>path
@@ -90,7 +90,7 @@ The `--tag` regex is not anchored, so `go` also matches `mongo`.
 
 ## Defaults
 
-`agent-graph graph init` writes the files in [`defaults/`](defaults/) into `.agent-graph/`: the `squad` graph with its `orchestrator`, `worker`, and `advisor` nodes, the `pair` graph with one `worker` (the lead) and one `advisor`, and the standalone `worker` and `advisor` nodes.
+`agent-graph graph init` writes the files in [`defaults/`](defaults/) into `.agent-graph/`: the `squad1` and `squad2` graphs, each with its `leader`, `worker`, and `advisor` nodes (`squad1` runs opus, sonnet, and fable; `squad2` runs sonnet, haiku, and opus), the `pair` graph with one `worker` (the lead) and one `advisor`, and the standalone `worker` and `advisor` nodes.
 The build puts these files into the binary, so a user needs only the binary.
 If `.agent-graph` exists, `init` writes nothing and exits 0.
 
@@ -108,7 +108,7 @@ In `index.md`, a line that contains only `@<path>` is replaced with the body of 
 `graph node-up --pid <pid>` writes the graph, the node, and their icons to `/tmp/agent-graph/<pid>.json`:
 
 ```json
-{"graph":"squad","graph_icon":"󰡉","node":"worker","node_icon":"󱌢","pid":123}
+{"graph":"squad1","graph_icon":"󰡉","node":"worker","node_icon":"󱌢","pid":123}
 ```
 
 `node up --pid <pid>` writes a standalone node, so the file has no `graph` key:

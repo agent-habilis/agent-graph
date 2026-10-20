@@ -377,18 +377,34 @@ fn graph_init_writes_defaults_into_cwd() {
 }
 
 #[test]
-fn graph_init_defaults_have_opus_orchestrator_sonnet_workers_and_fable_advisor() {
+fn graph_init_squad1_has_opus_leader_sonnet_workers_and_fable_advisor() {
     let (_tmp, root) = root();
     run(&root, &["graph", "init"]);
 
-    let out = run(&root, &["graph", "nodes", "squad"]);
+    let out = run(&root, &["graph", "nodes", "squad1"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(
         stdout(&out),
-        "orchestrator\tsquad/orchestrator\tlead\t1\topus\n\
-         worker\tsquad/worker\t-\t2\tsonnet\n\
-         advisor\tsquad/advisor\t-\t1\tfable\n"
+        "leader\tsquad1/leader\tlead\t1\topus\n\
+         worker\tsquad1/worker\t-\t2\tsonnet\n\
+         advisor\tsquad1/advisor\t-\t1\tfable\n"
+    );
+}
+
+#[test]
+fn graph_init_squad2_has_sonnet_leader_haiku_workers_and_opus_advisor() {
+    let (_tmp, root) = root();
+    run(&root, &["graph", "init"]);
+
+    let out = run(&root, &["graph", "nodes", "squad2"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        stdout(&out),
+        "leader\tsquad2/leader\tlead\t1\tsonnet\n\
+         worker\tsquad2/worker\t-\t2\thaiku\n\
+         advisor\tsquad2/advisor\t-\t1\topus\n"
     );
 }
 
@@ -419,7 +435,7 @@ fn graph_init_writes_into_dir_argument() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
         target
-            .join(".agent-graph/graphs/squad/nodes/worker/index.md")
+            .join(".agent-graph/graphs/squad1/nodes/worker/index.md")
             .is_file()
     );
     assert!(!root.join(".agent-graph").exists());
