@@ -17,7 +17,7 @@ fn write(path: &Path, content: &str) {
     fs::write(path, content).unwrap();
 }
 
-const GRAPH_INDEX: &str = "---\ntype: Graph\ndescription: g\nscope: branch\n---\n";
+const GRAPH_INDEX: &str = "---\ntype: Graph\ndescription: g\n---\n";
 
 fn node_dir(level: &Path, graph: &str, name: &str) -> PathBuf {
     level
@@ -504,7 +504,7 @@ fn graph_init_does_nothing_when_file_exists() {
 }
 
 fn graph_index(icon: &str, body: &str) -> String {
-    format!("---\ntype: Graph\ndescription: d\nicon: {icon}\nscope: branch\n---\n{body}")
+    format!("---\ntype: Graph\ndescription: d\nicon: {icon}\n---\n{body}")
 }
 
 fn node_index_with_icon(icon: &str, body: &str) -> String {
@@ -701,7 +701,7 @@ fn node_up_state_uses_graph_title() {
     graph_node(&root, "graph", "worker", &index("w", None, ""));
     write(
         &root.join(".agent-graph/graph/index.md"),
-        "---\ntype: Graph\ndescription: d\ntitle: Default graph\nscope: branch\n---\n",
+        "---\ntype: Graph\ndescription: d\ntitle: Default graph\n---\n",
     );
 
     let state = up_state(&root, "graph/worker", 4_000_005);

@@ -1,8 +1,7 @@
 ---
 type: Graph
-description: One orchestrator, two workers, and one advisor per git branch.
+description: One orchestrator, two workers, and one advisor.
 title: squad
-scope: branch
 icon: 󰡉
 ---
 

@@ -1,8 +1,7 @@
 ---
 type: Graph
-description: One lead, one worker, and two reviewers per git branch. For changes to shared code.
+description: One lead, one worker, and two reviewers. For changes to shared code.
 title: audit
-scope: branch
 icon: 󰒃
 ---
 

@@ -7,7 +7,6 @@ use tempfile::TempDir;
 const CODING: &str = r#"---
 type: Graph
 description: One worker and one advisor per project and branch.
-scope: branch
 ---
 
 ```mermaid
@@ -117,17 +116,18 @@ fn graph_list_shows_graphs_from_cwd_and_parents() {
     let inner = graph(
         &root.join("x"),
         "docs",
-        &CODING.replace("scope: branch", "scope: project"),
+        &CODING.replace("One worker", "Another worker"),
     );
 
     let out = run(&root.join("x/y"), &["graph", "list"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     let description = "One worker and one advisor per project and branch.";
+    let other = "Another worker and one advisor per project and branch.";
     assert_eq!(
         stdout(&out),
         format!(
-            "coding\t{description}\tbranch\t{}\ndocs\t{description}\tproject\t{}\n",
+            "coding\t{description}\t{}\ndocs\t{other}\t{}\n",
             outer.display(),
             inner.display()
         )
@@ -338,11 +338,6 @@ fn graph_lint_rejects_unknown_node() {
         "advisor((\"reviewer\"))",
         "node `reviewer` not found",
     );
-}
-
-#[test]
-fn graph_lint_rejects_bad_scope() {
-    assert_lint_rejects("scope: branch", "scope: repo", "scope");
 }
 
 #[test]

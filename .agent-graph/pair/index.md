@@ -1,8 +1,7 @@
 ---
 type: Graph
-description: One worker and one advisor per git branch.
+description: One worker and one advisor.
 title: pair
-scope: branch
 icon: 󰀎
 ---
 

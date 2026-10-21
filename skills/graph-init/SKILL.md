@@ -11,11 +11,11 @@ Create `.agent-graph/` in the current project with
 
 The defaults are:
 
-- `squad`: 1 orchestrator (lead), 2 workers, and 1 advisor, per git branch.
+- `squad`: 1 orchestrator (lead), 2 workers, and 1 advisor.
   - `squad/orchestrator`: divides the task and manages the work (model opus).
   - `squad/worker`: writes the code for one part (count 2, model sonnet).
   - `squad/advisor`: reviews the plan and the diff (model fable).
-- `pair`: 1 worker (lead) and 1 advisor, per git branch.
+- `pair`: 1 worker (lead) and 1 advisor.
   - `pair/worker`: writes the code, gets a review, and talks to the user (model sonnet).
   - `pair/advisor`: reviews the plan and the diff (model fable).
 

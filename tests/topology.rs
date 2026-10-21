@@ -7,7 +7,6 @@ use tempfile::TempDir;
 const GRAPH: &str = r#"---
 type: Graph
 description: d
-scope: branch
 ---
 
 ```mermaid

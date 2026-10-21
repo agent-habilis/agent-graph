@@ -64,7 +64,7 @@ enum Command {
 
 #[derive(Debug, Subcommand)]
 enum GraphCommand {
-    /// Print one line per graph: name, description, scope, path
+    /// Print one line per graph: name, description, path
     /// (tab-separated).
     List,
     /// Print the graph's index.md body, with its `@file` includes
@@ -89,7 +89,7 @@ enum GraphCommand {
     /// edges between them. Prints one `warning:` line per problem to
     /// stderr.
     Topology {
-        /// The graph instance name, for example `squad@main`. The default
+        /// The graph instance name, for example `a1b2c3`. The default
         /// is the graph of `--me`.
         instance: Option<String>,
         /// The output of `agent-gossip meta get`.
@@ -231,9 +231,8 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
                 match graph::load(dir) {
                     Ok(graph) => writeln!(
                         stdout,
-                        "{name}\t{}\t{}\t{}",
+                        "{name}\t{}\t{}",
                         graph.description,
-                        graph.scope,
                         dir.display()
                     )?,
                     Err(reason) => eprintln!("warning: {}: {reason}", dir.display()),

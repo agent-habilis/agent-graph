@@ -1,8 +1,7 @@
 ---
 type: Graph
-description: One lead, two workers, and one reviewer per git branch. For ports and migrations of independent files with a strong test suite.
+description: One lead, two workers, and one reviewer. For ports and migrations of independent files with a strong test suite.
 title: port
-scope: branch
 icon: 󰁔
 ---
 

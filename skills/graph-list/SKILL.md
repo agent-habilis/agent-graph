@@ -28,8 +28,8 @@ If the command is not found, tell the user to run `cargo task install` in the
 agent-graph graph list
 ```
 
-Each output line is `name<TAB>description<TAB>scope<TAB>path`. Show the
-graphs as a Markdown table with the columns name, description, and scope.
+Each output line is `name<TAB>description<TAB>path`. Show the
+graphs as a Markdown table with the columns name and description.
 Do not show the path unless the user asks for it.
 
 If the output is empty, print:

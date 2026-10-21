@@ -2,7 +2,7 @@
 
 A graph is a team of agents. A node is one position in the graph, and a peer fills it. Its text goes into the context of an agent and changes how the agent behaves.
 Edges are the named relationships between nodes.
-The same words apply on disk and at run time: a graph runs in a gossip as an instance, for example `squad@main`, and each agent in a node is a peer of the graph.
+The same words apply on disk and at run time: a graph runs in a gossip as an instance, for example `a1b2c3`, and each agent in a node is a peer of the graph.
 `agent-graph` finds graphs on disk, checks them, prints them, and draws running graphs.
 
 ## Layout
@@ -27,8 +27,7 @@ A graph `index.md` starts with this frontmatter:
 ```yaml
 ---
 type: Graph                 # required
-description: One orchestrator, two workers, and one advisor per git branch.   # required
-scope: branch               # required: branch or project
+description: One orchestrator, two workers, and one advisor.   # required
 title: Default graph        # optional, the graph name on the statusline
 icon: 󰡉                     # optional, one Nerd Font glyph for the statusline
 ---
@@ -60,7 +59,7 @@ If two directories have a graph with the same name, the graph nearer to the curr
 ## Commands
 
 ```sh
-agent-graph graph list                     # name<TAB>description<TAB>scope<TAB>path
+agent-graph graph list                     # name<TAB>description<TAB>path
 agent-graph graph get squad                # the body of the graph, with includes expanded
 agent-graph graph nodes squad              # id<TAB><graph>/<node><TAB>lead|-<TAB>count<TAB>model
 agent-graph graph lint [squad]             # path:line: reason, for each error

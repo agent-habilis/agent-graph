@@ -40,7 +40,6 @@ pub(crate) struct Edge {
 #[derive(Debug)]
 pub(crate) struct Graph {
     pub(crate) description: String,
-    pub(crate) scope: String,
     pub(crate) title: Option<String>,
     pub(crate) icon: Option<String>,
     pub(crate) vertices: Vec<Vertex>,
@@ -80,15 +79,10 @@ pub(crate) fn load(dir: &Path) -> Result<Graph, String> {
         .filter(|description| !description.is_empty())
         .ok_or("no description")?
         .to_string();
-    let scope = frontmatter.get("scope").unwrap_or("").to_string();
-    if !matches!(scope.as_str(), "project" | "branch") {
-        return Err(format!("scope is `{scope}`, must be `project` or `branch`"));
-    }
     let title = frontmatter.get("title").map(str::to_string);
     let icon = frontmatter.get("icon").map(str::to_string);
     let mut graph = Graph {
         description,
-        scope,
         title,
         icon,
         vertices: Vec::new(),

@@ -1,7 +1,7 @@
 ---
 name: graph-up
 description: Start a graph in the current gossip. This agent is the founder. It takes one node of the graph, then offers each open place to one free peer of the gossip, through gossip tasks. A node with `count` n needs n peers at the start. The graph lives in the gossip meta. Done when every node has its count. Use when the user says "/graph-up <graph> [<node>] [--instance <name>]", "graph up", or "start the <graph> graph".
-allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(basename:*), Bash(hostname:*), Bash(mkdir:*), Bash(cp:*), Bash(tar:*)
+allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*), Bash(openssl rand:*), Bash(hostname:*), Bash(mkdir:*), Bash(cp:*), Bash(tar:*)
 ---
 
 # graph-up
@@ -25,7 +25,8 @@ the bell armed, and track each task in the todo widget.
 - `<node>`: optional. The mermaid id of the node that this agent takes. With
   no `<node>`, take the first node that `agent-graph graph nodes
   <graph>` prints.
-- `--instance <name>`: optional. The instance name of the graph.
+- `--instance <name>`: optional. The instance name of the graph. By default,
+  the name is a new hash of 6 hex characters. To resume a graph, give its name.
 
 If there is no `<graph>`, print this line, then stop:
 
@@ -43,22 +44,18 @@ graph · usage · /graph-up <graph> [<node>] [--instance <name>]
 
    ```bash
    agent-graph graph lint <graph>
-   agent-graph graph list
    agent-graph graph nodes <graph>
    agent-graph graph hash <graph>
    ```
 
-   If `lint` fails, show its lines, then stop. From `graph list`, hold the
-   `scope` of the graph. Hold the lines of `graph nodes` as `$NODES`.
-   `model` is the model that the node prefers, or empty. Hold `<graph>` as
+   If `lint` fails, show its lines, then stop. Hold the lines of `graph nodes` as
+   `$NODES`. `model` is the model that the node prefers, or empty. Hold `<graph>` as
    `$GRAPH` and the hash as `$HASH`. The hash is the id of the graph
    between peers.
 
 2. Hold the instance name as `$INSTANCE`:
    - `--instance <name>` → `<name>`.
-   - `scope: branch` → `<graph>@<branch>`, with `git branch --show-current`.
-   - `scope: project` → `<graph>@<repo>`, with
-     `basename "$(git rev-parse --show-toplevel)"`.
+   - No `--instance` → a new hash, from `openssl rand -hex 3`.
 
    Check `$INSTANCE`, `$GRAPH`, and each node id per the **Graph meta**
    section.
