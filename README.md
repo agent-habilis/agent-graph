@@ -95,7 +95,6 @@ A standalone role is one role with no team around it. It lives in `.agent-graph/
 
 ## Links
 
-- [agent-gossip](https://github.com/agent-habilis/agent-gossip)
-- [License](LICENSE)
+- [agent-gossip](https://agent-gossip.com)
 - [agent-habilis](https://agent-habilis.com)
 - [Homebrew tap](https://github.com/agent-habilis/homebrew-tap)
