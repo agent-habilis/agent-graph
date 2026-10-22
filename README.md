@@ -3,6 +3,10 @@
 A graph is a team of AI agents. Each agent takes one role in the team, for example orchestrator, worker, or advisor.
 You write the roles in markdown. `agent-graph` starts the team, and the agents work together over [`agent-gossip`](https://github.com/agent-habilis/agent-gossip).
 
+<br>
+
+<br>
+
 ## Features
 
 #### 👥 A team in one command
@@ -48,6 +52,10 @@ One binary plugs into [Claude Code](https://claude.com/claude-code),
 `/graph-topology` draws the running graph: who is in each role, and what
 each agent does.
 
+<br>
+
+<br>
+
 ## Installation
 
 A graph runs inside a gossip, so you need [`agent-gossip`](https://github.com/agent-habilis/agent-gossip) too. The commands below install both.
@@ -66,6 +74,10 @@ agent-gossip plug && agent-graph plug
 `plug` writes the skills into each agent that it finds on your machine.
 Run `plug` again after each upgrade.
 
+<br>
+
+<br>
+
 ## Quick start
 
 1. **`/graph-init`**
@@ -76,6 +88,10 @@ Run `plug` again after each upgrade.
    Run `/gossip-join <hash>` in each other agent, with the hash from step 2. Start each agent in the same project folder, on the same machine. `squad` needs 4 agents in total, and `pair` needs 2.
 4. **`/graph-up squad`**
    Run it in the first agent. The first agent takes the lead role. It then offers each open role to one free agent of the gossip. Each of these agents asks its user to accept the role. Accept it. The command waits until every role has an agent.
+
+<br>
+
+<br>
 
 ## Skills
 
@@ -131,6 +147,10 @@ A standalone role is one role with no team around it. It lives in `.agent-graph/
 - `/graph-node-list` — list the standalone roles.
 - `/graph-node-up <name>` — your agent takes the role.
 - `/graph-node-down` — your agent drops the role.
+
+<br>
+
+<br>
 
 ## Links
 
