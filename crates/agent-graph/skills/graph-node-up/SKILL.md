@@ -1,10 +1,10 @@
 ---
-name: node-up
-description: Load one standalone node into this session with the `agent-graph` CLI, so that the agent acts as that node and obeys its boundaries. A standalone node lives in `.agent-graph/nodes/`, outside of any graph. Use when the user says "/node-up <node>", "load the <node> node", or "act as the <node> node".
+name: graph-node-up
+description: Load one standalone node into this session with the `agent-graph` CLI, so that the agent acts as that node and obeys its boundaries. A standalone node lives in `.agent-graph/nodes/`, outside of any graph. Use when the user says "/graph-node-up <node>", "load the <node> node", or "act as the <node> node".
 allowed-tools: Bash(agent-graph:*)
 ---
 
-# node-up
+# graph-node-up
 
 A node is one position that an agent can take. Its text changes how the
 agent behaves. A standalone node lives in `.agent-graph/nodes/<node>/`,
@@ -13,7 +13,7 @@ nodes. `agent-graph node up <node>` prints its body, with its `@file`
 includes expanded.
 
 This skill loads only standalone nodes. A node of a graph, `<graph>/<node>`,
-joins a running graph through `/graph-up` or `/node-invite`.
+joins a running graph through `/graph-up` or `/graph-node-invite`.
 
 ## Preflight
 
@@ -31,15 +31,15 @@ If the command is not found, tell the user to run `cargo task install` in the
 The node name, `<node>`. If there is no name, print:
 
 ```text
-node · usage · /node-up <node>
+node · usage · /graph-node-up <node>
 ```
 
-Then stop. To see the names, the user runs `/node-list`.
+Then stop. To see the names, the user runs `/graph-node-list`.
 
 If the name has a `/`, it is a node of a graph. Print this line, then stop:
 
 ```text
-node · <name> is a node of a graph · use /graph-up or /node-invite
+node · <name> is a node of a graph · use /graph-up or /graph-node-invite
 ```
 
 ## Up

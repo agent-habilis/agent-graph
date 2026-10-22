@@ -1,10 +1,10 @@
 ---
-name: node-down
-description: Unset the standalone node of this agent with the `agent-graph` CLI. The agent stops acting as the node, and the node pill leaves the statusline. Use when the user says "/node-down", "unset the node", "drop the node", or "stop acting as the node".
+name: graph-node-down
+description: Unset the standalone node of this agent with the `agent-graph` CLI. The agent stops acting as the node, and the node pill leaves the statusline. Use when the user says "/graph-node-down", "unset the node", "drop the node", or "stop acting as the node".
 allowed-tools: Bash(agent-graph:*)
 ---
 
-# node-down
+# graph-node-down
 
 `agent-graph node down --pid <pid>` removes the record that
 `agent-graph node up` wrote for the statusline. The text of the node stays in

@@ -11,7 +11,7 @@ is the `slot-template` crate, copied from agent-gossip.
 Rules:
 
 - **`skills/<prefix>-*/SKILL.md` is the source and the only emitted file.**
-  Only folders that start with `graph-`, `node-`, or `trait-` are skills.
+  Only folders that start with `graph-` are skills.
   `shared/` holds the partials, and it is never emitted.
 - The directives are HTML comments, so a source stays valid markdown:
 

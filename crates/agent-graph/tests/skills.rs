@@ -57,7 +57,7 @@ fn stub(dir: &Path) -> PathBuf {
 fn node_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
     let tmp = TempDir::new().unwrap();
     let dir = tmp.path();
-    let skill = rendered_skill(dir, "node-invite");
+    let skill = rendered_skill(dir, "graph-node-invite");
     let command = bash_block(&skill, "## Node offer", "a2a call")
         .replace("<id>", "worker")
         .replace("<node>", "worker");
@@ -163,7 +163,7 @@ fn send_node_gives_the_node_context_that_matches_the_context_hash_of_the_offer()
         .output()
         .unwrap();
     assert!(init.status.success());
-    let skill = rendered_skill(dir, "node-invite");
+    let skill = rendered_skill(dir, "graph-node-invite");
     let bin = stub(dir);
     let hash = format!("skills-test-{}", std::process::id());
     let env = [

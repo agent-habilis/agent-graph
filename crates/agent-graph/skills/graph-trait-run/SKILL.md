@@ -1,10 +1,10 @@
 ---
-name: trait-run
-description: Run one trait in a fork of this session with the `agent-graph` CLI. A trait is a routine, for example a QA run. The fork runs it and gives a report, and this session gets only the report. The trait is a name from `.agent-graph/traits/` or a URL. Use when the user says "/trait-run <name|url>", "run the <name> trait", or "do a QA run with the trait".
+name: graph-trait-run
+description: Run one trait in a fork of this session with the `agent-graph` CLI. A trait is a routine, for example a QA run. The fork runs it and gives a report, and this session gets only the report. The trait is a name from `.agent-graph/traits/` or a URL. Use when the user says "/graph-trait-run <name|url>", "run the <name> trait", or "do a QA run with the trait".
 allowed-tools: Bash(agent-graph:*), Bash(mktemp:*), Bash(curl:*)
 ---
 
-# trait-run
+# graph-trait-run
 
 A trait is like a method of a node. It is a markdown text that drives one
 routine. You do not run the routine in this session. A fork runs it: a
@@ -37,7 +37,7 @@ One trait: a name, or a URL that starts with `https://`. If there is no
 argument, print:
 
 ```text
-trait · usage · /trait-run <name|url>
+trait · usage · /graph-trait-run <name|url>
 ```
 
 Then stop. To see the names, the user runs `agent-graph trait list`.

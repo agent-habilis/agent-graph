@@ -156,9 +156,10 @@ const STAGING: &str = ".agent-graph-plug.tmp";
 fn owned_dirs(root: &Path) -> Vec<PathBuf> {
     let manifest = fs::read_to_string(root.join(MANIFEST)).unwrap_or_default();
     // Only names with a skill prefix: a changed manifest must not remove other
-    // folders. `template-`, `role-`, and `team-` are the prefixes of the
-    // skills from before the rename back to graph and node, so an upgrade
-    // removes them too.
+    // folders. `node-` and `trait-` are the prefixes of the skills from before
+    // every skill got the `graph-` prefix. `template-`, `role-`, and `team-`
+    // are the prefixes of the skills from before the rename back to graph and
+    // node. An upgrade removes all of them.
     let listed = manifest.lines().filter(|name| {
         ["graph-", "node-", "trait-", "template-", "role-", "team-"]
             .iter()

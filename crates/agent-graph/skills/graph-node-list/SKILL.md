@@ -1,10 +1,10 @@
 ---
-name: node-list
-description: List the standalone nodes that the current project can see, with the `agent-graph` CLI. Standalone nodes are OKF bundles in `.agent-graph/nodes/` folders from the cwd up to `/`. Nodes of a graph are not listed. Use when the user says "/node-list", "list nodes", or "what nodes are there".
+name: graph-node-list
+description: List the standalone nodes that the current project can see, with the `agent-graph` CLI. Standalone nodes are OKF bundles in `.agent-graph/nodes/` folders from the cwd up to `/`. Nodes of a graph are not listed. Use when the user says "/graph-node-list", "list nodes", or "what nodes are there".
 allowed-tools: Bash(agent-graph:*)
 ---
 
-# node-list
+# graph-node-list
 
 A standalone node lives in `.agent-graph/nodes/<node>/`, outside of any
 graph. It is self-contained: its text does not point at other nodes. Its name

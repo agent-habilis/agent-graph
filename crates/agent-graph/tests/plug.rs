@@ -34,11 +34,7 @@ fn source_skills() -> Vec<String> {
         .flatten()
         .filter(|entry| entry.path().is_dir())
         .map(|entry| entry.file_name().to_string_lossy().into_owned())
-        .filter(|name| {
-            ["graph-", "node-", "trait-"]
-                .iter()
-                .any(|prefix| name.starts_with(prefix))
-        })
+        .filter(|name| name.starts_with("graph-"))
         .collect();
     names.sort();
     names
@@ -147,7 +143,7 @@ fn plug_renders_the_shared_graph_sections_into_each_skill_that_includes_them() {
             .status
             .success()
     );
-    for skill in ["graph-up", "node-invite"] {
+    for skill in ["graph-up", "graph-node-invite"] {
         let body = fs::read_to_string(dest.join(skill).join("SKILL.md")).unwrap();
         for section in ["## Gossip", "## Graph meta", "## Node offer", "## Drive"] {
             assert!(body.contains(section), "{skill}: no {section}");
@@ -242,6 +238,44 @@ fn plug_removes_a_team_skill_that_an_older_plug_installed() {
     assert!(!dest.join("team-up").exists());
     assert!(dest.join("graph-mine").is_dir());
     assert!(!fs::read_to_string(&manifest).unwrap().contains("team-up"));
+}
+
+#[test]
+fn plug_removes_the_skills_from_before_every_skill_had_the_graph_prefix() {
+    let (_tmp, home) = root();
+    let dest = home.join("skills");
+    let dest_text = dest.to_str().unwrap();
+    assert!(run(&home, &["plug", "--path", dest_text]).status.success());
+    let manifest = dest.join(".agent-graph-plug");
+    let old = [
+        "node-up",
+        "node-down",
+        "node-list",
+        "node-invite",
+        "trait-run",
+    ];
+    let mut names = fs::read_to_string(&manifest).unwrap();
+    for name in old {
+        names.push_str(name);
+        names.push('\n');
+        fs::create_dir_all(dest.join(name)).unwrap();
+        fs::write(dest.join(name).join("SKILL.md"), "old").unwrap();
+    }
+    fs::write(&manifest, names).unwrap();
+    fs::create_dir_all(dest.join("node-mine")).unwrap();
+
+    let out = run(&home, &["plug", "--path", dest_text]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    for name in old {
+        assert!(!dest.join(name).exists(), "{name} is still installed");
+    }
+    assert!(
+        dest.join("node-mine").is_dir(),
+        "a folder that is not listed"
+    );
+    assert!(dest.join("graph-node-up").is_dir());
+    assert!(dest.join("graph-trait-run").is_dir());
 }
 
 #[test]

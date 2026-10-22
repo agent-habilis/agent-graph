@@ -1,10 +1,10 @@
 ---
-name: node-invite
-description: Add one peer to the running graph of this agent. Any peer of the graph can do it. It offers one node of the graph to a free peer of the gossip, through a gossip task, and the peer joins the graph in that node. Use when the user says "/node-invite <node> [<peer>]", "invite a <node>", "add a <node> to the graph", or "grow the graph".
+name: graph-node-invite
+description: Add one peer to the running graph of this agent. Any peer of the graph can do it. It offers one node of the graph to a free peer of the gossip, through a gossip task, and the peer joins the graph in that node. Use when the user says "/graph-node-invite <node> [<peer>]", "invite a <node>", "add a <node> to the graph", or "grow the graph".
 allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*), Bash(hostname:*), Bash(mkdir:*), Bash(cp:*), Bash(tar:*)
 ---
 
-# node-invite
+# graph-node-invite
 
 A running graph is an instance of a graph in a gossip. `/graph-up` fills each node
 to its `count`. After that, any peer can add a peer to a node with this
@@ -27,7 +27,7 @@ that has no `external` edge.
 If there is no `<node>`, print this line, then stop:
 
 ```text
-graph · usage · /node-invite <node> [<peer>]
+graph · usage · /graph-node-invite <node> [<peer>]
 ```
 
 <!-- include path="../shared/gossip-session.md" -->

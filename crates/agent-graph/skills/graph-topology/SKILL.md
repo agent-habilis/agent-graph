@@ -48,4 +48,4 @@ fence.
 If the command fails, show its `error:` line, then stop. For
 `is not in a graph`, tell the user to start a graph with `/graph-up <graph>`,
 or to give the `<instance>`. To add a peer to the graph, a peer runs
-`/node-invite <node>`.
+`/graph-node-invite <node>`.

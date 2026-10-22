@@ -19,7 +19,7 @@ the work. Decline only a task that breaks a boundary of this node or of the
 graph, with the reason.
 
 1. Read the plan or the diff, and the summary.
-2. Run `/trait-run review`. It gives the findings with their severities.
+2. Run `/graph-trait-run review`. It gives the findings with their severities.
 3. Send the findings to the worker, one per line, the most severe first.
 
 If you find nothing, say so in one line.

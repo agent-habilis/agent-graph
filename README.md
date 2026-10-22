@@ -83,7 +83,7 @@ All peers of one node have the same node name. Their gossip nicknames tell them 
 ## Traits
 
 A trait is like a method of a node: a markdown text that drives one routine, for example a QA run.
-`/trait-run <name>` runs the trait in a fork of the session. The fork gets a copy of the context, runs the routine, and gives a report.
+`/graph-trait-run <name>` runs the trait in a fork of the session. The fork gets a copy of the context, runs the routine, and gives a report.
 The session gets only the report, so its context stays as it was before the run.
 Traits are in `.agent-graph/traits/`, next to `graphs/` and `nodes/`.
 
@@ -98,8 +98,8 @@ writes: false               # optional (default false); true lets the trait chan
 ```
 
 `trait show` adds a `## Boundaries` section to a trait with `writes: false`: no changes to files that git tracks, and no commits.
-When a node is loaded, `/trait-run <name>` runs only a trait that the node lists in `traits`.
-`/trait-run <url>` downloads the trait into a folder in `/tmp`, checks it with `trait check`, and shows its description and `writes`.
+When a node is loaded, `/graph-trait-run <name>` runs only a trait that the node lists in `traits`.
+`/graph-trait-run <url>` downloads the trait into a folder in `/tmp`, checks it with `trait check`, and shows its description and `writes`.
 The user must confirm before the fork runs it. A URL trait skips the node check. It is one file, so it cannot include other files.
 
 ## Discovery
@@ -173,7 +173,7 @@ A graph or node without an `icon` has no icon key.
 
 ## Skills
 
-The agent skills (`/graph-up`, `/graph-down`, `/graph-leave`, `/node-invite`, `/graph-topology` for graphs; `/node-up`, `/node-down`, `/node-list` for standalone nodes; `/trait-run` for traits; and more) are in the binary.
+The agent skills (`/graph-up`, `/graph-down`, `/graph-leave`, `/graph-node-invite`, `/graph-topology` for graphs; `/graph-node-up`, `/graph-node-down`, `/graph-node-list` for standalone nodes; `/graph-trait-run` for traits; and more) are in the binary.
 `agent-graph plug` writes them into each agent on this machine: Claude Code, pi, Codex, Cursor, and opencode.
 An agent that is not on the machine is skipped.
 Run `plug` again after each install of a new binary. It also removes the `template-*`, `role-*`, and `team-*` skills of a binary from before the rename back to graph and node.

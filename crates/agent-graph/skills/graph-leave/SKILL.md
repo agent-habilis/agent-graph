@@ -7,7 +7,7 @@ allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*)
 # graph-leave
 
 A running graph is an instance of a graph in a gossip. `/graph-up` and
-`/node-invite` add a peer to a node of it. This skill takes this agent out of
+`/graph-node-invite` add a peer to a node of it. This skill takes this agent out of
 its node. The other peers stay. To stop the whole graph, the user runs
 `/graph-down`.
 
