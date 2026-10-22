@@ -321,7 +321,7 @@ fn expand_at(
             ));
         }
         let tail = interior.trim_start().trim_start_matches("include");
-        let mut pairs = parse_named_args(tail).map_err(&malformed)?;
+        let mut pairs = parse_named_args(tail).map_err(malformed)?;
         let target_position = pairs
             .iter()
             .position(|(key, _)| key == "path")
