@@ -43,6 +43,8 @@ jobs:
             echo "workflow=release" >> "$GITHUB_OUTPUT"
           elif [ -z "$(git ls-remote --tags origin "refs/tags/$tag")" ]; then
             echo "workflow=publish" >> "$GITHUB_OUTPUT"
+          elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "rebuild=true" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.plan.outputs.workflow
         run: |
@@ -59,8 +61,10 @@ jobs:
         run: knope ${{ steps.plan.outputs.workflow }} --verbose
         env:
           GITHUB_TOKEN: ${{ github.token }}
+      # A manual run on a tag that exists and has no change files only rebuilds
+      # it: `release.yml` is safe to run twice.
       - id: version
-        if: steps.plan.outputs.workflow
+        if: steps.plan.outputs.workflow || steps.plan.outputs.rebuild
         run: echo "tag=v$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml)" >> "$GITHUB_OUTPUT"
 
   build:
