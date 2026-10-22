@@ -3,7 +3,7 @@ members = ["slot-template", "tasks"]
 
 [package]
 name = "agent-graph"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.95"
 authors = ["Caio Gondim <me@caiogondim.com>"]
