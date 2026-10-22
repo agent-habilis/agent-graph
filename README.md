@@ -5,28 +5,66 @@ You write the roles in markdown. `agent-graph` starts the team, and the agents w
 
 ## Features
 
-- **A team in one command** — `/graph-up squad` fills each role with an agent from your gossip.
-- **Ready-made teams** — `squad` (orchestrator, workers, and advisor) and `pair` (worker and advisor).
-- **Your own roles** — a role is a markdown file. Change it, or write a new one, and keep it in your project.
-- **Traits** — routines that an agent runs in a fork of its session, for example a QA run. Only the report comes back, so your context stays clean.
-- **Multi-model** — agents that run on different models work in the same graph. A role can name the model that it prefers.
-- **Multi-harness** — one binary plugs into [Claude Code](https://claude.com/claude-code), [pi](https://pi.dev), Cursor, [Codex](https://developers.openai.com/codex/), and opencode.
-- **Live view** — `/graph-topology` draws the running graph: who is in each role, and what each agent does.
+#### 👥 A team in one command
+
+`/graph-up squad` fills each role with an agent from your gossip. The
+first agent takes the lead role, then offers each open role to one free
+agent.
+
+#### 📦 Ready-made teams
+
+`squad` has an orchestrator, workers, and an advisor. `pair` has a
+worker and an advisor. `/graph-init` writes both into your project.
+
+#### ✍️ Your own roles
+
+A role is a markdown file in `.agent-graph/`. Change a default, or write
+a new one, and keep it with your project. A role can name the model that
+it prefers.
+
+#### 🧪 Traits
+
+A trait is a routine, for example a QA run. An agent runs it in a fork
+of its session, and only the report comes back, so your context stays
+clean.
+
+#### 🌐 Decentralized
+
+The agents talk over [`agent-gossip`](https://agent-gossip.com), peer to
+peer, with no server to host and no account to create.
+
+#### 🧠 Multi-model
+
+Agents that run on different models work in the same graph.
+
+#### 🔀 Multi-harness
+
+One binary plugs into [Claude Code](https://claude.com/claude-code),
+[pi](https://pi.dev), Cursor,
+[Codex](https://developers.openai.com/codex/), and opencode.
+
+#### 👀 Live view
+
+`/graph-topology` draws the running graph: who is in each role, and what
+each agent does.
 
 ## Installation
 
+A graph runs inside a gossip, so you need [`agent-gossip`](https://github.com/agent-habilis/agent-gossip) too. The commands below install both.
+
 ```sh
 # Homebrew for macOS and Linux
-brew install agent-habilis/tap/agent-graph && agent-graph plug
+brew install agent-habilis/tap/agent-gossip agent-habilis/tap/agent-graph
+agent-gossip plug && agent-graph plug
 
 # From source everywhere else
-cargo install --git https://github.com/agent-habilis/agent-graph && agent-graph plug
+cargo install --git https://github.com/agent-habilis/agent-gossip agent-gossip
+cargo install --git https://github.com/agent-habilis/agent-graph agent-graph
+agent-gossip plug && agent-graph plug
 ```
 
 `plug` writes the skills into each agent that it finds on your machine.
 Run `plug` again after each upgrade.
-
-A graph runs inside a gossip, so you also need [`agent-gossip`](https://github.com/agent-habilis/agent-gossip).
 
 ## Quick start
 
@@ -35,9 +73,9 @@ A graph runs inside a gossip, so you also need [`agent-gossip`](https://github.c
 2. **`/gossip-create`**
    Run it in one agent. It gives you a gossip hash.
 3. **`/gossip-join`**
-   Run `/gossip-join <hash>` in each other agent, with the hash from step 2.
+   Run `/gossip-join <hash>` in each other agent, with the hash from step 2. Start each agent in the same project folder, on the same machine. `squad` needs 4 agents in total, and `pair` needs 2.
 4. **`/graph-up squad`**
-   Run it in the first agent. The first agent takes the lead role. It then offers each open role to one free agent of the gossip.
+   Run it in the first agent. The first agent takes the lead role. It then offers each open role to one free agent of the gossip. Each of these agents asks its user to accept the role. Accept it. The command waits until every role has an agent.
 
 ## Skills
 
@@ -80,6 +118,7 @@ It also warns about a problem, for example a role with no agent.
 
 A trait is a routine, like a method of a role. `/graph-trait-run qa` runs the QA trait in a fork of your session.
 The fork does the work and sends you a report. Your context stays as it was, plus the report.
+Traits need an agent that can fork a session, for example Claude Code.
 
 - The default traits are `qa` (run the checks of the project), `repro` (write a failing test for a bug), `perf` (measure a change), and `review` (review a plan or a diff).
 - An agent in a graph runs only the traits that its role lists.
