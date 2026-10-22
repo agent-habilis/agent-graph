@@ -1,226 +1,149 @@
-# agent-graph
+# `agent-graph` 🧑‍🧒‍🧒
 
-A node is one position that an agent can take. Its text goes into the context of the agent and changes how the agent behaves.
-A graph is a team of agents: its own nodes, and the edges, the named relationships between them.
-A graph runs in a gossip as an instance, for example `squad@main`, and each agent in a node of it is a peer of the graph.
-A standalone node lives outside of any graph. It is self-contained and points at no other node.
-`agent-graph` finds graphs and standalone nodes on disk, checks them, prints them, and draws running graphs.
+A graph is a team of AI agents. Each agent takes one role in the team, for example orchestrator, worker, or advisor.
+You write the roles in markdown. `agent-graph` starts the team, and the agents work together over [`agent-gossip`](https://github.com/agent-habilis/agent-gossip).
 
-## Install
+<br>
 
-With Homebrew:
+## Features
 
-```sh
-brew install agent-habilis/tap/agent-graph
-agent-graph plug
-```
+#### 👥 A team in one command
 
-Or from source:
+`/graph-up squad` fills each role with an agent from your gossip. The
+first agent takes the lead role, then offers each open role to one free
+agent.
 
-```sh
-cargo install --git https://github.com/agent-habilis/agent-graph
-agent-graph plug
-```
+#### 📦 Ready-made teams
 
-`plug` writes the agent skills into each agent on this machine. See [Skills](#skills).
+`squad` has an orchestrator, workers, and an advisor. `pair` has a
+worker and an advisor. `/graph-init` writes both into your project.
 
-## Layout
+#### ✍️ Your own roles
 
-```
-.agent-graph/
-  graphs/
-    squad/
-      index.md      # the graph: mermaid block, boundaries, edges
-      shared/       # optional files that the nodes can include
-      nodes/
-        worker/
-          index.md  # the node "squad/worker"
-          tone.md   # printed only if index.md includes it
-  nodes/
-    worker/
-      index.md      # the standalone node "worker"
-  traits/
-    qa/
-      index.md      # the trait "qa"
-```
+A role is a markdown file in `.agent-graph/`. Change a default, or write
+a new one, and keep it with your project. A role can name the model that
+it prefers.
 
-Each graph folder and each node folder is an [OKF](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) bundle.
-A graph folder is self-contained: it holds its nodes, so you can share the graph as one folder. A node of a graph has the name `<graph>/<node>`, for example `squad/worker`.
-A standalone node folder is self-contained too. It has a bare name, for example `worker`. It is not the same node as `squad/worker`.
-The two kinds have separate commands: `agent-graph graph …` for graphs and their nodes, `agent-graph node …` for standalone nodes.
+#### 🧪 Traits
 
-A graph `index.md` starts with this frontmatter:
+A trait is a routine, for example a QA run. An agent runs it in a fork
+of its session, and only the report comes back, so your context stays
+clean.
 
-```yaml
----
-type: Graph                 # required
-description: One orchestrator, two workers, and one advisor per git branch.   # required
-scope: branch               # required: branch or project
-title: Default graph        # optional, the graph name on the statusline
-icon: 󰡉                     # optional, one Nerd Font glyph for the statusline
----
-```
+#### 🌐 Decentralized
 
-In the mermaid block, the node that talks to the user or to other graphs has the class `lead` (`orchestrator(("orchestrator")):::lead`). Each subgraph has exactly one lead. The other nodes need no class.
+The agents talk over [`agent-gossip`](https://agent-gossip.com), peer to
+peer, with no server to host and no account to create.
 
-A node `index.md` starts with this frontmatter:
+#### 🧠 Multi-model
 
-```yaml
----
-type: Node                  # required
-description: Challenge plans and point out risks.   # required, one line
-title: Advisor              # optional
-tags: [review, go]          # optional, inline list only
-icon: 󰌵                     # optional, one Nerd Font glyph for the statusline
-count: 2                    # optional, in a graph: the number of peers in this node (default 1)
-model: fable                # optional, the model the node prefers; graph-up offers it to a matching peer first
-traits: [qa]                # optional, inline list only: the traits that the node can run
----
-```
+Agents that run on different models work in the same graph.
 
-All peers of one node have the same node name. Their gossip nicknames tell them apart.
+#### 🔀 Multi-harness
 
-## Traits
+One binary plugs into [Claude Code](https://claude.com/claude-code),
+[pi](https://pi.dev), Cursor,
+[Codex](https://developers.openai.com/codex/), and opencode.
 
-A trait is like a method of a node: a markdown text that drives one routine, for example a QA run.
-`/graph-trait-run <name>` runs the trait in a fork of the session. The fork gets a copy of the context, runs the routine, and gives a report.
-The session gets only the report, so its context stays as it was before the run.
-Traits are in `.agent-graph/traits/`, next to `graphs/` and `nodes/`.
+#### 👀 Live view
 
-A trait `index.md` starts with this frontmatter:
+`/graph-topology` draws the running graph: who is in each role, and what
+each agent does.
 
-```yaml
----
-type: Trait                 # required
-description: Run the checks of the project on the current change.   # required, one line
-writes: false               # optional (default false); true lets the trait change tracked files and commit
----
-```
+<br>
 
-`trait show` adds a `## Boundaries` section to a trait with `writes: false`: no changes to files that git tracks, and no commits.
-When a node is loaded, `/graph-trait-run <name>` runs only a trait that the node lists in `traits`.
-`/graph-trait-run <url>` downloads the trait into a folder in `/tmp`, checks it with `trait check`, and shows its description and `writes`.
-The user must confirm before the fork runs it. A URL trait skips the node check. It is one file, so it cannot include other files.
+## Installation
 
-## Discovery
-
-`agent-graph` reads `.agent-graph/graphs/` and `.agent-graph/nodes/` in the current directory and in each parent directory, up to `/`.
-If two directories have a graph with the same name, the graph nearer to the current directory wins, with all its nodes. The same goes for standalone nodes.
-
-## Commands
+A graph runs inside a gossip, so you need [`agent-gossip`](https://github.com/agent-habilis/agent-gossip) too. The commands below install both.
 
 ```sh
-agent-graph graph list                     # name<TAB>description<TAB>scope<TAB>path
-agent-graph graph get squad                # the body of the graph, with includes expanded
-agent-graph graph nodes squad              # id<TAB><graph>/<node><TAB>lead|-<TAB>count<TAB>model
-agent-graph graph lint [squad]             # path:line: reason, for each error
-agent-graph graph hash squad               # SHA-256 of the graph folder: the graph id between peers
-agent-graph graph init [<dir>]             # write the default graphs, nodes, and traits into <dir>/.agent-graph/
-agent-graph graph node-up squad/worker     # the body of the graph, then the body of the node
-agent-graph graph node-up squad/worker --pid N  # also write /tmp/agent-graph/N.json for the statusline
-agent-graph graph node-down --pid N        # remove /tmp/agent-graph/N.json
-agent-graph graph topology --meta F --peers F --me NICK  # draw the running graph from gossip meta JSON; --mermaid for the source
-agent-graph node list                      # standalone nodes: name<TAB>description<TAB>tags<TAB>path
-agent-graph node list --tag '^go$'         # only nodes with a tag that matches the regex
-agent-graph node up worker                 # the body of the standalone node
-agent-graph node up worker --pid N         # also write /tmp/agent-graph/N.json for the statusline
-agent-graph node down --pid N              # remove /tmp/agent-graph/N.json
-agent-graph trait list                     # name<TAB>description<TAB>writes<TAB>path
-agent-graph trait check <path>             # description<TAB>writes<TAB>path of a trait file or folder, or an error
-agent-graph trait show qa                  # the body of the trait, with includes expanded
-agent-graph trait show qa --node pair/worker   # fail if the node does not list the trait
-agent-graph trait show /tmp/x/index.md     # a trait file by path: no node check
-agent-graph plug [--agent A] [--path DIR]  # install the graph skills into each detected agent
-agent-graph unplug [--agent A] [--path DIR] # remove the graph skills that plug installed
+# Homebrew for macOS and Linux
+brew install agent-habilis/tap/agent-gossip agent-habilis/tap/agent-graph
+agent-gossip plug && agent-graph plug
+
+# From source everywhere else
+cargo install --git https://github.com/agent-habilis/agent-gossip agent-gossip
+cargo install --git https://github.com/agent-habilis/agent-graph agent-graph
+agent-gossip plug && agent-graph plug
 ```
 
-If a graph, node, or trait is not valid, `list` writes a warning to stderr and skips it.
-The `--tag` regex is not anchored, so `go` also matches `mongo`.
+`plug` writes the skills into each agent that it finds on your machine.
+Run `plug` again after each upgrade.
 
-## Defaults
+<br>
 
-`agent-graph graph init` writes the files in [`defaults/`](crates/agent-graph/defaults/) into `.agent-graph/`: the `squad` graph with its `orchestrator`, `worker`, and `advisor` nodes, the `pair` graph with one `worker` (the lead) and one `advisor`, and the standalone `worker` and `advisor` nodes.
-It also writes four traits. The `worker` nodes of the graphs list `qa` (run the checks), `repro` (write a failing test for a bug, `writes: true`), and `perf` (measure against the base commit). The `advisor` nodes of the graphs list `review`, and their steps run it.
-The build puts these files into the binary, so a user needs only the binary.
-If `.agent-graph` exists, `init` writes nothing and exits 0.
+## Quick start
 
-## Includes
+1. **`/graph-init`**
+   Run it in your project. It writes the default teams into `.agent-graph/`.
+2. **`/gossip-create`**
+   Run it in one agent. It gives you a gossip hash.
+3. **`/gossip-join`**
+   Run `/gossip-join <hash>` in each other agent, with the hash from step 2. Start each agent in the same project folder, on the same machine. `squad` needs 4 agents in total, and `pair` needs 2.
+4. **`/graph-up squad`**
+   Run it in the first agent. The first agent takes the lead role. It then offers each open role to one free agent of the gossip. Each of these agents asks its user to accept the role. Accept it. The command waits until every role has an agent.
 
-In `index.md`, a line that contains only `@<path>` is replaced with the body of that file, without its frontmatter.
-
-- The path is relative to the file that contains the include.
-- Included files can include other files. A cycle is an error.
-- The path must stay inside the graph folder, or inside the folder of a standalone node.
-- The CLI ignores `@` lines inside fenced code blocks.
-
-## Statusline
-
-`graph node-up --pid <pid>` writes the graph, the node, and their icons to `/tmp/agent-graph/<pid>.json`:
-
-```json
-{"graph":"squad","graph_icon":"󰡉","node":"worker","node_icon":"󱌢","pid":123}
-```
-
-`node up --pid <pid>` writes a standalone node, so the file has no `graph` key:
-
-```json
-{"node":"worker","node_icon":"󱌢","pid":123}
-```
-
-`pid` is the Claude Code process. A statusline script gets the same pid as its parent process.
-The `graph` key is the `title` of the graph, or its folder name when it has no title.
-A graph or node without an `icon` has no icon key.
+<br>
 
 ## Skills
 
-The agent skills (`/graph-up`, `/graph-down`, `/graph-leave`, `/graph-node-invite`, `/graph-topology` for graphs; `/graph-node-up`, `/graph-node-down`, `/graph-node-list` for standalone nodes; `/graph-trait-run` for traits; and more) are in the binary.
-`agent-graph plug` writes them into each agent on this machine: Claude Code, pi, Codex, Cursor, and opencode.
-An agent that is not on the machine is skipped.
-Run `plug` again after each install of a new binary. It also removes the `template-*`, `role-*`, and `team-*` skills of a binary from before the rename back to graph and node.
-`plug` replaces a symbolic link to an old skill folder, and it does not change the target of the link.
+`agent-graph plug` installs one skill for each operation. You call them as commands in your agent, shown here with the `/` prefix of Claude Code.
+Codex uses `$graph-up`, and pi uses `/skill:graph-up`.
 
-The skill sources in [`crates/agent-graph/skills/`](crates/agent-graph/skills/) are templates. See [`skills/README.md`](crates/agent-graph/skills/README.md).
+### `/graph-init`
 
-## Exit codes
+Creates the `.agent-graph/` folder in your project, with two teams and four traits.
+If the folder exists, it changes nothing.
 
-- `0`: success.
-- `1`: error. For example, the node is not found, an include is not valid, the regex is not valid, or `graph lint` found errors.
+- `squad` — an orchestrator, two workers, and an advisor.
+- `pair` — a worker that talks to you, and an advisor.
 
-## Development
+### `/graph-list`
 
-All development commands go through `cargo task <name>`.
-`cargo task` with no argument lists the tasks.
+Lists the teams that your project can see.
 
-| Task | What it does |
-|---|---|
-| `test` | `cargo test --workspace --no-fail-fast` |
-| `ci` | The full gate: `fmt --check`, clippy, tests |
-| `lint` | `cargo clippy --workspace --all-targets -- -D warnings` |
-| `fmt` | `cargo fmt --all` |
-| `coverage` | `cargo llvm-cov`, installed on demand |
-| `run` | `cargo run --` with the rest forwarded (`cargo task run node list`) |
-| `install` | `cargo install --path crates/agent-graph --force --locked` |
-| `release` | Builds the release binary |
-| `clean` | `cargo clean` plus the llvm-cov target dir |
+### `/graph-up`
 
-### Releasing
+`/graph-up <graph>` starts a graph in the gossip that you are in. Your agent becomes the founder and takes the lead role.
+Then it offers each other role to a free agent, and each agent loads its role. The command ends when every role has its agents.
 
-A change file declares a release, and a merge to `main` cuts it. `knope` (`knope.toml`) does the versioning. Nothing publishes to crates.io.
+### `/graph-node-invite`
 
-1. In the feature PR, add a change file with `knope document-change`, or write `.changeset/<summary>.md` by hand:
+`/graph-node-invite <role>` adds one more agent to a running graph, for example a third worker.
+Any agent of the graph can run it.
 
-   ```md
-   ---
-   default: patch
-   ---
+### `/graph-topology`
 
-   # Add the foo command
-   ```
+Draws the running graph in the terminal: one box for each agent, with its model and status, and the links between the roles.
+It also warns about a problem, for example a role with no agent.
 
-   The key is `default`, not the package name. A named package makes knope tag `agent-graph/v<version>`, and the `v*` trigger of `release.yml` never sees that tag.
-   Commit messages do not count. While the version is `0.x`, `major` gives `0.2.0`, and `minor` and `patch` both give `0.1.1`.
-2. Merge the PR. If `main` has change files, `.github/workflows/auto-release.yml` runs `knope release`. It commits the bump as `chore: release <version>`, pushes it to `main`, and creates the tag and the GitHub Release.
-   The push uses the release GitHub App (secrets `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY`). The App is a bypass actor on the ruleset of `main`.
-3. `auto-release.yml` calls `release.yml`. It builds the binaries for 4 targets, attaches the tarballs and their sha256 files to the release, and updates `Formula/agent-graph.rb` in `agent-habilis/homebrew-tap`. The formula lives only in the tap.
+### `/graph-down` and `/graph-leave`
 
-If the bump reaches `main` but the release step fails, the next run finds no change files and no tag, and runs `knope publish`. To retry by hand, start `auto-release.yml` with **Run workflow**.
+`/graph-down` stops the whole graph. Every agent leaves its role.
+`/graph-leave` takes only your agent out. The other agents keep working.
+
+### `/graph-trait-run`
+
+A trait is a routine, like a method of a role. `/graph-trait-run qa` runs the QA trait in a fork of your session.
+The fork does the work and sends you a report. Your context stays as it was, plus the report.
+Traits need an agent that can fork a session, for example Claude Code.
+
+- The default traits are `qa` (run the checks of the project), `repro` (write a failing test for a bug), `perf` (measure a change), and `review` (review a plan or a diff).
+- An agent in a graph runs only the traits that its role lists.
+- You can also give a URL. You see the description of the trait first and must confirm before the fork runs it.
+
+### Roles outside a graph
+
+A standalone role is one role with no team around it. It lives in `.agent-graph/nodes/`.
+
+- `/graph-node-list` — list the standalone roles.
+- `/graph-node-up <name>` — your agent takes the role.
+- `/graph-node-down` — your agent drops the role.
+
+<br>
+
+## Links
+
+- [agent-gossip](https://agent-gossip.com)
+- [agent-habilis](https://agent-habilis.com)
+- [Homebrew tap](https://github.com/agent-habilis/homebrew-tap)
