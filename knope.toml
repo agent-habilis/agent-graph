@@ -1,0 +1,42 @@
+[package]
+versioned_files = [
+  "Cargo.toml",
+  { path = "Cargo.lock", dependency = "agent-graph" },
+]
+changelog = "CHANGELOG.md"
+
+[[workflows]]
+name = "document-change"
+
+[[workflows.steps]]
+type = "CreateChangeFile"
+
+[[workflows]]
+name = "release"
+
+[[workflows.steps]]
+type = "PrepareRelease"
+
+[[workflows.steps]]
+type = "Command"
+command = "git commit -m \"chore: release $version\""
+
+[[workflows.steps]]
+type = "Command"
+command = "git push origin HEAD:main"
+
+[[workflows.steps]]
+type = "Release"
+
+[[workflows]]
+name = "publish"
+
+[[workflows.steps]]
+type = "Release"
+
+[changes]
+ignore_conventional_commits = true
+
+[github]
+owner = "agent-habilis"
+repo = "agent-graph"

@@ -6,6 +6,24 @@ A graph runs in a gossip as an instance, for example `squad@main`, and each agen
 A standalone node lives outside of any graph. It is self-contained and points at no other node.
 `agent-graph` finds graphs and standalone nodes on disk, checks them, prints them, and draws running graphs.
 
+## Install
+
+With Homebrew:
+
+```sh
+brew install agent-habilis/tap/agent-graph
+agent-graph plug
+```
+
+Or from source:
+
+```sh
+cargo install --git https://github.com/agent-habilis/agent-graph
+agent-graph plug
+```
+
+`plug` writes the agent skills into each agent on this machine. See [Skills](#skills).
+
 ## Layout
 
 ```
@@ -152,3 +170,25 @@ All development commands go through `cargo task <name>`.
 | `install` | `cargo install --force --locked` from the repo root |
 | `release` | Builds the release binary |
 | `clean` | `cargo clean` plus the llvm-cov target dir |
+
+### Releasing
+
+A change file declares a release, and a merge to `main` cuts it. `knope` (`knope.toml`) does the versioning. Nothing publishes to crates.io.
+
+1. In the feature PR, add a change file with `knope document-change`, or write `.changeset/<summary>.md` by hand:
+
+   ```md
+   ---
+   default: patch
+   ---
+
+   # Add the foo command
+   ```
+
+   The key is `default`, not the package name. A named package makes knope tag `agent-graph/v<version>`, and the `v*` trigger of `release.yml` never sees that tag.
+   Commit messages do not count. While the version is `0.x`, `major` gives `0.2.0`, and `minor` and `patch` both give `0.1.1`.
+2. Merge the PR. If `main` has change files, `.github/workflows/auto-release.yml` runs `knope release`. It commits the bump as `chore: release <version>`, pushes it to `main`, and creates the tag and the GitHub Release.
+   The push uses the release GitHub App (secrets `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY`). The App is a bypass actor on the ruleset of `main`.
+3. `auto-release.yml` calls `release.yml`. It builds the binaries for 4 targets, attaches the tarballs and their sha256 files to the release, and updates `Formula/agent-graph.rb` in `agent-habilis/homebrew-tap`. The formula lives only in the tap.
+
+If the bump reaches `main` but the release step fails, the next run finds no change files and no tag, and runs `knope publish`. To retry by hand, start `auto-release.yml` with **Run workflow**.

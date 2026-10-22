@@ -26,7 +26,7 @@ dependencies = [
 [[package]]
 name = "agent-habilis-render"
 version = "0.1.0"
-source = "git+ssh://git@github.com/agent-habilis/render.git?rev=a0eb8f61adabc6468da8b3acd05bc2d88598ee9e#a0eb8f61adabc6468da8b3acd05bc2d88598ee9e"
+source = "git+https://github.com/agent-habilis/render.git?rev=a0eb8f61adabc6468da8b3acd05bc2d88598ee9e#a0eb8f61adabc6468da8b3acd05bc2d88598ee9e"
 dependencies = [
  "ansi-to-tui",
  "anyhow",
@@ -892,7 +892,7 @@ dependencies = [
 [[package]]
 name = "figurehead"
 version = "0.4.3"
-source = "git+ssh://git@github.com/agent-habilis/render.git?rev=a0eb8f61adabc6468da8b3acd05bc2d88598ee9e#a0eb8f61adabc6468da8b3acd05bc2d88598ee9e"
+source = "git+https://github.com/agent-habilis/render.git?rev=a0eb8f61adabc6468da8b3acd05bc2d88598ee9e#a0eb8f61adabc6468da8b3acd05bc2d88598ee9e"
 dependencies = [
  "anyhow",
  "chumsky",
