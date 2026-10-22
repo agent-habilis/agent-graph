@@ -14,9 +14,10 @@ use anyhow::{Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use regex::Regex;
 
-/// Find and print agent graphs: OKF bundles in `.agent-graph/`
-/// folders from the current directory up to `/`. A graph holds its nodes
-/// in `<graph>/nodes/`. The nearest graph with a name wins.
+/// Find and print agent graphs and standalone nodes: OKF bundles in
+/// `.agent-graph/graphs/` and `.agent-graph/nodes/` from the current
+/// directory up to `/`. A graph holds its own nodes in `<graph>/nodes/`. The
+/// nearest graph or node with a name wins.
 #[derive(Debug, Parser)]
 #[command(version)]
 struct Cli {
@@ -26,13 +27,14 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// List, print, and check graphs: folders in `.agent-graph/`. Draw
-    /// running graphs: graphs that run in a gossip.
+    /// List, print, and check graphs: folders in `.agent-graph/graphs/`.
+    /// Load a node of a graph into an agent. Draw running graphs.
     Graph {
         #[command(subcommand)]
         command: GraphCommand,
     },
-    /// List nodes, and load one into an agent.
+    /// List standalone nodes: folders in `.agent-graph/nodes/`. Load one
+    /// into an agent.
     Node {
         #[command(subcommand)]
         command: NodeCommand,
@@ -81,11 +83,30 @@ enum GraphCommand {
     /// Check one graph, or all graphs. Prints `path:line: reason` per
     /// error.
     Lint { name: Option<String> },
-    /// Write the default graphs into `<dir>/.agent-graph/`. Does nothing if
+    /// Write the default graphs and nodes into `<dir>/.agent-graph/`. Does nothing if
     /// `.agent-graph` exists.
     Init {
         /// The folder to write into. The default is the current directory.
         dir: Option<PathBuf>,
+    },
+    /// Print the graph's body, then the body of one of its nodes, with their
+    /// `@file` includes expanded.
+    #[command(name = "node-up")]
+    NodeUp {
+        /// The node, as `<graph>/<node>`.
+        name: String,
+        /// The pid of the agent. Records the graph and the node in
+        /// `/tmp/agent-graph/<pid>.json` for the statusline.
+        #[arg(long)]
+        pid: Option<u32>,
+    },
+    /// Remove the graph and the node of an agent from the statusline:
+    /// `/tmp/agent-graph/<pid>.json`.
+    #[command(name = "node-down")]
+    NodeDown {
+        /// The pid of the agent.
+        #[arg(long)]
+        pid: u32,
     },
     /// Draw the running graph: one box per peer in its node, and the
     /// edges between them. Prints one `warning:` line per problem to
@@ -111,24 +132,24 @@ enum GraphCommand {
 
 #[derive(Debug, Subcommand)]
 enum NodeCommand {
-    /// Print one line per node: name, description, tags, path
-    /// (tab-separated). The name is `<graph>/<node>`.
+    /// Print one line per standalone node: name, description, tags, path
+    /// (tab-separated). The nodes of a graph are in `graph nodes <graph>`.
     List {
         /// Show only nodes that have a tag that matches this regex.
         #[arg(long)]
         tag: Option<String>,
     },
-    /// Print the graph's body, then the node's body, with their `@file`
-    /// includes expanded.
+    /// Print the body of a standalone node, with its `@file` includes
+    /// expanded.
     Up {
-        /// The node, as `<graph>/<node>`.
+        /// The name of the standalone node.
         name: String,
         /// The pid of the agent. Records the node in
         /// `/tmp/agent-graph/<pid>.json` for the statusline.
         #[arg(long)]
         pid: Option<u32>,
     },
-    /// Remove the node of an agent from the statusline:
+    /// Remove the standalone node of an agent from the statusline:
     /// `/tmp/agent-graph/<pid>.json`.
     Down {
         /// The pid of the agent.
@@ -151,8 +172,9 @@ enum TraitCommand {
         /// The trait name, or a path to a trait file (it holds a `/` or ends
         /// in `.md`).
         name: String,
-        /// The node of the agent, as `<graph>/<node>`. A trait by name must
-        /// be in the node's `traits` list.
+        /// The node of the agent: `<graph>/<node>` for a node of a graph, or
+        /// a bare name for a standalone node. A trait by name must be in the
+        /// node's `traits` list.
         #[arg(long)]
         node: Option<String>,
     },
@@ -214,17 +236,12 @@ fn run_node(command: NodeCommand, cwd: &Path, stdout: &mut impl Write) -> Result
         NodeCommand::Up { name, pid } => {
             let dir = nodes
                 .get(&name)
-                .ok_or_else(|| anyhow!("node `{name}` not found, use `<graph>/<node>`"))?;
+                .ok_or_else(|| anyhow!("node `{name}` not found in .agent-graph/nodes/"))?;
             let node = node::load(dir)
                 .map_err(|reason| anyhow!("node `{name}` is not valid: {reason}"))?;
-            let (graph_name, node_name) = name.split_once('/').unwrap_or(("", &name));
-            let graph_dir = dir.join("../..").canonicalize()?;
-            let graph = graph::load(&graph_dir)
-                .map_err(|reason| anyhow!("graph `{graph_name}` is not valid: {reason}"))?;
-            let mut text = include::expand(&graph_dir, &graph_dir.join("index.md"))?;
-            text += &include::expand(&graph_dir, &dir.join("index.md"))?;
+            let text = include::expand(dir, &dir.join("index.md"))?;
             if let Some(pid) = pid {
-                state::write(pid, (graph_name, &graph), (node_name, &node))?;
+                state::write(pid, None, (&name, &node))?;
             }
             write!(stdout, "{text}")?;
         }
@@ -274,9 +291,13 @@ fn run_trait(command: TraitCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
                 PathBuf::from(&name)
             } else {
                 if let Some(node_name) = node {
-                    let dir = node::discover_nodes(cwd)
-                        .remove(&node_name)
-                        .ok_or_else(|| anyhow!("node `{node_name}` not found"))?;
+                    let dir = if node_name.contains('/') {
+                        find_graph_node(&node::discover_graphs(cwd), &node_name)?.3
+                    } else {
+                        node::discover_nodes(cwd)
+                            .remove(&node_name)
+                            .ok_or_else(|| anyhow!("node `{node_name}` not found"))?
+                    };
                     let listed = node::load(&dir)
                         .map_err(|reason| anyhow!("node `{node_name}` is not valid: {reason}"))?;
                     if !listed.traits.contains(&name) {
@@ -392,7 +413,51 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
             let gossip = topology::Gossip::read(&meta, &peers)?;
             draw_topology(&graphs, &gossip, instance.as_deref(), &me, mermaid, stdout)?;
         }
+        GraphCommand::NodeUp { name, pid } => graph_node_up(&graphs, &name, pid, stdout)?,
+        GraphCommand::NodeDown { pid } => state::remove(pid)?,
     }
+    Ok(())
+}
+
+/// Print the graph of `<graph>/<node>`, then the node, and record both for
+/// the statusline when there is a pid.
+/// Find the folder of the node `<graph>/<node>`. Returns the graph name, the
+/// node name, the graph folder, and the node folder.
+fn find_graph_node<'a>(
+    graphs: &'a BTreeMap<String, PathBuf>,
+    name: &'a str,
+) -> Result<(&'a str, &'a str, &'a Path, PathBuf)> {
+    let (graph_name, node_name) = name
+        .split_once('/')
+        .ok_or_else(|| anyhow!("node `{name}` not found, use `<graph>/<node>`"))?;
+    let graph_dir = graphs
+        .get(graph_name)
+        .ok_or_else(|| anyhow!("graph `{graph_name}` not found"))?;
+    let dir = graph_dir.join("nodes").join(node_name);
+    // A node name is one folder name: no `/`, and not `.` or `..`.
+    if node_name.contains('/') || matches!(node_name, "" | "." | "..") || !dir.is_dir() {
+        bail!("node `{name}` not found");
+    }
+    Ok((graph_name, node_name, graph_dir, dir))
+}
+
+fn graph_node_up(
+    graphs: &BTreeMap<String, PathBuf>,
+    name: &str,
+    pid: Option<u32>,
+    stdout: &mut impl Write,
+) -> Result<()> {
+    let (graph_name, node_name, graph_dir, dir) = find_graph_node(graphs, name)?;
+    let node =
+        node::load(&dir).map_err(|reason| anyhow!("node `{name}` is not valid: {reason}"))?;
+    let graph = graph::load(graph_dir)
+        .map_err(|reason| anyhow!("graph `{graph_name}` is not valid: {reason}"))?;
+    let mut text = include::expand(graph_dir, &graph_dir.join("index.md"))?;
+    text += &include::expand(graph_dir, &dir.join("index.md"))?;
+    if let Some(pid) = pid {
+        state::write(pid, Some((graph_name, &graph)), (node_name, &node))?;
+    }
+    write!(stdout, "{text}")?;
     Ok(())
 }
 

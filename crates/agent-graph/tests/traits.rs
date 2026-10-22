@@ -36,17 +36,29 @@ fn trait_index(description: &str, writes: Option<&str>, body: &str) -> String {
 
 /// Write the graph `g` with the node `<name>` under `level`.
 fn node(level: &Path, name: &str, traits: Option<&str>) {
-    write(&level.join(".agent-graph/g/index.md"), GRAPH_INDEX);
+    write(&level.join(".agent-graph/graphs/g/index.md"), GRAPH_INDEX);
+    write(
+        &level
+            .join(".agent-graph/graphs/g/nodes")
+            .join(name)
+            .join("index.md"),
+        &node_index(traits),
+    );
+}
+
+/// Write the standalone node `<name>` under `level`.
+fn standalone_node(level: &Path, name: &str, traits: Option<&str>) {
+    write(
+        &level.join(".agent-graph/nodes").join(name).join("index.md"),
+        &node_index(traits),
+    );
+}
+
+fn node_index(traits: Option<&str>) -> String {
     let traits = traits
         .map(|list| format!("traits: {list}\n"))
         .unwrap_or_default();
-    write(
-        &level
-            .join(".agent-graph/g/nodes")
-            .join(name)
-            .join("index.md"),
-        &format!("---\ntype: Node\ndescription: n\n{traits}---\nN\n"),
-    );
+    format!("---\ntype: Node\ndescription: n\n{traits}---\nN\n")
 }
 
 fn run(cwd: &Path, args: &[&str]) -> Output {
@@ -166,6 +178,25 @@ fn trait_show_runs_for_a_node_that_lists_the_trait() {
 }
 
 #[test]
+fn trait_show_runs_for_a_standalone_node_that_lists_the_trait() {
+    let (_tmp, root) = root();
+    write_trait(&root, "qa", &trait_index("qa", Some("true"), "Q\n"));
+    standalone_node(&root, "worker", Some("[qa]"));
+    standalone_node(&root, "advisor", None);
+
+    let listed = run(&root, &["trait", "show", "qa", "--node", "worker"]);
+    let unlisted = run(&root, &["trait", "show", "qa", "--node", "advisor"]);
+
+    assert!(listed.status.success(), "{}", stderr(&listed));
+    assert_eq!(stdout(&listed), "Q\n");
+    assert!(!unlisted.status.success());
+    assert_eq!(
+        stderr(&unlisted),
+        "error: node `advisor` does not have trait `qa`\n"
+    );
+}
+
+#[test]
 fn trait_show_refuses_a_trait_that_the_node_does_not_list() {
     let (_tmp, root) = root();
     write_trait(&root, "qa", &trait_index("qa", None, "Q\n"));
@@ -185,6 +216,7 @@ fn trait_show_refuses_a_trait_that_the_node_does_not_list() {
 fn trait_show_fails_for_an_unknown_node() {
     let (_tmp, root) = root();
     write_trait(&root, "qa", &trait_index("qa", None, "Q\n"));
+    node(&root, "worker", None);
 
     let out = run(&root, &["trait", "show", "qa", "--node", "g/nobody"]);
 
@@ -237,7 +269,7 @@ fn trait_show_fails_for_a_bad_writes_value() {
 #[test]
 fn node_list_warns_for_traits_that_are_not_an_inline_list() {
     let (_tmp, root) = root();
-    node(&root, "worker", Some("qa"));
+    standalone_node(&root, "worker", Some("qa"));
 
     let out = run(&root, &["node", "list"]);
 

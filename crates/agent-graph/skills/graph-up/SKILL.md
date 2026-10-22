@@ -67,7 +67,7 @@ graph · usage · /graph-up <graph> [<node>] [--instance <name>]
    - It has another `instance`: print this line, then stop.
 
      ```text
-     graph · in graph <instance> · run /node-down first
+     graph · in graph <instance> · run /graph-leave first
      ```
 
    - It has `instance` `$INSTANCE`: this is a resume. Take `$GRAPH` and
@@ -88,7 +88,7 @@ graph · usage · /graph-up <graph> [<node>] [--instance <name>]
    and records them for the statusline:
 
    ```bash
-   agent-graph node up <graph>/<node> --pid "$PPID"
+   agent-graph graph node-up <graph>/<node> --pid "$PPID"
    ```
 
 2. Record your place in your meta entry:
@@ -116,7 +116,7 @@ Read the meta document. If another live entry has `instance` `$INSTANCE` and no
 
    ```bash
    agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":null,"graph":null,"hash":null,"node":null,"joined_at":null,"verified":null,"status":"idle"}}}'
-   agent-graph node down --pid "$PPID"
+   agent-graph graph node-down --pid "$PPID"
    ```
 
 3. Print this line, then stop:

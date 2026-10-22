@@ -4,18 +4,20 @@ default-members = ["crates/agent-graph"]
 resolver = "3"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.95"
 authors = ["Caio Gondim <me@caiogondim.com>"]
 license = "MIT"
+repository = "https://github.com/agent-habilis/agent-graph"
+homepage = "https://github.com/agent-habilis/agent-graph"
 
 [workspace.dependencies]
 agent-graph-core = { path = "crates/agent-graph-core" }
 agent-graph-topology = { path = "crates/agent-graph-topology" }
 # agent-habilis/render, for its Mermaid renderer. Pinned to a commit until it
 # is on crates.io.
-agent-habilis-render = { git = "ssh://git@github.com/agent-habilis/render.git", rev = "a0eb8f61adabc6468da8b3acd05bc2d88598ee9e" }
+agent-habilis-render = { git = "https://github.com/agent-habilis/render.git", rev = "a0eb8f61adabc6468da8b3acd05bc2d88598ee9e" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 regex = "1"
@@ -50,4 +52,4 @@ panic = "abort"
 # [patch.crates-io] does not apply to a dependency. Keep `rev` equal to the
 # render rev in [workspace.dependencies] above.
 [patch.crates-io]
-figurehead = { git = "ssh://git@github.com/agent-habilis/render.git", rev = "a0eb8f61adabc6468da8b3acd05bc2d88598ee9e" }
+figurehead = { git = "https://github.com/agent-habilis/render.git", rev = "a0eb8f61adabc6468da8b3acd05bc2d88598ee9e" }

@@ -1,15 +1,19 @@
 ---
 name: node-up
-description: Load one node of a graph into this session with the `agent-graph` CLI, so that the agent acts as that node and obeys its boundaries and the boundaries of its graph. Use when the user says "/node-up <graph>/<node>", "load the <node> node", or "act as the <node> node".
+description: Load one standalone node into this session with the `agent-graph` CLI, so that the agent acts as that node and obeys its boundaries. A standalone node lives in `.agent-graph/nodes/`, outside of any graph. Use when the user says "/node-up <node>", "load the <node> node", or "act as the <node> node".
 allowed-tools: Bash(agent-graph:*)
 ---
 
 # node-up
 
-A graph is a team of agents. A node is one position in a
-graph. Its text changes how an agent behaves.
-`agent-graph node up <graph>/<node>` prints the body of the graph
-first, then the body of the node, with their `@file` includes expanded.
+A node is one position that an agent can take. Its text changes how the
+agent behaves. A standalone node lives in `.agent-graph/nodes/<node>/`,
+outside of any graph. It is self-contained: its text does not point at other
+nodes. `agent-graph node up <node>` prints its body, with its `@file`
+includes expanded.
+
+This skill loads only standalone nodes. A node of a graph, `<graph>/<node>`,
+joins a running graph through `/graph-up` or `/node-invite`.
 
 ## Preflight
 
@@ -24,38 +28,40 @@ If the command is not found, tell the user to run `cargo task install` in the
 
 ## Arguments
 
-The node name, as `<graph>/<node>`. If there is no name, print:
+The node name, `<node>`. If there is no name, print:
 
 ```text
-node · usage · /node-up <graph>/<node>
+node · usage · /node-up <node>
 ```
 
 Then stop. To see the names, the user runs `/node-list`.
 
+If the name has a `/`, it is a node of a graph. Print this line, then stop:
+
+```text
+node · <name> is a node of a graph · use /graph-up or /node-invite
+```
+
 ## Up
 
 ```sh
-agent-graph node up <graph>/<node> --pid "$PPID"
+agent-graph node up <node> --pid "$PPID"
 ```
 
-Run it in the foreground. The tool result puts the body of the graph and
-of the node into this session. `$PPID` is the agent process. The CLI records
-the graph and the node for the statusline under this pid. If the command
-fails, show its `error:` line and stop.
+Run it in the foreground. The tool result puts the body of the node into
+this session. `$PPID` is the agent process. The CLI records the node for the
+statusline under this pid. If the command fails, show its `error:` line and
+stop.
 
 When the command succeeds:
 
-1. Act as this node, as a peer of its graph, until the user loads another
-   node or clears the session. If a gossip broadcast says
-   `graph <instance> is down` for the instance in your meta entry, run
-   `/node-down`.
-2. Obey each item in each `## Boundaries` section of the node and of its
-   graph. A boundary is a rule that you must not break. If a request from
-   the user breaks a boundary, say which boundary it breaks, and ask before
-   you continue.
-3. Print only these lines. Do not summarize the node:
+1. Act as this node until the user loads another node or clears the
+   session.
+2. Obey each item in each `## Boundaries` section of the node. A boundary is
+   a rule that you must not break. If a request from the user breaks a
+   boundary, say which boundary it breaks, and ask before you continue.
+3. Print only this line. Do not summarize the node:
 
 ```text
-graph · loaded · <graph>
 node · loaded · <node>
 ```

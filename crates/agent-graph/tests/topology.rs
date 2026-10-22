@@ -61,14 +61,14 @@ fn stderr(out: &Output) -> String {
     String::from_utf8(out.stderr.clone()).unwrap()
 }
 
-/// A project with the graph `squad` in `.agent-graph/`, and an empty home.
+/// A project with the graph `squad` in `.agent-graph/graphs/`, and an empty home.
 fn graph_with(graph: &str) -> Graph {
     let tmp = TempDir::new().unwrap();
     let base = tmp.path().canonicalize().unwrap();
     let root = base.join("project");
     let home = base.join("home");
     fs::create_dir_all(&home).unwrap();
-    write_graph(&root.join(".agent-graph/squad"), graph);
+    write_graph(&root.join(".agent-graph/graphs/squad"), graph);
     let out = run_in(&root, &home, &["graph", "hash", "squad"]);
     let hash = stdout(&out).trim().to_string();
     Graph {
@@ -537,9 +537,9 @@ fn graph_topology_fails_when_a_gossip_command_failed() {
 #[test]
 fn graph_topology_finds_a_received_graph_by_hash_in_home() {
     let graph = graph();
-    let received = graph.home.join(".agent-graph").join(&graph.hash);
+    let received = graph.home.join(".agent-graph/graphs").join(&graph.hash);
     fs::create_dir_all(received.parent().unwrap()).unwrap();
-    fs::rename(graph.root.join(".agent-graph/squad"), &received).unwrap();
+    fs::rename(graph.root.join(".agent-graph/graphs/squad"), &received).unwrap();
 
     let out = topology(&graph, &meta(&graph), ROSTER, &["--me", "ann"]);
 
@@ -552,8 +552,8 @@ fn graph_topology_finds_a_received_graph_by_hash_in_home() {
 #[test]
 fn graph_topology_prefers_a_received_graph_with_the_hash_over_a_changed_local_graph() {
     let graph = graph();
-    let local = graph.root.join(".agent-graph/squad");
-    let received = graph.home.join(".agent-graph").join(&graph.hash);
+    let local = graph.root.join(".agent-graph/graphs/squad");
+    let received = graph.home.join(".agent-graph/graphs").join(&graph.hash);
     write_graph(&received, GRAPH);
     write(&local.join("nodes/worker/index.md"), &format!("{WORKER}\n"));
 
@@ -566,7 +566,9 @@ fn graph_topology_prefers_a_received_graph_with_the_hash_over_a_changed_local_gr
 fn graph_topology_says_when_the_local_graph_has_another_hash() {
     let graph = graph();
     write(
-        &graph.root.join(".agent-graph/squad/nodes/worker/index.md"),
+        &graph
+            .root
+            .join(".agent-graph/graphs/squad/nodes/worker/index.md"),
         &format!("{WORKER}\n"),
     );
 

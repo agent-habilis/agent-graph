@@ -51,7 +51,7 @@ fn plug_path_writes_each_skill_as_one_rendered_file() {
     let out = run(&home, &["plug", "--path", dest.to_str().unwrap()]);
     assert!(out.status.success(), "{}", stderr(&out));
     let skills = source_skills();
-    assert!(!skills.is_empty());
+    assert_ne!(skills.len(), 0, "no source skills");
     for skill in &skills {
         let dir = dest.join(skill);
         let files: Vec<_> = fs::read_dir(&dir).unwrap().flatten().collect();

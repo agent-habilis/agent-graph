@@ -2,8 +2,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::node::{TRAITS, subfolders};
-use crate::{frontmatter, markdown};
+use crate::{frontmatter, markdown, node};
 
 #[derive(Debug)]
 pub struct Trait {
@@ -16,16 +15,7 @@ pub struct Trait {
 /// A nearer folder shadows a farther one with the same name, valid or not.
 #[must_use]
 pub fn discover(start: &Path) -> BTreeMap<String, PathBuf> {
-    let mut traits = BTreeMap::new();
-    for level in start.ancestors() {
-        let Ok(entries) = fs::read_dir(level.join(".agent-graph").join(TRAITS)) else {
-            continue;
-        };
-        for (name, path) in subfolders(entries) {
-            traits.entry(name).or_insert(path);
-        }
-    }
-    traits
+    node::discover(start, "traits")
 }
 
 /// Read and validate a trait file: the `index.md` of a trait folder, or a

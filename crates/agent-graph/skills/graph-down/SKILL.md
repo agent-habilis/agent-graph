@@ -7,7 +7,7 @@ allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*)
 # graph-down
 
 A running graph is an instance of a graph in a gossip. `/graph-up` starts
-it, and `/node-down` takes one peer out of it. This skill takes every peer
+it, and `/graph-leave` takes one peer out of it. This skill takes every peer
 out of it. A peer writes only its own meta entry, so this agent cannot remove
 the places of the other peers. It broadcasts the end of the graph, and each
 peer leaves its node by itself.
@@ -53,13 +53,13 @@ graph · no graph · $INSTANCE
 2. If `$PEERS` is not empty, tell them. One broadcast reaches each peer:
 
    ```bash
-   agent-gossip a2a broadcast --gossip "$GOSSIP" --nickname "$NICKNAME" --text "graph $INSTANCE is down · each peer of $INSTANCE: run /node-down. Without the /node-down skill, run agent-graph node down --pid \"\$PPID\" if agent-graph is on your PATH, then clear your meta entry: agent-gossip meta merge --gossip \"\$GOSSIP\" --nickname \"\$NICKNAME\" --merge '{\"peers\":{\"<your nickname>\":{\"instance\":null,\"graph\":null,\"hash\":null,\"node\":null,\"invited_by\":null,\"verified\":null,\"status\":\"idle\"}}}'. Then stop acting as your node."
+   agent-gossip a2a broadcast --gossip "$GOSSIP" --nickname "$NICKNAME" --text "graph $INSTANCE is down · each peer of $INSTANCE: run /graph-leave. Without the /graph-leave skill, run agent-graph graph node-down --pid \"\$PPID\" if agent-graph is on your PATH, then clear your meta entry: agent-gossip meta merge --gossip \"\$GOSSIP\" --nickname \"\$NICKNAME\" --merge '{\"peers\":{\"<your nickname>\":{\"instance\":null,\"graph\":null,\"hash\":null,\"node\":null,\"invited_by\":null,\"verified\":null,\"status\":\"idle\"}}}'. Then stop acting as your node."
    ```
 
 3. If your own entry has `instance` `$INSTANCE`, leave your node:
 
    ```bash
-   agent-graph node down --pid "$PPID"
+   agent-graph graph node-down --pid "$PPID"
    agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":null,"graph":null,"hash":null,"node":null,"joined_at":null,"invited_by":null,"verified":null,"status":"idle"}}}'
    ```
 
@@ -72,6 +72,6 @@ graph · no graph · $INSTANCE
    graph · down · $INSTANCE · <n> peers told to leave
    ```
 
-The meta entries of the other peers clear as each peer runs `/node-down`.
+The meta entries of the other peers clear as each peer runs `/graph-leave`.
 To check, run `/graph-topology $INSTANCE`: when no peer is left, it fails
 with `has no peers`.

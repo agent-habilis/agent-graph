@@ -17,45 +17,39 @@ pub struct Node {
     pub traits: Vec<String>,
 }
 
-/// The folder in `.agent-graph/` that holds the traits, so it is not a graph.
-pub(crate) const TRAITS: &str = "traits";
-
-/// Graph folders in `.agent-graph/` from `start` up to `/`, by name.
+/// Graph folders in `.agent-graph/graphs/` from `start` up to `/`, by name.
 /// A nearer folder shadows a farther one with the same name, valid or not.
 #[must_use]
 pub fn discover_graphs(start: &Path) -> BTreeMap<String, PathBuf> {
-    let mut graphs = BTreeMap::new();
-    for level in start.ancestors() {
-        // A missing or unreadable level has no graphs for us; it must not
-        // stop the walk.
-        let Ok(entries) = fs::read_dir(level.join(".agent-graph")) else {
-            continue;
-        };
-        for (name, path) in subfolders(entries).filter(|(name, _)| name != TRAITS) {
-            graphs.entry(name).or_insert(path);
-        }
-    }
-    graphs
+    discover(start, "graphs")
 }
 
-/// Node folders from `start` up to `/`, named `<graph>/<node>`. A node
-/// comes only from the nearest graph of that name, so a graph is
-/// shadowed as one unit.
+/// Standalone node folders in `.agent-graph/nodes/` from `start` up to `/`,
+/// by name. The nearest one with a name wins. The nodes of a graph are in
+/// `<graph>/nodes/` and are not here.
 #[must_use]
 pub fn discover_nodes(start: &Path) -> BTreeMap<String, PathBuf> {
-    let mut nodes = BTreeMap::new();
-    for (graph, dir) in discover_graphs(start) {
-        let Ok(entries) = fs::read_dir(dir.join("nodes")) else {
+    discover(start, "nodes")
+}
+
+/// The subfolders of `.agent-graph/<kind>/` from `start` up to `/`, by name.
+/// The nearest one with a name wins.
+pub(crate) fn discover(start: &Path, kind: &str) -> BTreeMap<String, PathBuf> {
+    let mut found = BTreeMap::new();
+    for level in start.ancestors() {
+        // A missing or unreadable level has nothing for us; it must not stop
+        // the walk.
+        let Ok(entries) = fs::read_dir(level.join(".agent-graph").join(kind)) else {
             continue;
         };
         for (name, path) in subfolders(entries) {
-            nodes.insert(format!("{graph}/{name}"), path);
+            found.entry(name).or_insert(path);
         }
     }
-    nodes
+    found
 }
 
-pub(crate) fn subfolders(entries: fs::ReadDir) -> impl Iterator<Item = (String, PathBuf)> {
+fn subfolders(entries: fs::ReadDir) -> impl Iterator<Item = (String, PathBuf)> {
     entries.flatten().filter_map(|entry| {
         let path = entry.path();
         let name = path.file_name()?.to_str()?.to_string();
