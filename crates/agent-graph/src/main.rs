@@ -8,7 +8,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use agent_graph_core::{graph, include, node};
+use agent_graph_core::{graph, include, node, traits};
 use agent_graph_topology as topology;
 use anyhow::{Result, anyhow, bail};
 use clap::{Parser, Subcommand};
@@ -36,6 +36,12 @@ enum Command {
     Node {
         #[command(subcommand)]
         command: NodeCommand,
+    },
+    /// List, check, and print traits: routines in `.agent-graph/traits/`
+    /// that an agent runs in a fork.
+    Trait {
+        #[command(subcommand)]
+        command: TraitCommand,
     },
     /// Install the graph skills into each agent on this machine. Prints one
     /// line per target: state, agent, path (tab-separated).
@@ -131,6 +137,29 @@ enum NodeCommand {
     },
 }
 
+#[derive(Debug, Subcommand)]
+enum TraitCommand {
+    /// Print one line per trait: name, description, writes, path
+    /// (tab-separated).
+    List,
+    /// Check a trait file, or the `index.md` of a trait folder. Print its
+    /// description, writes, and path (tab-separated).
+    Check { path: PathBuf },
+    /// Print the trait's body, with its `@file` includes expanded. A read-only
+    /// trait gets a `## Boundaries` section.
+    Show {
+        /// The trait name, or a path to a trait file (it holds a `/` or ends
+        /// in `.md`).
+        name: String,
+        /// The node of the agent, as `<graph>/<node>`. A trait by name must
+        /// be in the node's `traits` list.
+        #[arg(long)]
+        node: Option<String>,
+    },
+}
+
+const READ_ONLY: &str = "## Boundaries\n\n- No changes to files that git tracks, and no commits.\n";
+
 fn main() -> ExitCode {
     match run(Cli::parse()) {
         Ok(()) => ExitCode::SUCCESS,
@@ -147,6 +176,7 @@ fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Graph { command } => run_graph(command, &cwd, &mut stdout),
         Command::Node { command } => run_node(command, &cwd, &mut stdout),
+        Command::Trait { command } => run_trait(command, &cwd, &mut stdout),
         Command::Plug { agents, paths } => print_lines(&mut stdout, &plug::plug(&agents, &paths)?),
         Command::Unplug { agents, paths } => {
             print_lines(&mut stdout, &plug::unplug(&agents, &paths)?)
@@ -199,6 +229,73 @@ fn run_node(command: NodeCommand, cwd: &Path, stdout: &mut impl Write) -> Result
             write!(stdout, "{text}")?;
         }
         NodeCommand::Down { pid } => state::remove(pid)?,
+    }
+    Ok(())
+}
+
+fn run_trait(command: TraitCommand, cwd: &Path, stdout: &mut impl Write) -> Result<()> {
+    let found = traits::discover(cwd);
+    match command {
+        TraitCommand::List => {
+            for (name, dir) in &found {
+                match traits::load(&dir.join("index.md")) {
+                    Ok(item) => writeln!(
+                        stdout,
+                        "{name}\t{}\t{}\t{}",
+                        item.description,
+                        item.writes,
+                        dir.display()
+                    )?,
+                    Err(reason) => eprintln!("warning: {}: {reason}", dir.display()),
+                }
+            }
+        }
+        TraitCommand::Check { path } => {
+            let file = if path.is_dir() {
+                path.join("index.md")
+            } else {
+                path
+            };
+            let item = traits::load(&file)
+                .map_err(|reason| anyhow!("{} is not a valid trait: {reason}", file.display()))?;
+            writeln!(
+                stdout,
+                "{}\t{}\t{}",
+                item.description,
+                item.writes,
+                file.display()
+            )?;
+        }
+        TraitCommand::Show { name, node } => {
+            let is_md = Path::new(&name)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
+            let file = if name.contains('/') || is_md {
+                PathBuf::from(&name)
+            } else {
+                if let Some(node_name) = node {
+                    let dir = node::discover_nodes(cwd)
+                        .remove(&node_name)
+                        .ok_or_else(|| anyhow!("node `{node_name}` not found"))?;
+                    let listed = node::load(&dir)
+                        .map_err(|reason| anyhow!("node `{node_name}` is not valid: {reason}"))?;
+                    if !listed.traits.contains(&name) {
+                        bail!("node `{node_name}` does not have trait `{name}`");
+                    }
+                }
+                found
+                    .get(&name)
+                    .ok_or_else(|| anyhow!("trait `{name}` not found"))?
+                    .join("index.md")
+            };
+            let item = traits::load(&file)
+                .map_err(|reason| anyhow!("trait `{name}` is not valid: {reason}"))?;
+            let root = file.parent().unwrap_or(Path::new("."));
+            write!(stdout, "{}", include::expand(root, &file)?)?;
+            if !item.writes {
+                write!(stdout, "\n{READ_ONLY}")?;
+            }
+        }
     }
     Ok(())
 }

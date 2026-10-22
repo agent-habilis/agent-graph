@@ -160,7 +160,7 @@ fn owned_dirs(root: &Path) -> Vec<PathBuf> {
     // skills from before the rename back to graph and node, so an upgrade
     // removes them too.
     let listed = manifest.lines().filter(|name| {
-        ["graph-", "node-", "template-", "role-", "team-"]
+        ["graph-", "node-", "trait-", "template-", "role-", "team-"]
             .iter()
             .any(|prefix| name.starts_with(prefix))
             && !name.contains(['/', '\\'])

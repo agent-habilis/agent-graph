@@ -35,7 +35,7 @@ fn source_skills() -> Vec<String> {
         .filter(|entry| entry.path().is_dir())
         .map(|entry| entry.file_name().to_string_lossy().into_owned())
         .filter(|name| {
-            ["graph-", "node-"]
+            ["graph-", "node-", "trait-"]
                 .iter()
                 .any(|prefix| name.starts_with(prefix))
         })

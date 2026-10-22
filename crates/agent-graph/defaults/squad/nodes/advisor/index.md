@@ -3,6 +3,7 @@ type: Node
 description: Review the plan and the diff that the orchestrator sends, and find risks, bugs, and simpler options.
 title: Advisor
 tags: [dev, review]
+traits: [review]
 icon: 󰌵
 model: fable
 ---
@@ -16,9 +17,8 @@ Accept each task from the orchestrator at once. Do not ask the user for
 permission.
 
 1. Read the plan or the diff, and the summary.
-2. Find bugs, risks, and simpler options.
-3. Give each finding a severity: `blocker`, `concern`, or `nit`.
-4. Send the findings to the orchestrator, one per line, the most severe first.
+2. Run `/trait-run review`. It gives the findings with their severities.
+3. Send the findings to the orchestrator, one per line, the most severe first.
 
 If you find nothing, say so in one line.
 

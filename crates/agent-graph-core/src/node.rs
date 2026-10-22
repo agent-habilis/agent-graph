@@ -13,7 +13,12 @@ pub struct Node {
     pub count: u32,
     /// The model the node prefers, matched against a peer's model.
     pub model: Option<String>,
+    /// The traits that the node can run.
+    pub traits: Vec<String>,
 }
+
+/// The folder in `.agent-graph/` that holds the traits, so it is not a graph.
+pub(crate) const TRAITS: &str = "traits";
 
 /// Graph folders in `.agent-graph/` from `start` up to `/`, by name.
 /// A nearer folder shadows a farther one with the same name, valid or not.
@@ -26,7 +31,7 @@ pub fn discover_graphs(start: &Path) -> BTreeMap<String, PathBuf> {
         let Ok(entries) = fs::read_dir(level.join(".agent-graph")) else {
             continue;
         };
-        for (name, path) in subfolders(entries) {
+        for (name, path) in subfolders(entries).filter(|(name, _)| name != TRAITS) {
             graphs.entry(name).or_insert(path);
         }
     }
@@ -50,7 +55,7 @@ pub fn discover_nodes(start: &Path) -> BTreeMap<String, PathBuf> {
     nodes
 }
 
-fn subfolders(entries: fs::ReadDir) -> impl Iterator<Item = (String, PathBuf)> {
+pub(crate) fn subfolders(entries: fs::ReadDir) -> impl Iterator<Item = (String, PathBuf)> {
     entries.flatten().filter_map(|entry| {
         let path = entry.path();
         let name = path.file_name()?.to_str()?.to_string();
@@ -82,6 +87,11 @@ pub fn load(dir: &Path) -> Result<Node, String> {
         Some(value) => frontmatter::inline_list(value)
             .ok_or("tags must be an inline list, for example `tags: [a, b]`")?,
     };
+    let traits = match frontmatter.get("traits") {
+        None => Vec::new(),
+        Some(value) => frontmatter::inline_list(value)
+            .ok_or("traits must be an inline list, for example `traits: [qa]`")?,
+    };
     let count = match frontmatter.get("count") {
         None => 1,
         Some(value) => value
@@ -100,5 +110,6 @@ pub fn load(dir: &Path) -> Result<Node, String> {
         icon,
         count,
         model,
+        traits,
     })
 }

@@ -1,6 +1,6 @@
 ---
 name: graph-init
-description: Create a starter `.agent-graph/` folder in the current project, with the squad graph (orchestrator, workers, advisor) and the pair graph (worker, advisor). Does nothing if the folder exists. Use when the user says "/graph-init", "init graph", or "set up agent graphs for this project".
+description: Create a starter `.agent-graph/` folder in the current project, with the squad graph (orchestrator, workers, advisor) and the pair graph (worker, advisor), and the qa, repro, perf, and review traits. Does nothing if the folder exists. Use when the user says "/graph-init", "init graph", or "set up agent graphs for this project".
 allowed-tools: Bash(git rev-parse:*), Bash(agent-graph:*)
 ---
 
@@ -18,6 +18,11 @@ The defaults are:
 - `pair`: 1 worker (lead) and 1 advisor, per git branch.
   - `pair/worker`: writes the code, gets a review, and talks to the user (model sonnet).
   - `pair/advisor`: reviews the plan and the diff (model fable).
+- Traits:
+  - `qa`: runs the checks of the project and reports each result (workers).
+  - `repro`: writes a test that fails because of a bug (workers, writes).
+  - `perf`: measures the change against the base commit (workers).
+  - `review`: reviews a plan or a diff (advisors).
 
 ## Target
 

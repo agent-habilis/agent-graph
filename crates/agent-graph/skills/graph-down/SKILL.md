@@ -60,7 +60,7 @@ graph · no graph · $INSTANCE
 
    ```bash
    agent-graph node down --pid "$PPID"
-   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":null,"graph":null,"hash":null,"node":null,"invited_by":null,"verified":null,"status":"idle"}}}'
+   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":null,"graph":null,"hash":null,"node":null,"joined_at":null,"invited_by":null,"verified":null,"status":"idle"}}}'
    ```
 
    Then stop acting as the node and as a peer of its graph. The boundaries

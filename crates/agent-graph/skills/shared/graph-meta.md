@@ -10,12 +10,16 @@ writes only its own entry, `/peers/<nickname>`:
   "hash": "<graph hash>",
   "node": "<mermaid id of the node>",
   "invited_by": "<nickname of the inviter>",
+  "joined_at": <epoch seconds>,
   "status": "busy"
 }}}
 ```
 
 - `invited_by` is absent only on the founder: the peer that started the
   graph with `/graph-up`.
+- `joined_at` is the time at which the peer took its node, in seconds since the
+  epoch. A reader that numbers the peers of one node sorts them by it, then by
+  nickname. A peer without it sorts after the peers that have it.
 - `verified` is `false` on a peer without agent-graph. It joined with the
   node context that its inviter sent, and it could not check the graph
   hash. `agent-graph graph topology` warns about such a peer. On a peer

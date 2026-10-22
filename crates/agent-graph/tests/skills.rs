@@ -90,7 +90,8 @@ fn node_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
         .nth(1)
         .and_then(|rest| rest.split('\'').next())
         .unwrap_or_else(|| panic!("no merge in the brief: {text}"))
-        .replace("<your nickname>", "bob");
+        .replace("<your nickname>", "bob")
+        .replace("<epoch seconds>", "1700000000");
     let json: Value =
         serde_json::from_str(&merge).unwrap_or_else(|error| panic!("{error}: {merge}"));
     let entry = &json["peers"]["bob"];
@@ -99,6 +100,7 @@ fn node_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
     assert_eq!(entry["hash"], "abc123");
     assert_eq!(entry["node"], "worker");
     assert_eq!(entry["invited_by"], "ann");
+    assert_eq!(entry["joined_at"], 1_700_000_000);
     assert!(text.contains("--to ann "), "{text}");
     assert!(
         text.contains("\"$NICKNAME\""),
@@ -112,13 +114,15 @@ fn node_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
         .filter_map(|rest| rest.split('\'').next())
         .find(|candidate| candidate.contains("verified"))
         .unwrap_or_else(|| panic!("no merge with verified in the brief: {text}"))
-        .replace("<your nickname>", "bob");
+        .replace("<your nickname>", "bob")
+        .replace("<epoch seconds>", "1700000000");
     let unverified_json: Value =
         serde_json::from_str(&unverified).unwrap_or_else(|error| panic!("{error}: {unverified}"));
     let unverified_entry = &unverified_json["peers"]["bob"];
     assert_eq!(unverified_entry["verified"], false);
     assert_eq!(unverified_entry["instance"], "demo");
     assert_eq!(unverified_entry["node"], "worker");
+    assert_eq!(unverified_entry["joined_at"], 1_700_000_000);
 }
 
 /// Run a bash block in `cwd` with the real `agent-graph` and a stub

@@ -39,7 +39,7 @@ fn embed_defaults(root: &Path, out_dir: &Path) -> io::Result<()> {
     fs::write(out_dir.join("defaults.rs"), out)
 }
 
-/// Expand each `skills/{graph,node}-*/SKILL.md` source into `dest`.
+/// Expand each `skills/{graph,node,trait}-*/SKILL.md` source into `dest`.
 /// The partials in `skills/shared/` are only spliced in, never emitted.
 fn render_skills(src: &Path, dest: &Path) -> io::Result<()> {
     println!("cargo:rerun-if-changed={}", src.display());
@@ -54,7 +54,7 @@ fn render_skills(src: &Path, dest: &Path) -> io::Result<()> {
             path.is_dir()
                 && path.file_name().is_some_and(|name| {
                     let name = name.to_string_lossy();
-                    ["graph-", "node-"]
+                    ["graph-", "node-", "trait-"]
                         .iter()
                         .any(|prefix| name.starts_with(prefix))
                 })

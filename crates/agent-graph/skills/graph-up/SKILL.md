@@ -94,7 +94,7 @@ graph · usage · /graph-up <graph> [<node>] [--instance <name>]
 2. Record your place in your meta entry:
 
    ```bash
-   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":"'"$INSTANCE"'","graph":"'"$GRAPH"'","hash":"'"$HASH"'","node":"<id>","status":"busy"}}}'
+   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":"'"$INSTANCE"'","graph":"'"$GRAPH"'","hash":"'"$HASH"'","node":"<id>","joined_at":'"$(date +%s)"',"status":"busy"}}}'
    ```
 
 3. Do the **Second founder check**.
@@ -115,7 +115,7 @@ Read the meta document. If another live entry has `instance` `$INSTANCE` and no
 2. Remove your place:
 
    ```bash
-   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":null,"graph":null,"hash":null,"node":null,"verified":null,"status":"idle"}}}'
+   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":null,"graph":null,"hash":null,"node":null,"joined_at":null,"verified":null,"status":"idle"}}}'
    agent-graph node down --pid "$PPID"
    ```
 

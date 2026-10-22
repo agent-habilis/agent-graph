@@ -3,6 +3,7 @@ type: Node
 description: Write the code for the task, get a review from the advisor, and give the result to the user.
 title: Worker
 tags: [dev, code]
+traits: [qa, repro, perf]
 icon: 󱌢
 model: sonnet
 ---
