@@ -2,6 +2,8 @@
 versioned_files = [
   "Cargo.toml",
   { path = "Cargo.lock", dependency = "agent-graph" },
+  { path = "Cargo.lock", dependency = "agent-graph-core" },
+  { path = "Cargo.lock", dependency = "agent-graph-topology" },
 ]
 changelog = "CHANGELOG.md"
 

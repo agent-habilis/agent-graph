@@ -12,15 +12,34 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 name = "agent-graph"
 version = "0.1.1"
 dependencies = [
- "agent-habilis-render",
+ "agent-graph-core",
+ "agent-graph-topology",
  "anyhow",
  "clap",
  "include_dir",
  "regex",
  "serde_json",
- "sha2 0.11.0",
  "slot-template",
  "tempfile",
+]
+
+[[package]]
+name = "agent-graph-core"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "regex",
+ "sha2 0.11.0",
+]
+
+[[package]]
+name = "agent-graph-topology"
+version = "0.1.1"
+dependencies = [
+ "agent-graph-core",
+ "agent-habilis-render",
+ "anyhow",
+ "serde_json",
 ]
 
 [[package]]

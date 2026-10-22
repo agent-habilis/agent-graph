@@ -39,6 +39,9 @@ agent-graph plug
   nodes/
     worker/
       index.md      # the standalone node "worker"
+  traits/
+    qa/
+      index.md      # the trait "qa"
 ```
 
 Each graph folder and each node folder is an [OKF](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) bundle.
@@ -71,10 +74,33 @@ tags: [review, go]          # optional, inline list only
 icon: 󰌵                     # optional, one Nerd Font glyph for the statusline
 count: 2                    # optional, in a graph: the number of peers in this node (default 1)
 model: fable                # optional, the model the node prefers; graph-up offers it to a matching peer first
+traits: [qa]                # optional, inline list only: the traits that the node can run
 ---
 ```
 
 All peers of one node have the same node name. Their gossip nicknames tell them apart.
+
+## Traits
+
+A trait is like a method of a node: a markdown text that drives one routine, for example a QA run.
+`/graph-trait-run <name>` runs the trait in a fork of the session. The fork gets a copy of the context, runs the routine, and gives a report.
+The session gets only the report, so its context stays as it was before the run.
+Traits are in `.agent-graph/traits/`, next to `graphs/` and `nodes/`.
+
+A trait `index.md` starts with this frontmatter:
+
+```yaml
+---
+type: Trait                 # required
+description: Run the checks of the project on the current change.   # required, one line
+writes: false               # optional (default false); true lets the trait change tracked files and commit
+---
+```
+
+`trait show` adds a `## Boundaries` section to a trait with `writes: false`: no changes to files that git tracks, and no commits.
+When a node is loaded, `/graph-trait-run <name>` runs only a trait that the node lists in `traits`.
+`/graph-trait-run <url>` downloads the trait into a folder in `/tmp`, checks it with `trait check`, and shows its description and `writes`.
+The user must confirm before the fork runs it. A URL trait skips the node check. It is one file, so it cannot include other files.
 
 ## Discovery
 
@@ -89,7 +115,7 @@ agent-graph graph get squad                # the body of the graph, with include
 agent-graph graph nodes squad              # id<TAB><graph>/<node><TAB>lead|-<TAB>count<TAB>model
 agent-graph graph lint [squad]             # path:line: reason, for each error
 agent-graph graph hash squad               # SHA-256 of the graph folder: the graph id between peers
-agent-graph graph init [<dir>]             # write the default graphs and nodes into <dir>/.agent-graph/
+agent-graph graph init [<dir>]             # write the default graphs, nodes, and traits into <dir>/.agent-graph/
 agent-graph graph node-up squad/worker     # the body of the graph, then the body of the node
 agent-graph graph node-up squad/worker --pid N  # also write /tmp/agent-graph/N.json for the statusline
 agent-graph graph node-down --pid N        # remove /tmp/agent-graph/N.json
@@ -99,16 +125,22 @@ agent-graph node list --tag '^go$'         # only nodes with a tag that matches 
 agent-graph node up worker                 # the body of the standalone node
 agent-graph node up worker --pid N         # also write /tmp/agent-graph/N.json for the statusline
 agent-graph node down --pid N              # remove /tmp/agent-graph/N.json
+agent-graph trait list                     # name<TAB>description<TAB>writes<TAB>path
+agent-graph trait check <path>             # description<TAB>writes<TAB>path of a trait file or folder, or an error
+agent-graph trait show qa                  # the body of the trait, with includes expanded
+agent-graph trait show qa --node pair/worker   # fail if the node does not list the trait
+agent-graph trait show /tmp/x/index.md     # a trait file by path: no node check
 agent-graph plug [--agent A] [--path DIR]  # install the graph skills into each detected agent
 agent-graph unplug [--agent A] [--path DIR] # remove the graph skills that plug installed
 ```
 
-If a graph or node is not valid, `list` writes a warning to stderr and skips it.
+If a graph, node, or trait is not valid, `list` writes a warning to stderr and skips it.
 The `--tag` regex is not anchored, so `go` also matches `mongo`.
 
 ## Defaults
 
-`agent-graph graph init` writes the files in [`defaults/`](defaults/) into `.agent-graph/`: the `squad` graph with its `orchestrator`, `worker`, and `advisor` nodes, the `pair` graph with one `worker` (the lead) and one `advisor`, and the standalone `worker` and `advisor` nodes.
+`agent-graph graph init` writes the files in [`defaults/`](crates/agent-graph/defaults/) into `.agent-graph/`: the `squad` graph with its `orchestrator`, `worker`, and `advisor` nodes, the `pair` graph with one `worker` (the lead) and one `advisor`, and the standalone `worker` and `advisor` nodes.
+It also writes four traits. The `worker` nodes of the graphs list `qa` (run the checks), `repro` (write a failing test for a bug, `writes: true`), and `perf` (measure against the base commit). The `advisor` nodes of the graphs list `review`, and their steps run it.
 The build puts these files into the binary, so a user needs only the binary.
 If `.agent-graph` exists, `init` writes nothing and exits 0.
 
@@ -141,13 +173,13 @@ A graph or node without an `icon` has no icon key.
 
 ## Skills
 
-The agent skills (`/graph-up`, `/graph-down`, `/graph-leave`, `/node-invite`, `/graph-topology` for graphs; `/node-up`, `/node-down`, `/node-list` for standalone nodes; and more) are in the binary.
+The agent skills (`/graph-up`, `/graph-down`, `/graph-leave`, `/graph-node-invite`, `/graph-topology` for graphs; `/graph-node-up`, `/graph-node-down`, `/graph-node-list` for standalone nodes; `/graph-trait-run` for traits; and more) are in the binary.
 `agent-graph plug` writes them into each agent on this machine: Claude Code, pi, Codex, Cursor, and opencode.
 An agent that is not on the machine is skipped.
 Run `plug` again after each install of a new binary. It also removes the `template-*`, `role-*`, and `team-*` skills of a binary from before the rename back to graph and node.
 `plug` replaces a symbolic link to an old skill folder, and it does not change the target of the link.
 
-The skill sources in [`skills/`](skills/) are templates. See [`skills/README.md`](skills/README.md).
+The skill sources in [`crates/agent-graph/skills/`](crates/agent-graph/skills/) are templates. See [`skills/README.md`](crates/agent-graph/skills/README.md).
 
 ## Exit codes
 
@@ -167,7 +199,7 @@ All development commands go through `cargo task <name>`.
 | `fmt` | `cargo fmt --all` |
 | `coverage` | `cargo llvm-cov`, installed on demand |
 | `run` | `cargo run --` with the rest forwarded (`cargo task run node list`) |
-| `install` | `cargo install --force --locked` from the repo root |
+| `install` | `cargo install --path crates/agent-graph --force --locked` |
 | `release` | Builds the release binary |
 | `clean` | `cargo clean` plus the llvm-cov target dir |
 

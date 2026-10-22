@@ -71,6 +71,9 @@ jobs:
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: agent-graph
+          # The root manifest is a virtual workspace, so the action cannot
+          # derive the package name/version from `./Cargo.toml`.
+          manifest-path: crates/agent-graph/Cargo.toml
           target: ${{ matrix.target }}
           ref: refs/tags/${{ env.TAG }}
           archive: $bin-$tag-$target

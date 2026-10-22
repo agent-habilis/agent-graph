@@ -1,0 +1,18 @@
+[package]
+name = "agent-graph-topology"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Draw the live topology of an agent graph from its gossip data."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+agent-graph-core.workspace = true
+agent-habilis-render.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true
