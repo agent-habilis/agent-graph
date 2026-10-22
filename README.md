@@ -1,4 +1,4 @@
-# `agent-graph`
+# `agent-graph` 🧑‍🧒‍🧒
 
 A graph is a team of AI agents. Each agent takes one role in the team, for example orchestrator, worker, or advisor.
 You write the roles in markdown. `agent-graph` starts the team, and the agents work together over [`agent-gossip`](https://github.com/agent-habilis/agent-gossip).
@@ -30,12 +30,14 @@ A graph runs inside a gossip, so you also need [`agent-gossip`](https://github.c
 
 ## Quick start
 
-1. In your project, run `/graph-init`. It writes the default teams into `.agent-graph/`.
-2. In one agent, run `/gossip-create`. It gives you a gossip hash.
-3. In each other agent, run `/gossip-join <hash>`.
-4. In the first agent, run `/graph-up squad`.
-
-The first agent takes the lead role. It then offers each open role to one free agent of the gossip.
+1. **`/graph-init`**
+   Run it in your project. It writes the default teams into `.agent-graph/`.
+2. **`/gossip-create`**
+   Run it in one agent. It gives you a gossip hash.
+3. **`/gossip-join`**
+   Run `/gossip-join <hash>` in each other agent, with the hash from step 2.
+4. **`/graph-up squad`**
+   Run it in the first agent. The first agent takes the lead role. It then offers each open role to one free agent of the gossip.
 
 ## Skills
 
