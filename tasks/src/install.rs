@@ -5,9 +5,9 @@ use crate::util::{output, repo_root};
 
 pub(crate) fn run(sh: &Shell) -> TaskOutcome {
     output::status("Installing", "agent-graph");
-    // Absolute, not `--path .`: no task changes directory, so a relative path
+    // Absolute, not `--path crates/agent-graph`: no task changes directory, so a relative path
     // would only resolve when invoked from the workspace root.
-    let pkg = repo_root();
+    let pkg = repo_root().join("crates/agent-graph");
     // `--force`: the crate version rarely changes between builds, and without
     // it `cargo install` treats "already installed" as up-to-date and skips
     // the rebuild, leaving a stale binary in place.

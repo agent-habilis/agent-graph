@@ -3,6 +3,7 @@ type: Node
 description: Write the code for one part of the task, and send the result to the leader.
 title: Worker
 tags: [dev, code]
+traits: [qa, repro, perf]
 icon: 󱌢
 count: 2
 model: sonnet

@@ -1,0 +1,37 @@
+[package]
+name = "agent-graph"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Find and print agent graphs: OKF bundles in .agent-graph/ folders from cwd up to /."
+readme = "../../README.md"
+keywords = ["agents", "graph", "okf"]
+categories = ["command-line-utilities"]
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "agent-graph"
+path = "src/main.rs"
+
+[dependencies]
+agent-graph-core.workspace = true
+agent-graph-topology.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+include_dir = "0.7"
+regex.workspace = true
+serde_json.workspace = true
+
+[build-dependencies]
+# Renders the multi-file `skills/` sources into one SKILL.md per skill. A copy
+# of agent-gossip's crate; see crates/slot-template/README.md.
+slot-template = { path = "../slot-template" }
+
+[dev-dependencies]
+tempfile = "3"

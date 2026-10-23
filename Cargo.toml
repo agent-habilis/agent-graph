@@ -1,20 +1,27 @@
 [workspace]
-members = ["slot-template", "tasks"]
+members = ["crates/*", "tasks"]
+default-members = ["crates/agent-graph"]
+resolver = "3"
 
-[package]
-name = "agent-graph"
-version = "0.1.0"
+[workspace.package]
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.95"
 authors = ["Caio Gondim <me@caiogondim.com>"]
-description = "Find and print agent graphs: OKF bundles in .agent-graph/ folders from cwd up to /."
 license = "MIT"
-readme = "README.md"
-keywords = ["agents", "graph", "okf"]
-categories = ["command-line-utilities"]
+repository = "https://github.com/agent-habilis/agent-graph"
+homepage = "https://github.com/agent-habilis/agent-graph"
 
-[lints]
-workspace = true
+[workspace.dependencies]
+agent-graph-core = { path = "crates/agent-graph-core" }
+agent-graph-topology = { path = "crates/agent-graph-topology" }
+# agent-habilis/render, for its Mermaid renderer. Pinned to a commit until it
+# is on crates.io.
+agent-habilis-render = { git = "https://github.com/agent-habilis/render.git", rev = "a0eb8f61adabc6468da8b3acd05bc2d88598ee9e" }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+regex = "1"
+serde_json = "1.0.151"
 
 [workspace.lints.rust]
 rust_2018_idioms = { level = "warn", priority = -1 }
@@ -34,29 +41,6 @@ allow_attributes = "warn"
 wildcard_enum_match_arm = "warn"
 module_name_repetitions = "allow"
 
-[[bin]]
-name = "agent-graph"
-path = "src/main.rs"
-
-[dependencies]
-anyhow = "1"
-clap = { version = "4", features = ["derive"] }
-# agent-habilis/render, for its Mermaid renderer. Pinned to a commit until it
-# is on crates.io.
-agent-habilis-render = { git = "ssh://git@github.com/agent-habilis/render.git", rev = "a0eb8f61adabc6468da8b3acd05bc2d88598ee9e" }
-include_dir = "0.7"
-regex = "1"
-serde_json = "1.0.151"
-sha2 = "0.11.0"
-
-[build-dependencies]
-# Renders the multi-file `skills/` sources into one SKILL.md per skill. A copy
-# of agent-gossip's crate; see slot-template/README.md.
-slot-template = { path = "slot-template" }
-
-[dev-dependencies]
-tempfile = "3"
-
 [profile.release]
 opt-level = 3
 lto = "fat"
@@ -66,6 +50,6 @@ panic = "abort"
 
 # Use render's fork of figurehead, not the crates.io release: render's own
 # [patch.crates-io] does not apply to a dependency. Keep `rev` equal to the
-# render rev above.
+# render rev in [workspace.dependencies] above.
 [patch.crates-io]
-figurehead = { git = "ssh://git@github.com/agent-habilis/render.git", rev = "a0eb8f61adabc6468da8b3acd05bc2d88598ee9e" }
+figurehead = { git = "https://github.com/agent-habilis/render.git", rev = "a0eb8f61adabc6468da8b3acd05bc2d88598ee9e" }
