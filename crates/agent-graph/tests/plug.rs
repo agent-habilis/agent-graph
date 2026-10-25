@@ -155,6 +155,23 @@ fn plug_renders_the_shared_graph_sections_into_each_skill_that_includes_them() {
 }
 
 #[test]
+fn plug_renders_the_template_and_name_flags_into_graph_up_and_graph_node_up() {
+    let (_tmp, home) = root();
+    let dest = home.join("skills");
+    assert!(
+        run(&home, &["plug", "--path", dest.to_str().unwrap()])
+            .status
+            .success()
+    );
+    let up = fs::read_to_string(dest.join("graph-up/SKILL.md")).unwrap();
+    let node_up = fs::read_to_string(dest.join("graph-node-up/SKILL.md")).unwrap();
+
+    assert!(up.contains("--squad-template") && up.contains("--name"));
+    assert!(!up.contains("--instance"));
+    assert!(node_up.contains("--node-template") && node_up.contains("--name"));
+}
+
+#[test]
 fn plug_and_unplug_print_one_line_per_target() {
     let (_tmp, home) = root();
     let dest = home.join("skills");

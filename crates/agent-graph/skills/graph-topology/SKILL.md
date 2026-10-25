@@ -26,8 +26,8 @@ If the command is not found, tell the user to run `cargo task install` in the
 
 ## Arguments
 
-`<instance>`: optional. The instance name of the graph, for example
-`squad1@main`. With no argument, the command draws the graph of this agent.
+`--name <name>`: optional. The instance name of the graph, for example
+`a3f9c1d`. With no argument, the command draws the graph of this agent.
 
 <!-- include path="../shared/gossip-session.md" -->
 
@@ -36,7 +36,7 @@ If the command is not found, tell the user to run `cargo task install` in the
 Give the two gossip documents to the command in one call:
 
 ```bash
-agent-graph graph topology [<instance>] --me "$NICKNAME" \
+agent-graph graph topology [--name <name>] --me "$NICKNAME" \
   --meta <(agent-gossip meta get --gossip "$GOSSIP" --nickname "$NICKNAME") \
   --peers <(agent-gossip peers --gossip "$GOSSIP" --nickname "$NICKNAME")
 ```
@@ -46,6 +46,6 @@ needs a monospace font. Then show each `warning:` line from stderr, below the
 fence.
 
 If the command fails, show its `error:` line, then stop. For
-`is not in a graph`, tell the user to start a graph with `/graph-up <graph>`,
-or to give the `<instance>`. To add a peer to the graph, a peer runs
+`is not in a graph`, tell the user to start a graph with `/graph-up --squad-template <graph>`,
+or to give the `--name <name>`. To add a peer to the graph, a peer runs
 `/graph-node-invite <node>`.

@@ -2,7 +2,7 @@
 
 A node is one position that an agent can take. Its text goes into the context of the agent and changes how the agent behaves.
 A graph is a team of agents: its own nodes, and the edges, the named relationships between them.
-A graph runs in a gossip as an instance, for example `squad1@main`, and each agent in a node of it is a peer of the graph.
+A graph runs in a gossip as an instance, named by a short hash like `a3f9c1d` or by `--name`, and each agent in a node of it is a peer of the graph.
 A standalone node lives outside of any graph. It is self-contained and points at no other node.
 `agent-graph` finds graphs and standalone nodes on disk, checks them, prints them, and draws running graphs.
 
@@ -119,12 +119,14 @@ agent-graph graph init [<dir>]             # write the default graphs, nodes, an
 agent-graph graph node-up squad1/worker    # the body of the graph, then the body of the node
 agent-graph graph node-up squad1/worker --pid N  # also write /tmp/agent-graph/N.json for the statusline
 agent-graph graph node-down --pid N        # remove /tmp/agent-graph/N.json
-agent-graph graph topology --meta F --peers F --me NICK  # draw the running graph from gossip meta JSON; --mermaid for the source
+agent-graph graph topology [--name N] --meta F --peers F --me NICK  # draw the running graph from gossip meta JSON; --mermaid for the source
 agent-graph node list                      # standalone nodes: name<TAB>description<TAB>tags<TAB>path
 agent-graph node list --tag '^go$'         # only nodes with a tag that matches the regex
 agent-graph node up worker                 # the body of the standalone node
+agent-graph node up worker --name N --pid N  # name it; the default is a short hash
 agent-graph node up worker --pid N         # also write /tmp/agent-graph/N.json for the statusline
 agent-graph node down --pid N              # remove /tmp/agent-graph/N.json
+agent-graph name                           # a new short hash, the default name of a running graph or node
 agent-graph trait list                     # name<TAB>description<TAB>writes<TAB>path
 agent-graph trait check <path>             # description<TAB>writes<TAB>path of a trait file or folder, or an error
 agent-graph trait show qa                  # the body of the trait, with includes expanded
@@ -155,16 +157,16 @@ In `index.md`, a line that contains only `@<path>` is replaced with the body of 
 
 ## Statusline
 
-`graph node-up --pid <pid>` writes the graph, the node, and their icons to `/tmp/agent-graph/<pid>.json`:
+`graph node-up --pid <pid>` writes the graph, the node, and their icons (and the `name` of the running graph, when `--name` is given) to `/tmp/agent-graph/<pid>.json`:
 
 ```json
 {"graph":"squad1","graph_icon":"󰡉","node":"worker","node_icon":"󱌢","pid":123}
 ```
 
-`node up --pid <pid>` writes a standalone node, so the file has no `graph` key:
+`node up --pid <pid>` writes a standalone node, so the file has no `graph` key but a `name`, from `--name` or a new short hash:
 
 ```json
-{"node":"worker","node_icon":"󱌢","pid":123}
+{"name":"a3f9c1d","node":"worker","node_icon":"󱌢","pid":123}
 ```
 
 `pid` is the Claude Code process. A statusline script gets the same pid as its parent process.
@@ -173,7 +175,7 @@ A graph or node without an `icon` has no icon key.
 
 ## Skills
 
-The agent skills (`/graph-up`, `/graph-down`, `/graph-leave`, `/graph-node-invite`, `/graph-topology` for graphs; `/graph-node-up`, `/graph-node-down`, `/graph-node-list` for standalone nodes; `/graph-trait-run` for traits; and more) are in the binary.
+The agent skills (`/graph-up --squad-template <graph> [--name <name>]`, `/graph-node-up --node-template <node> [--name <name>]`, `/graph-up`, `/graph-down`, `/graph-leave`, `/graph-node-invite`, `/graph-topology` for graphs; `/graph-node-up`, `/graph-node-down`, `/graph-node-list` for standalone nodes; `/graph-trait-run` for traits; and more) are in the binary.
 `agent-graph plug` writes them into each agent on this machine: Claude Code, pi, Codex, Cursor, and opencode.
 An agent that is not on the machine is skipped.
 Run `plug` again after each install of a new binary. It also removes the `template-*`, `role-*`, and `team-*` skills of a binary from before the rename back to graph and node.

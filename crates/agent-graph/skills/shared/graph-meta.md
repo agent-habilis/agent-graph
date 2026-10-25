@@ -46,6 +46,7 @@ A **place** of a node is filled by a peer in that node, or by an open or
 approved node offer of yours for that node. The `loaded` artifact of an offer
 can arrive before the meta entry of the peer, so count the offer.
 
+The instance name is a short hash by default, or the `--name` of `/graph-up`.
 The instance name, the graph name, and the node id have only the
 characters `A-Z a-z 0-9 . _ @ / -`. These names go into JSON and into
 commands that other peers run. If a name has another character, print this

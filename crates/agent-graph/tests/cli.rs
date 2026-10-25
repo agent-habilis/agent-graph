@@ -572,9 +572,12 @@ fn node_up_records_a_standalone_node_without_a_graph() {
 
     let state = up_state(&root, "solo", 4_000_006);
 
+    let mut value: serde_json::Value = serde_json::from_str(&state).unwrap();
+    let name = value.as_object_mut().unwrap().remove("name").unwrap();
+    assert!(is_short_hash(name.as_str().unwrap()), "{state}");
     assert_eq!(
-        state,
-        "{\"node\":\"solo\",\"node_icon\":\"S\",\"pid\":4000006}\n"
+        value.to_string(),
+        "{\"node\":\"solo\",\"node_icon\":\"S\",\"pid\":4000006}"
     );
 }
 
@@ -804,5 +807,75 @@ fn node_up_state_uses_graph_title() {
     assert_eq!(
         state,
         "{\"graph\":\"Default graph\",\"node\":\"worker\",\"pid\":4000005}\n"
+    );
+}
+
+fn is_short_hash(text: &str) -> bool {
+    text.len() == 7
+        && text
+            .chars()
+            .all(|ch| ch.is_ascii_hexdigit() && !ch.is_uppercase())
+}
+
+#[test]
+fn name_prints_a_short_hash_that_differs_between_calls() {
+    let (_tmp, root) = root();
+
+    let first = stdout(&run(&root, &["name"]));
+    let second = stdout(&run(&root, &["name"]));
+
+    assert!(is_short_hash(first.trim_end()), "{first:?}");
+    assert!(first.ends_with('\n'));
+    assert_ne!(first, second);
+}
+
+#[test]
+fn node_up_with_name_writes_the_name_to_the_state() {
+    let (_tmp, root) = root();
+    node(&root, "solo", &index("d", None, ""));
+    let path = PathBuf::from("/tmp/agent-graph/4000008.json");
+    let _ = fs::remove_file(&path);
+
+    let out = run(
+        &root,
+        &["node", "up", "solo", "--name", "mine", "--pid", "4000008"],
+    );
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "{\"name\":\"mine\",\"node\":\"solo\",\"pid\":4000008}\n"
+    );
+}
+
+#[test]
+fn node_up_without_name_writes_a_short_hash_name() {
+    let (_tmp, root) = root();
+    node(&root, "solo", &index("d", None, ""));
+
+    let state = up_state(&root, "solo", 4_000_009);
+
+    let value: serde_json::Value = serde_json::from_str(&state).unwrap();
+    assert!(is_short_hash(value["name"].as_str().unwrap()), "{state}");
+}
+
+#[test]
+fn graph_node_up_with_name_writes_the_name_to_the_state() {
+    let (_tmp, root) = root();
+    graph_node(&root, "g", "solo", &index("d", None, ""));
+    let path = PathBuf::from("/tmp/agent-graph/4000010.json");
+    let _ = fs::remove_file(&path);
+
+    let out = run(
+        &root,
+        &[
+            "graph", "node-up", "g/solo", "--name", "a3f9c1d", "--pid", "4000010",
+        ],
+    );
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "{\"graph\":\"g\",\"name\":\"a3f9c1d\",\"node\":\"solo\",\"pid\":4000010}\n"
     );
 }

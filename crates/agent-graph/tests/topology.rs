@@ -381,7 +381,12 @@ fn graph_topology_fails_and_lists_hashes_when_not_a_peer_and_hashes_differ() {
     let graph = graph();
     let meta = meta_of(&graph, &[ANN, &BOB.replace("HASH", "000000ff"), CY, DEE]);
 
-    let out = topology(&graph, &meta, ROSTER, &["squad@main", "--me", "dee"]);
+    let out = topology(
+        &graph,
+        &meta,
+        ROSTER,
+        &["--name", "squad@main", "--me", "dee"],
+    );
 
     assert!(!out.status.success());
     let err = stderr(&out);
@@ -465,7 +470,12 @@ fn graph_topology_takes_the_instance_argument() {
     let graph = graph();
     let meta = meta(&graph).replace("squad@main", "squad@my-repo");
 
-    let out = topology(&graph, &meta, ROSTER, &["squad@my-repo", "--me", "dee"]);
+    let out = topology(
+        &graph,
+        &meta,
+        ROSTER,
+        &["--name", "squad@my-repo", "--me", "dee"],
+    );
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
@@ -479,7 +489,12 @@ fn graph_topology_takes_the_instance_argument() {
 fn graph_topology_fails_when_the_graph_has_no_peers() {
     let graph = graph();
 
-    let out = topology(&graph, &meta(&graph), ROSTER, &["nope", "--me", "ann"]);
+    let out = topology(
+        &graph,
+        &meta(&graph),
+        ROSTER,
+        &["--name", "nope", "--me", "ann"],
+    );
 
     assert!(!out.status.success());
     assert!(

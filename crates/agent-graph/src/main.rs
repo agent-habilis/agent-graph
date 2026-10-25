@@ -8,7 +8,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use agent_graph_core::{graph, include, node, traits};
+use agent_graph_core::{graph, include, name as short_name, node, traits};
 use agent_graph_topology as topology;
 use anyhow::{Result, anyhow, bail};
 use clap::{Parser, Subcommand};
@@ -45,6 +45,9 @@ enum Command {
         #[command(subcommand)]
         command: TraitCommand,
     },
+    /// Print a new short name, like a git short hash: the default name of a
+    /// running graph or standalone node.
+    Name,
     /// Install the graph skills into each agent on this machine. Prints one
     /// line per target: state, agent, path (tab-separated).
     Plug {
@@ -95,6 +98,10 @@ enum GraphCommand {
     NodeUp {
         /// The node, as `<graph>/<node>`.
         name: String,
+        /// The name of the running graph, for the statusline. Without it,
+        /// the statusline shows the name of the graph template.
+        #[arg(long = "name")]
+        label: Option<String>,
         /// The pid of the agent. Records the graph and the node in
         /// `/tmp/agent-graph/<pid>.json` for the statusline.
         #[arg(long)]
@@ -114,6 +121,7 @@ enum GraphCommand {
     Topology {
         /// The graph instance name, for example `squad1@main`. The default
         /// is the graph of `--me`.
+        #[arg(long = "name")]
         instance: Option<String>,
         /// The output of `agent-gossip meta get`.
         #[arg(long)]
@@ -144,6 +152,10 @@ enum NodeCommand {
     Up {
         /// The name of the standalone node.
         name: String,
+        /// The name of this agent as the node, for the statusline. The
+        /// default is a new short hash.
+        #[arg(long = "name")]
+        label: Option<String>,
         /// The pid of the agent. Records the node in
         /// `/tmp/agent-graph/<pid>.json` for the statusline.
         #[arg(long)]
@@ -199,6 +211,7 @@ fn run(cli: Cli) -> Result<()> {
         Command::Graph { command } => run_graph(command, &cwd, &mut stdout),
         Command::Node { command } => run_node(command, &cwd, &mut stdout),
         Command::Trait { command } => run_trait(command, &cwd, &mut stdout),
+        Command::Name => print_lines(&mut stdout, &[short_name::short()]),
         Command::Plug { agents, paths } => print_lines(&mut stdout, &plug::plug(&agents, &paths)?),
         Command::Unplug { agents, paths } => {
             print_lines(&mut stdout, &plug::unplug(&agents, &paths)?)
@@ -233,7 +246,7 @@ fn run_node(command: NodeCommand, cwd: &Path, stdout: &mut impl Write) -> Result
                 )?;
             }
         }
-        NodeCommand::Up { name, pid } => {
+        NodeCommand::Up { name, label, pid } => {
             let dir = nodes
                 .get(&name)
                 .ok_or_else(|| anyhow!("node `{name}` not found in .agent-graph/nodes/"))?;
@@ -241,7 +254,12 @@ fn run_node(command: NodeCommand, cwd: &Path, stdout: &mut impl Write) -> Result
                 .map_err(|reason| anyhow!("node `{name}` is not valid: {reason}"))?;
             let text = include::expand(dir, &dir.join("index.md"))?;
             if let Some(pid) = pid {
-                state::write(pid, None, (&name, &node))?;
+                state::write(
+                    pid,
+                    None,
+                    (&name, &node),
+                    Some(&label.unwrap_or_else(short_name::short)),
+                )?;
             }
             write!(stdout, "{text}")?;
         }
@@ -413,7 +431,9 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
             let gossip = topology::Gossip::read(&meta, &peers)?;
             draw_topology(&graphs, &gossip, instance.as_deref(), &me, mermaid, stdout)?;
         }
-        GraphCommand::NodeUp { name, pid } => graph_node_up(&graphs, &name, pid, stdout)?,
+        GraphCommand::NodeUp { name, label, pid } => {
+            graph_node_up(&graphs, &name, label.as_deref(), pid, stdout)?;
+        }
         GraphCommand::NodeDown { pid } => state::remove(pid)?,
     }
     Ok(())
@@ -444,6 +464,7 @@ fn find_graph_node<'a>(
 fn graph_node_up(
     graphs: &BTreeMap<String, PathBuf>,
     name: &str,
+    label: Option<&str>,
     pid: Option<u32>,
     stdout: &mut impl Write,
 ) -> Result<()> {
@@ -455,7 +476,7 @@ fn graph_node_up(
     let mut text = include::expand(graph_dir, &graph_dir.join("index.md"))?;
     text += &include::expand(graph_dir, &dir.join("index.md"))?;
     if let Some(pid) = pid {
-        state::write(pid, Some((graph_name, &graph)), (node_name, &node))?;
+        state::write(pid, Some((graph_name, &graph)), (node_name, &node), label)?;
     }
     write!(stdout, "{text}")?;
     Ok(())

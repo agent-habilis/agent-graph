@@ -1,6 +1,6 @@
 ---
 name: graph-down
-description: Stop the running graph of this agent. Any peer of the graph can do it. It tells every peer of the graph to leave its node, through one gossip broadcast, then leaves its own node. Use when the user says "/graph-down [<instance>]", "graph down", "stop the graph", or "tear down the graph".
+description: Stop the running graph of this agent. Any peer of the graph can do it. It tells every peer of the graph to leave its node, through one gossip broadcast, then leaves its own node. Use when the user says "/graph-down [--name <name>]", "graph down", "stop the graph", or "tear down the graph".
 allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*)
 ---
 
@@ -18,8 +18,8 @@ joined the gossip. Obey them here too: keep the bell armed.
 
 ## Arguments
 
-`<instance>`: optional. The instance name of the graph, for example
-`squad1@main`. With no argument, take down the graph of this agent.
+`--name <name>`: optional. The instance name of the graph, for example
+`a3f9c1d`. With no argument, take down the graph of this agent.
 
 <!-- include path="../shared/gossip-session.md" -->
 
@@ -29,12 +29,12 @@ joined the gossip. Obey them here too: keep the bell armed.
 
 Read the meta document. Hold `$INSTANCE`:
 
-- With `<instance>`: `<instance>`. Check it per the **Graph meta** section.
+- With `--name <name>`: `<name>`. Check it per the **Graph meta** section.
 - Without it: the `instance` of your own entry. If your entry has no
   `instance`, print this line, then stop:
 
   ```text
-  graph · not in a graph · give the <instance>
+  graph · not in a graph · give the --name <name>
   ```
 
 Hold as `$PEERS` the nicknames of the live entries (not in `absent`) that

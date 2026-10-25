@@ -40,7 +40,7 @@ graph · usage · /graph-node-invite <node> [<peer>]
    graph. If it does not, print this line, then stop:
 
    ```text
-   graph · not in a graph · start one with /graph-up <graph>
+   graph · not in a graph · start one with /graph-up --squad-template <graph>
    ```
 
    From your entry, hold `instance` as `$INSTANCE`, `graph` as `$GRAPH`,
