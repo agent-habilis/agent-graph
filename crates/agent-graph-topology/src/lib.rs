@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
+use std::fs;
 use std::path::{Path, PathBuf};
-use std::{env, fs};
 
 use agent_graph_core::graph::{self, Graph};
 use agent_graph_core::node;
@@ -149,8 +149,7 @@ fn find_graph(
     name: Option<&str>,
     hash: &str,
 ) -> Result<PathBuf> {
-    let received =
-        env::var_os("HOME").map(|home| PathBuf::from(home).join(".agent-graph/graphs").join(hash));
+    let received = agent_graph_core::home().map(|home| home.join(".agent-graph/graphs").join(hash));
     if let Some(dir) = graphs
         .values()
         .chain(&received)

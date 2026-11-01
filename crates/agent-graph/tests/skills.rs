@@ -13,6 +13,8 @@ fn rendered_skill(dir: &Path, skill: &str) -> String {
     let out = Command::new(env!("CARGO_BIN_EXE_agent-graph"))
         .args(["plug", "--path", dest.to_str().unwrap()])
         .env("HOME", dir)
+        // Windows reads the home from `USERPROFILE`.
+        .env("USERPROFILE", dir)
         .output()
         .unwrap();
     assert!(out.status.success());

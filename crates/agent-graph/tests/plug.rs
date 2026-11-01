@@ -14,6 +14,8 @@ fn run(home: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_agent-graph"))
         .args(args)
         .env("HOME", home)
+        // Windows reads the home from `USERPROFILE`.
+        .env("USERPROFILE", home)
         .current_dir(home)
         .output()
         .unwrap()
