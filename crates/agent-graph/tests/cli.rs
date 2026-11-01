@@ -8,7 +8,7 @@ use tempfile::TempDir;
 /// macOS, where `/var` is a symlink to `/private/var`.
 fn root() -> (TempDir, PathBuf) {
     let tmp = TempDir::new().unwrap();
-    let path = tmp.path().canonicalize().unwrap();
+    let path = canonical(tmp.path());
     (tmp, path)
 }
 
@@ -20,6 +20,23 @@ fn state_file(pid: &str) -> PathBuf {
     #[cfg(windows)]
     let dir = std::env::temp_dir().join("agent-graph");
     dir.join(format!("{pid}.json"))
+}
+
+/// `path`, canonicalized.
+#[cfg(not(windows))]
+fn canonical(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap()
+}
+
+/// `path`, canonicalized, without the `\\?\` prefix that `canonicalize`
+/// adds on Windows: the binary prints paths without it.
+#[cfg(windows)]
+fn canonical(path: &Path) -> PathBuf {
+    let path = path.canonicalize().unwrap();
+    match path.to_str().and_then(|text| text.strip_prefix(r"\\?\")) {
+        Some(rest) => PathBuf::from(rest),
+        None => path,
+    }
 }
 
 fn write(path: &Path, content: &str) {
@@ -85,7 +102,18 @@ fn stderr(out: &Output) -> String {
 }
 
 fn line(name: &str, description: &str, tags: &str, dir: &Path) -> String {
-    format!("{name}\t{description}\t{tags}\t{}\n", dir.display())
+    format!("{name}\t{description}\t{tags}\t{}\n", shown(dir))
+}
+
+/// `path` as the binary prints it. The tests join `a/b` in one step, which
+/// keeps the `/` on Windows, where the binary prints `\`.
+fn shown(path: &Path) -> String {
+    let text = path.display().to_string();
+    if cfg!(windows) {
+        text.replace('/', "\\")
+    } else {
+        text
+    }
 }
 
 #[test]

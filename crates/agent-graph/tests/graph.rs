@@ -49,7 +49,7 @@ const NODE_INDEX: &str = "---\ntype: Node\ndescription: d\n---\n";
 /// macOS, where `/var` is a symlink to `/private/var`.
 fn root() -> (TempDir, PathBuf) {
     let tmp = TempDir::new().unwrap();
-    let path = tmp.path().canonicalize().unwrap();
+    let path = canonical(tmp.path());
     for name in ["worker", "advisor"] {
         write(
             &path
@@ -60,6 +60,34 @@ fn root() -> (TempDir, PathBuf) {
         );
     }
     (tmp, path)
+}
+
+/// `path`, canonicalized.
+#[cfg(not(windows))]
+fn canonical(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap()
+}
+
+/// `path`, canonicalized, without the `\\?\` prefix that `canonicalize`
+/// adds on Windows: the binary prints paths without it.
+#[cfg(windows)]
+fn canonical(path: &Path) -> PathBuf {
+    let path = path.canonicalize().unwrap();
+    match path.to_str().and_then(|text| text.strip_prefix(r"\\?\")) {
+        Some(rest) => PathBuf::from(rest),
+        None => path,
+    }
+}
+
+/// `path` as the binary prints it. The tests join `a/b` in one step, which
+/// keeps the `/` on Windows, where the binary prints `\`.
+fn shown(path: &Path) -> String {
+    let text = path.display().to_string();
+    if cfg!(windows) {
+        text.replace('/', "\\")
+    } else {
+        text
+    }
 }
 
 fn write(path: &Path, content: &str) {
@@ -128,8 +156,8 @@ fn graph_list_shows_graphs_from_cwd_and_parents() {
         stdout(&out),
         format!(
             "coding\t{description}\tbranch\t{}\ndocs\t{description}\tproject\t{}\n",
-            outer.display(),
-            inner.display()
+            shown(&outer),
+            shown(&inner)
         )
     );
 }
@@ -191,7 +219,7 @@ fn graph_lint_reports_path_and_line() {
         .unwrap()
         + 1;
     assert!(
-        stdout(&out).starts_with(&format!("{}:{line}: ", dir.join("index.md").display())),
+        stdout(&out).starts_with(&format!("{}:{line}: ", shown(&dir.join("index.md")))),
         "{}",
         stdout(&out)
     );
@@ -419,7 +447,7 @@ fn graph_nodes_names_graph_local_node() {
 #[test]
 fn graph_lint_accepts_default_graphs() {
     let tmp = TempDir::new().unwrap();
-    let root = tmp.path().canonicalize().unwrap();
+    let root = canonical(tmp.path());
     assert!(run(&root, &["graph", "init"]).status.success());
 
     let out = run(&root, &["graph", "lint"]);

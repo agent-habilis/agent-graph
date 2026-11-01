@@ -8,8 +8,36 @@ use tempfile::TempDir;
 /// macOS, where `/var` is a symlink to `/private/var`.
 fn root() -> (TempDir, PathBuf) {
     let tmp = TempDir::new().unwrap();
-    let path = tmp.path().canonicalize().unwrap();
+    let path = canonical(tmp.path());
     (tmp, path)
+}
+
+/// `path`, canonicalized.
+#[cfg(not(windows))]
+fn canonical(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap()
+}
+
+/// `path`, canonicalized, without the `\\?\` prefix that `canonicalize`
+/// adds on Windows: the binary prints paths without it.
+#[cfg(windows)]
+fn canonical(path: &Path) -> PathBuf {
+    let path = path.canonicalize().unwrap();
+    match path.to_str().and_then(|text| text.strip_prefix(r"\\?\")) {
+        Some(rest) => PathBuf::from(rest),
+        None => path,
+    }
+}
+
+/// `path` as the binary prints it. The tests join `a/b` in one step, which
+/// keeps the `/` on Windows, where the binary prints `\`.
+fn shown(path: &Path) -> String {
+    let text = path.display().to_string();
+    if cfg!(windows) {
+        text.replace('/', "\\")
+    } else {
+        text
+    }
 }
 
 fn write(path: &Path, content: &str) {
@@ -95,8 +123,8 @@ fn trait_list_shows_traits_from_cwd_and_parents() {
         stdout(&out),
         format!(
             "fix\tinner fix\ttrue\t{}\nqa\touter qa\tfalse\t{}\n",
-            inner.display(),
-            outer.display()
+            shown(&inner),
+            shown(&outer)
         )
     );
 }
@@ -111,7 +139,7 @@ fn nearest_trait_shadows_parent_trait() {
 
     assert_eq!(
         stdout(&out),
-        format!("qa\tinner\tfalse\t{}\n", inner.display())
+        format!("qa\tinner\tfalse\t{}\n", shown(&inner))
     );
 }
 
