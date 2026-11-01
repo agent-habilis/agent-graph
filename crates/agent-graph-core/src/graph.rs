@@ -205,7 +205,9 @@ fn parse_mermaid(content: &str, graph: &mut Graph) {
 /// The SHA-256 of the graph folder at `dir`, as hex: the id of the
 /// graph between peers. It covers the relative path and the content of each file,
 /// in path order, and no timestamps, so a copy of the folder has the same
-/// hash.
+/// hash. The paths use `/` on every OS, and on Windows a CRLF counts as LF,
+/// so a graph with LF on Unix has the same hash in a CRLF checkout on Windows.
+/// A graph with CRLF on Unix keeps its hash there.
 ///
 /// # Errors
 ///
@@ -217,8 +219,13 @@ pub fn hash(dir: &Path) -> io::Result<String> {
     let mut hasher = Sha256::new();
     for file in files {
         let content = fs::read(&file)?;
+        #[cfg(windows)]
+        let content = without_crlf(content);
         let relative = file.strip_prefix(dir).unwrap_or(&file);
-        hasher.update(relative.to_string_lossy().as_bytes());
+        let relative = relative.to_string_lossy();
+        #[cfg(windows)]
+        let relative = relative.replace('\\', "/");
+        hasher.update(relative.as_bytes());
         hasher.update(b"\0");
         hasher.update((content.len() as u64).to_le_bytes());
         hasher.update(&content);
@@ -228,6 +235,25 @@ pub fn hash(dir: &Path) -> io::Result<String> {
         let _ = write!(hex, "{byte:02x}");
     }
     Ok(hex)
+}
+
+/// `content` with each CRLF as LF. On Windows a graph folder can hold CRLF
+/// files: an editor that saves CRLF, or a checkout of another repo with
+/// `core.autocrlf`. The same graph on Unix has LF, and the hash must be the
+/// same on both. A lone CR stays.
+#[cfg(windows)]
+fn without_crlf(content: Vec<u8>) -> Vec<u8> {
+    if !content.windows(2).any(|pair| pair == b"\r\n") {
+        return content;
+    }
+    let mut out = Vec::with_capacity(content.len());
+    let mut bytes = content.iter().peekable();
+    while let Some(&byte) = bytes.next() {
+        if byte != b'\r' || bytes.peek() != Some(&&b'\n') {
+            out.push(byte);
+        }
+    }
+    out
 }
 
 fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> io::Result<()> {
