@@ -141,9 +141,11 @@ fn selected(agents: &[Agent], paths: &[PathBuf], default: impl Fn(Agent) -> bool
 }
 
 fn home() -> Result<PathBuf> {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .context("`$HOME` is not set")
+    agent_graph_core::home().context(if cfg!(windows) {
+        "the home folder is unknown: `USERPROFILE` is not set and the profile of the user cannot be read"
+    } else {
+        "`$HOME` is not set"
+    })
 }
 
 /// Lists the skills that the last `plug` wrote into a root, so that a later
