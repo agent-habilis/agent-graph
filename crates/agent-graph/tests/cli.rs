@@ -12,6 +12,16 @@ fn root() -> (TempDir, PathBuf) {
     (tmp, path)
 }
 
+/// The state file of `pid`, where the binary writes it: in
+/// `/tmp/agent-graph`, and in `%TEMP%\agent-graph` on Windows.
+fn state_file(pid: &str) -> PathBuf {
+    #[cfg(not(windows))]
+    let dir = PathBuf::from("/tmp/agent-graph");
+    #[cfg(windows)]
+    let dir = std::env::temp_dir().join("agent-graph");
+    dir.join(format!("{pid}.json"))
+}
+
 fn write(path: &Path, content: &str) {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(path, content).unwrap();
@@ -482,7 +492,7 @@ fn node_index_with_icon(icon: &str, body: &str) -> String {
 /// and return the state file it wrote. Each
 /// test uses its own pid, because the state folder is shared.
 fn up_state(cwd: &Path, name: &str, pid: u32) -> String {
-    let path = PathBuf::from(format!("/tmp/agent-graph/{pid}.json"));
+    let path = state_file(&pid.to_string());
     let _ = fs::remove_file(&path);
 
     let up = if name.contains('/') {
@@ -640,7 +650,7 @@ fn node_up_does_not_load_a_node_of_a_graph() {
 fn graph_node_down_removes_state_file() {
     let (_tmp, root) = root();
     graph_node(&root, "graph", "worker", &index("w", None, ""));
-    let path = PathBuf::from("/tmp/agent-graph/4000007.json");
+    let path = state_file("4000007");
     assert!(
         run(
             &root,
@@ -766,7 +776,7 @@ fn node_list_warns_on_bad_count() {
 fn node_down_removes_state_file() {
     let (_tmp, root) = root();
     node(&root, "solo", &index("d", None, ""));
-    let path = PathBuf::from("/tmp/agent-graph/4000003.json");
+    let path = state_file("4000003");
     assert!(
         run(&root, &["node", "up", "solo", "--pid", "4000003"])
             .status
@@ -783,7 +793,7 @@ fn node_down_removes_state_file() {
 #[test]
 fn node_down_without_state_file_succeeds() {
     let (_tmp, root) = root();
-    let _ = fs::remove_file("/tmp/agent-graph/4000004.json");
+    let _ = fs::remove_file(state_file("4000004"));
 
     let out = run(&root, &["node", "down", "--pid", "4000004"]);
 
