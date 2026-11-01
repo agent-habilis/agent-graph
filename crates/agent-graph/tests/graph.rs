@@ -493,6 +493,40 @@ fn graph_hash_is_same_for_same_content() {
     );
 }
 
+/// The hash is the id of the graph between peers, so it is the same on every
+/// OS: the relative paths use `/`, and on Windows a CRLF counts as LF. The
+/// value is the SHA-256, computed outside the binary, of the three files of
+/// this graph in path order (`index.md`, `nodes/advisor/index.md`,
+/// `nodes/worker/index.md`): for each one its path, a NUL, its length as
+/// u64 little-endian, then its bytes.
+#[test]
+fn graph_hash_is_the_same_on_every_os() {
+    let (_tmp, root) = root();
+    graph(&root, "coding", CODING);
+
+    assert_eq!(hash(&root, "coding").trim(), GOLDEN_HASH);
+}
+
+const GOLDEN_HASH: &str = "7b240ea7b5d894ef60cfe1a298538bec11ba4664a5ff06920f1b3dbdf31760a0";
+
+#[cfg(windows)]
+#[test]
+fn graph_hash_counts_crlf_as_lf_on_windows() {
+    let (_tmp, root) = root();
+    let lf = graph(&root.join("a"), "coding", CODING);
+    write(&lf.join("nodes/worker/index.md"), NODE_INDEX);
+    let crlf = graph(&root.join("b"), "coding", &CODING.replace('\n', "\r\n"));
+    write(
+        &crlf.join("nodes/worker/index.md"),
+        &NODE_INDEX.replace('\n', "\r\n"),
+    );
+
+    assert_eq!(
+        hash(&root.join("a"), "coding"),
+        hash(&root.join("b"), "coding")
+    );
+}
+
 #[test]
 fn graph_hash_changes_when_a_file_changes() {
     let (_tmp, root) = root();
