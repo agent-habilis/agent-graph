@@ -100,16 +100,22 @@ enum GraphCommand {
         /// The pid of the agent. Records the graph and the node in
         /// `/tmp/agent-graph/<pid>.json` for the statusline.
         #[arg(long)]
-        #[cfg_attr(windows, arg(value_parser = crate::auto::pid))]
+        #[cfg_attr(windows, arg(value_parser = crate::auto::pid, help = PID_UP_GRAPH))]
         pid: Option<u32>,
     },
     /// Remove the graph and the node of an agent from the statusline:
     /// `/tmp/agent-graph/<pid>.json`.
     #[command(name = "node-down")]
+    #[cfg_attr(
+        windows,
+        command(
+            about = "Remove the graph and the node of an agent from the statusline: `%TEMP%\\agent-graph\\<pid>.json`"
+        )
+    )]
     NodeDown {
         /// The pid of the agent.
         #[arg(long)]
-        #[cfg_attr(windows, arg(value_parser = crate::auto::pid))]
+        #[cfg_attr(windows, arg(value_parser = crate::auto::pid, help = PID_DOWN))]
         pid: u32,
     },
     /// Draw the running graph: one box per peer in its node, and the
@@ -151,18 +157,34 @@ enum NodeCommand {
         /// The pid of the agent. Records the node in
         /// `/tmp/agent-graph/<pid>.json` for the statusline.
         #[arg(long)]
-        #[cfg_attr(windows, arg(value_parser = crate::auto::pid))]
+        #[cfg_attr(windows, arg(value_parser = crate::auto::pid, help = PID_UP_NODE))]
         pid: Option<u32>,
     },
     /// Remove the standalone node of an agent from the statusline:
     /// `/tmp/agent-graph/<pid>.json`.
+    #[cfg_attr(
+        windows,
+        command(
+            about = "Remove the standalone node of an agent from the statusline: `%TEMP%\\agent-graph\\<pid>.json`"
+        )
+    )]
     Down {
         /// The pid of the agent.
         #[arg(long)]
-        #[cfg_attr(windows, arg(value_parser = crate::auto::pid))]
+        #[cfg_attr(windows, arg(value_parser = crate::auto::pid, help = PID_DOWN))]
         pid: u32,
     },
 }
+
+// The help of `--pid` on Windows, where the statusline file is in `%TEMP%`
+// and `--pid` also takes `auto`. Unix keeps the doc comments above. No final
+// period: clap drops the one of a doc comment, but prints these as they are.
+#[cfg(windows)]
+const PID_UP_GRAPH: &str = "The pid of the agent, or `auto`: the first ancestor that is not a shell. Records the graph and the node in `%TEMP%\\agent-graph\\<pid>.json` for the statusline";
+#[cfg(windows)]
+const PID_UP_NODE: &str = "The pid of the agent, or `auto`: the first ancestor that is not a shell. Records the node in `%TEMP%\\agent-graph\\<pid>.json` for the statusline";
+#[cfg(windows)]
+const PID_DOWN: &str = "The pid of the agent, or `auto`: the first ancestor that is not a shell";
 
 #[derive(Debug, Subcommand)]
 enum TraitCommand {

@@ -695,6 +695,30 @@ fn graph_node_down_removes_state_file() {
     assert!(!path.exists());
 }
 
+/// On Windows the help of `--pid` names `auto` and the statusline file in
+/// `%TEMP%`.
+#[cfg(windows)]
+#[test]
+fn pid_help_names_auto_and_temp_on_windows() {
+    let (_tmp, root) = root();
+    for args in [
+        ["graph", "node-up", "--help"],
+        ["graph", "node-down", "--help"],
+        ["node", "up", "--help"],
+        ["node", "down", "--help"],
+    ] {
+        let out = run(&root, &args);
+        let help = stdout(&out);
+        assert!(out.status.success(), "{}", stderr(&out));
+        assert!(help.contains("or `auto`"), "{args:?}: {help}");
+        assert!(!help.contains("/tmp"), "{args:?}: {help}");
+    }
+    for args in [["graph", "node-up", "--help"], ["node", "down", "--help"]] {
+        let help = stdout(&run(&root, &args));
+        assert!(help.contains("%TEMP%"), "{args:?}: {help}");
+    }
+}
+
 /// On Windows `--pid auto` names the first ancestor that is not a shell. The
 /// binary runs straight under this test, so that is the test process.
 #[cfg(windows)]
