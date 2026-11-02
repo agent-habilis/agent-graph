@@ -12,7 +12,8 @@ Rules:
 
 - **`skills/<prefix>-*/SKILL.md` is the source and the only emitted file.**
   Only folders that start with `graph-` are skills.
-  `shared/` holds the partials, and it is never emitted.
+  `shared/` holds the partials, and it is never emitted. A partial that
+  only one skill includes can sit beside its `SKILL.md`.
 - The directives are HTML comments, so a source stays valid markdown:
 
   ```markdown
@@ -26,7 +27,9 @@ Rules:
 - The render is strict: a slot with no arg, an arg with no slot, and a
   malformed directive stop the build.
 - Partials use `##`/`###` headings. Refer to another part by its section
-  name ("see the **Drive** section"), never by a file path.
+  name ("see the **Drive** section"), never by a file path. A partial that
+  holds one line of a skill has no heading and no final newline; the text
+  around it goes in `before`/`after` args.
 - A skill that runs in a gossip names the sections of the gossip skill that
   joined it (**Receive loop**, **Decisions**, **Event handling**). It does
   not copy them: agent-gossip owns that text.

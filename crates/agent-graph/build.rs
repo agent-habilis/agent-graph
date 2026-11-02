@@ -40,7 +40,8 @@ fn embed_defaults(root: &Path, out_dir: &Path) -> io::Result<()> {
 }
 
 /// Expand each `skills/graph-*/SKILL.md` source into `dest`.
-/// The partials in `skills/shared/` are only spliced in, never emitted.
+/// Partials, in `skills/shared/` or beside a `SKILL.md`, are only spliced in,
+/// never emitted.
 fn render_skills(src: &Path, dest: &Path) -> io::Result<()> {
     println!("cargo:rerun-if-changed={}", src.display());
     if dest.exists() {
