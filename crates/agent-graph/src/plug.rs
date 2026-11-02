@@ -230,6 +230,14 @@ fn remove_existing(path: &Path) -> Result<bool> {
     let Ok(metadata) = path.symlink_metadata() else {
         return Ok(false);
     };
+    // On Windows a link to a folder (a junction or a folder symlink) is not a
+    // file: `remove_file` fails on it with access denied. `remove_dir`
+    // removes the link, and not its target.
+    #[cfg(windows)]
+    if std::os::windows::fs::FileTypeExt::is_symlink_dir(&metadata.file_type()) {
+        fs::remove_dir(path).with_context(|| format!("cannot remove {}", path.display()))?;
+        return Ok(true);
+    }
     if metadata.is_dir() {
         fs::remove_dir_all(path)
     } else {
