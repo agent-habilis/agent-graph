@@ -106,6 +106,22 @@ fn stderr(out: &Output) -> String {
     String::from_utf8(out.stderr.clone()).unwrap()
 }
 
+/// The lines of a `list` whose folder, the last column, is under `root`.
+/// `list` reads the `.agent-graph/` folders from the cwd up to the root, so it
+/// also prints what the machine has above the temp root: on Windows the
+/// temp folder is in the home, which can hold a `~/.agent-graph/`.
+fn listed(out: &Output, root: &Path) -> String {
+    stdout(out)
+        .lines()
+        .filter(|line| {
+            line.rsplit('\t')
+                .next()
+                .is_some_and(|dir| Path::new(dir).starts_with(root))
+        })
+        .flat_map(|line| [line, "\n"])
+        .collect()
+}
+
 #[test]
 fn trait_list_shows_traits_from_cwd_and_parents() {
     let (_tmp, root) = root();
@@ -120,7 +136,7 @@ fn trait_list_shows_traits_from_cwd_and_parents() {
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(
-        stdout(&out),
+        listed(&out, &root),
         format!(
             "fix\tinner fix\ttrue\t{}\nqa\touter qa\tfalse\t{}\n",
             shown(&inner),
@@ -138,7 +154,7 @@ fn nearest_trait_shadows_parent_trait() {
     let out = run(&root.join("x"), &["trait", "list"]);
 
     assert_eq!(
-        stdout(&out),
+        listed(&out, &root),
         format!("qa\tinner\tfalse\t{}\n", shown(&inner))
     );
 }
@@ -301,7 +317,7 @@ fn node_list_warns_for_traits_that_are_not_an_inline_list() {
 
     let out = run(&root, &["node", "list"]);
 
-    assert_eq!(stdout(&out), "");
+    assert_eq!(listed(&out, &root), "");
     assert!(
         stderr(&out).contains("traits must be an inline list"),
         "{}",
@@ -315,7 +331,7 @@ fn graph_init_writes_the_default_traits() {
     run(&root, &["graph", "init"]);
 
     let list = run(&root, &["trait", "list"]);
-    let rows: Vec<(String, String)> = stdout(&list)
+    let rows: Vec<(String, String)> = listed(&list, &root)
         .lines()
         .map(|row| {
             let cols: Vec<&str> = row.split('\t').collect();
