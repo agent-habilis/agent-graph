@@ -40,10 +40,12 @@ fn git_usr_bin() -> PathBuf {
 /// The `PATH` of a bash block: `dirs`, then the folders of the system.
 #[cfg(not(windows))]
 fn search_path(dirs: &[&Path]) -> String {
-    dirs.iter()
-        .map(|dir| format!("{}:", dir.display()))
-        .collect::<String>()
-        + "/usr/bin:/bin"
+    let mut path = String::new();
+    for dir in dirs {
+        path.push_str(&dir.display().to_string());
+        path.push(':');
+    }
+    path + "/usr/bin:/bin"
 }
 
 /// The `PATH` of a bash block: `dirs`, then the `core_perl` of Git, where
