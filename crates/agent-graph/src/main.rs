@@ -1,3 +1,5 @@
+#[cfg(windows)]
+mod auto;
 mod init;
 mod plug;
 mod state;
@@ -98,6 +100,7 @@ enum GraphCommand {
         /// The pid of the agent. Records the graph and the node in
         /// `/tmp/agent-graph/<pid>.json` for the statusline.
         #[arg(long)]
+        #[cfg_attr(windows, arg(value_parser = crate::auto::pid))]
         pid: Option<u32>,
     },
     /// Remove the graph and the node of an agent from the statusline:
@@ -106,6 +109,7 @@ enum GraphCommand {
     NodeDown {
         /// The pid of the agent.
         #[arg(long)]
+        #[cfg_attr(windows, arg(value_parser = crate::auto::pid))]
         pid: u32,
     },
     /// Draw the running graph: one box per peer in its node, and the
@@ -147,6 +151,7 @@ enum NodeCommand {
         /// The pid of the agent. Records the node in
         /// `/tmp/agent-graph/<pid>.json` for the statusline.
         #[arg(long)]
+        #[cfg_attr(windows, arg(value_parser = crate::auto::pid))]
         pid: Option<u32>,
     },
     /// Remove the standalone node of an agent from the statusline:
@@ -154,6 +159,7 @@ enum NodeCommand {
     Down {
         /// The pid of the agent.
         #[arg(long)]
+        #[cfg_attr(windows, arg(value_parser = crate::auto::pid))]
         pid: u32,
     },
 }

@@ -695,6 +695,30 @@ fn graph_node_down_removes_state_file() {
     assert!(!path.exists());
 }
 
+/// On Windows `--pid auto` names the first ancestor that is not a shell. The
+/// binary runs straight under this test, so that is the test process.
+#[cfg(windows)]
+#[test]
+fn pid_auto_records_the_process_above_the_binary() {
+    let (_tmp, root) = root();
+    graph_node(&root, "graph", "worker", &index("w", None, ""));
+    let path = state_file(&std::process::id().to_string());
+    let _ = fs::remove_file(&path);
+
+    let up = run(
+        &root,
+        &["graph", "node-up", "graph/worker", "--pid", "auto"],
+    );
+
+    assert!(up.status.success(), "{}", stderr(&up));
+    assert!(path.is_file(), "{} is missing", path.display());
+
+    let down = run(&root, &["graph", "node-down", "--pid", "auto"]);
+
+    assert!(down.status.success(), "{}", stderr(&down));
+    assert!(!path.exists());
+}
+
 #[test]
 fn graph_node_up_rejects_a_path_as_node_name() {
     let (_tmp, root) = root();
