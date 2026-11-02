@@ -101,6 +101,22 @@ fn stderr(out: &Output) -> String {
     String::from_utf8(out.stderr.clone()).unwrap()
 }
 
+/// The lines of a `list` whose folder, the last column, is under `root`.
+/// `list` reads the `.agent-graph/` folders from the cwd up to the root, so it
+/// also prints what the machine has above the temp root: on Windows the
+/// temp folder is in the home, which can hold a `~/.agent-graph/`.
+fn listed(out: &Output, root: &Path) -> String {
+    stdout(out)
+        .lines()
+        .filter(|line| {
+            line.rsplit('\t')
+                .next()
+                .is_some_and(|dir| Path::new(dir).starts_with(root))
+        })
+        .flat_map(|line| [line, "\n"])
+        .collect()
+}
+
 fn line(name: &str, description: &str, tags: &str, dir: &Path) -> String {
     format!("{name}\t{description}\t{tags}\t{}\n", shown(dir))
 }
@@ -126,7 +142,7 @@ fn node_list_shows_nodes_from_cwd_and_parents() {
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(
-        stdout(&out),
+        listed(&out, &root),
         line("alpha", "outer node", "", &outer) + &line("beta", "inner node", "", &inner)
     );
 }
@@ -145,7 +161,7 @@ fn nearest_node_shadows_parent_node() {
     let list = run(&cwd, &["node", "list"]);
     let get = run(&cwd, &["node", "up", "advisor"]);
 
-    assert_eq!(stdout(&list), line("advisor", "inner", "", &inner));
+    assert_eq!(listed(&list, &root), line("advisor", "inner", "", &inner));
     assert_eq!(stdout(&get), "inner body\n");
 }
 
@@ -169,7 +185,7 @@ fn node_list_warns_and_skips_invalid_node() {
     let out = run(&root, &["node", "list"]);
 
     assert!(out.status.success());
-    assert_eq!(stdout(&out), line("ok", "fine", "", &ok));
+    assert_eq!(listed(&out, &root), line("ok", "fine", "", &ok));
     let err = stderr(&out);
     for name in ["no-index", "wrong-type", "no-description", "block-tags"] {
         assert!(
@@ -187,7 +203,7 @@ fn node_list_prints_tags_column() {
 
     let out = run(&root, &["node", "list"]);
 
-    assert_eq!(stdout(&out), line("advisor", "d", "review,go", &dir));
+    assert_eq!(listed(&out, &root), line("advisor", "d", "review,go", &dir));
 }
 
 #[test]
@@ -201,9 +217,9 @@ fn node_list_filters_by_tag_regex() {
     let anchored = run(&root, &["node", "list", "--tag", "^go"]);
     let unanchored = run(&root, &["node", "list", "--tag", "go"]);
 
-    assert_eq!(stdout(&anchored), line("go-dev", "d", "golang", &go));
+    assert_eq!(listed(&anchored, &root), line("go-dev", "d", "golang", &go));
     assert_eq!(
-        stdout(&unanchored),
+        listed(&unanchored, &root),
         line("go-dev", "d", "golang", &go) + &line("mongo", "d", "db,mongo", &mongo)
     );
 }
@@ -218,8 +234,11 @@ fn node_list_tag_filter_runs_after_shadowing() {
     let inner_tag = run(&root.join("a"), &["node", "list", "--tag", "y"]);
 
     assert!(parent_tag.status.success());
-    assert_eq!(stdout(&parent_tag), "");
-    assert_eq!(stdout(&inner_tag), line("advisor", "inner", "y", &inner));
+    assert_eq!(listed(&parent_tag, &root), "");
+    assert_eq!(
+        listed(&inner_tag, &root),
+        line("advisor", "inner", "y", &inner)
+    );
 }
 
 #[test]
@@ -365,7 +384,7 @@ fn node_list_warns_on_node_with_bad_boundaries() {
     let out = run(&root, &["node", "list"]);
 
     assert!(out.status.success());
-    assert_eq!(stdout(&out), line("ok", "fine", "", &ok));
+    assert_eq!(listed(&out, &root), line("ok", "fine", "", &ok));
     assert!(
         stderr(&out).contains("empty") && stderr(&out).contains("Boundaries"),
         "{}",
@@ -407,7 +426,7 @@ fn graph_init_writes_defaults_into_cwd() {
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(tree(&root.join(".agent-graph")), defaults());
-    let names: Vec<String> = stdout(&run(&root, &["node", "list"]))
+    let names: Vec<String> = listed(&run(&root, &["node", "list"]), &root)
         .lines()
         .map(|line| line.split('\t').next().unwrap().to_string())
         .collect();
@@ -544,7 +563,7 @@ fn node_list_skips_nodes_of_graphs() {
     let out = run(&root, &["node", "list"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert_eq!(stdout(&out), "");
+    assert_eq!(listed(&out, &root), "");
 }
 
 #[test]
@@ -558,7 +577,7 @@ fn node_list_ignores_old_standalone_nodes() {
     let out = run(&root, &["node", "list"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert_eq!(stdout(&out), "");
+    assert_eq!(listed(&out, &root), "");
 }
 
 #[test]
@@ -570,7 +589,7 @@ fn node_list_names_standalone_nodes_bare() {
     let out = run(&root, &["node", "list"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert_eq!(stdout(&out), line("solo", "alone", "", &solo));
+    assert_eq!(listed(&out, &root), line("solo", "alone", "", &solo));
 }
 
 #[test]
@@ -836,7 +855,7 @@ fn node_list_warns_on_bad_count() {
     let out = run(&root, &["node", "list"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert_eq!(stdout(&out), line("ok", "d", "", &ok));
+    assert_eq!(listed(&out, &root), line("ok", "d", "", &ok));
     for name in ["zero", "word", "minus"] {
         assert!(
             stderr(&out)

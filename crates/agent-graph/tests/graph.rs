@@ -120,6 +120,22 @@ fn stderr(out: &Output) -> String {
     String::from_utf8(out.stderr.clone()).unwrap()
 }
 
+/// The lines of a `list` whose folder, the last column, is under `root`.
+/// `list` reads the `.agent-graph/` folders from the cwd up to the root, so it
+/// also prints what the machine has above the temp root: on Windows the
+/// temp folder is in the home, which can hold a `~/.agent-graph/`.
+fn listed(out: &Output, root: &Path) -> String {
+    stdout(out)
+        .lines()
+        .filter(|line| {
+            line.rsplit('\t')
+                .next()
+                .is_some_and(|dir| Path::new(dir).starts_with(root))
+        })
+        .flat_map(|line| [line, "\n"])
+        .collect()
+}
+
 /// Lint the coding graph with `from` replaced by `to`, and expect one error
 /// that contains `needle`.
 fn assert_lint_rejects(from: &str, to: &str, needle: &str) {
@@ -153,7 +169,7 @@ fn graph_list_shows_graphs_from_cwd_and_parents() {
     assert!(out.status.success(), "{}", stderr(&out));
     let description = "One worker and one advisor per project and branch.";
     assert_eq!(
-        stdout(&out),
+        listed(&out, &root),
         format!(
             "coding\t{description}\tbranch\t{}\ndocs\t{description}\tproject\t{}\n",
             shown(&outer),
