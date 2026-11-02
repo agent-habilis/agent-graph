@@ -1,0 +1,1 @@
+(`hostname`), and `~/.agent-graph/graphs/$HASH/` does not exist, copy the graph
