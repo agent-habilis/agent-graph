@@ -14,6 +14,12 @@ Rules:
   Only folders that start with `graph-` are skills.
   `shared/` holds the partials, and it is never emitted. A partial that
   only one skill includes can sit beside its `SKILL.md`.
+- **A build for Windows reads `<dir>/windows/<file>` in place of an
+  included `<dir>/<file>`**, when it exists. Under Git Bash `$PPID` is 1
+  and `hostname` rejects `-s`, so those variants pass `auto` and plain
+  `hostname`. Cut the partial down to the lines that differ, so a variant
+  is small. When one of the pair changes, change the other. Every other
+  target never reads `windows/`.
 - The directives are HTML comments, so a source stays valid markdown:
 
   ```markdown
