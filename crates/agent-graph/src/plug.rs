@@ -52,18 +52,19 @@ impl Agent {
     /// Its presence is the detection signal: `plug` never installs into an
     /// agent that is not on this machine.
     fn agent_dir(self, home: &Path) -> PathBuf {
-        home.join(match self {
-            Agent::ClaudeCode => ".claude",
-            Agent::Pi => ".pi",
-            Agent::Codex => ".codex",
-            Agent::Cursor => ".cursor",
-            Agent::OpenCode => ".config/opencode",
-        })
+        match self {
+            Agent::ClaudeCode => home.join(".claude"),
+            Agent::Pi => home.join(".pi"),
+            Agent::Codex => home.join(".codex"),
+            Agent::Cursor => home.join(".cursor"),
+            // One part per join, so a Windows path has no `/`.
+            Agent::OpenCode => home.join(".config").join("opencode"),
+        }
     }
 
     fn skills_dir(self, home: &Path) -> PathBuf {
         match self {
-            Agent::Pi => home.join(".pi/agent/skills"),
+            Agent::Pi => self.agent_dir(home).join("agent").join("skills"),
             Agent::ClaudeCode | Agent::Codex | Agent::Cursor | Agent::OpenCode => {
                 self.agent_dir(home).join("skills")
             }
