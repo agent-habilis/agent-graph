@@ -45,11 +45,11 @@ node · <name> is a node of a graph · use /graph-up or /graph-node-invite
 ## Up
 
 ```sh
-agent-graph node up <node> --pid "$PPID"
+<!-- include path="../shared/pid-flag.md" command="agent-graph node up <node>" -->
 ```
 
 Run it in the foreground. The tool result puts the body of the node into
-this session. `$PPID` is the agent process. The CLI records the node for the
+<!-- include path="../shared/agent-pid.md" before="this session. " after=" The CLI records the node for the" -->
 statusline under this pid. If the command fails, show its `error:` line and
 stop.
 

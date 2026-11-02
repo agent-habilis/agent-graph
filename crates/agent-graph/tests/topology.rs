@@ -49,6 +49,8 @@ fn run_in(cwd: &Path, home: &Path, args: &[&str]) -> Output {
         .args(args)
         .current_dir(cwd)
         .env("HOME", home)
+        // Windows reads the home from `USERPROFILE`.
+        .env("USERPROFILE", home)
         .output()
         .unwrap()
 }

@@ -14,6 +14,8 @@ fn run(home: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_agent-graph"))
         .args(args)
         .env("HOME", home)
+        // Windows reads the home from `USERPROFILE`.
+        .env("USERPROFILE", home)
         .current_dir(home)
         .output()
         .unwrap()
@@ -83,7 +85,27 @@ fn unplug_path_removes_only_the_owned_skills() {
     assert!(dest.join("keep.txt").is_file());
 }
 
-#[cfg(unix)]
+/// A link at `link` to the folder `target`: a symlink on Unix, and a
+/// junction on Windows, which needs no privilege.
+fn dir_link(target: &Path, link: &Path) {
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(target, link).unwrap();
+    #[cfg(windows)]
+    {
+        let out = Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(link)
+            .arg(target)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+}
+
 #[test]
 fn plug_replaces_a_link_and_does_not_write_into_its_target() {
     let (_tmp, home) = root();
@@ -92,7 +114,7 @@ fn plug_replaces_a_link_and_does_not_write_into_its_target() {
     fs::write(target.join("SKILL.md"), "source").unwrap();
     let dest = home.join("skills");
     fs::create_dir_all(&dest).unwrap();
-    std::os::unix::fs::symlink(&target, dest.join("graph-up")).unwrap();
+    dir_link(&target, &dest.join("graph-up"));
 
     let out = run(&home, &["plug", "--path", dest.to_str().unwrap()]);
     assert!(out.status.success(), "{}", stderr(&out));
@@ -172,7 +194,6 @@ fn plug_and_unplug_print_one_line_per_target() {
     assert_eq!(stdout(&again), format!("skipped\tpath\t{dest_text}\n"));
 }
 
-#[cfg(unix)]
 #[test]
 fn unplug_removes_a_link_and_not_its_target() {
     let (_tmp, home) = root();
@@ -181,7 +202,7 @@ fn unplug_removes_a_link_and_not_its_target() {
     fs::write(target.join("SKILL.md"), "source").unwrap();
     let dest = home.join("skills");
     fs::create_dir_all(&dest).unwrap();
-    std::os::unix::fs::symlink(&target, dest.join("graph-up")).unwrap();
+    dir_link(&target, &dest.join("graph-up"));
 
     let out = run(&home, &["unplug", "--path", dest.to_str().unwrap()]);
 
