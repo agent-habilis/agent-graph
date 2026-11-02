@@ -28,10 +28,10 @@ If the command is not found, tell the user to run `cargo task install` in the
 ## Down
 
 ```sh
-agent-graph node down --pid "$PPID"
+<!-- include path="../shared/pid-flag.md" command="agent-graph node down" -->
 ```
 
-`$PPID` is the agent process. The command also succeeds when this agent has
+<!-- include path="../shared/agent-pid.md" before="" after=" The command also succeeds when this agent has" -->
 no node. If the command fails, show its `error:` line and stop.
 
 When the command succeeds:
