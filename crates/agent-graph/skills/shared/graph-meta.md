@@ -14,6 +14,8 @@ wrapper key:
   "node": "<mermaid id of the node>",
   "invited_by": "<nickname of the inviter>",
   "joined_at": <epoch seconds>,
+  "verified": false,
+  "leader": true,
   "status": "busy"
 }
 ```
@@ -53,11 +55,11 @@ nickname: match the key of the entry to the `pubkey` of the row.
   is never in `absent`.
 
 A **peer of a graph** is an entry that has the `instance` of the graph, the
-`hash` of the graph, and a `node`, and whose key is not in `absent`. A peer has one
-entry, so it is in one graph and one node at most.
+`hash` of the graph, and a `node`, and whose key is not in `absent`. A peer has
+one entry, so it is in one graph and one node at most.
 
-A peer is **free** if its entry has no `instance`, its key is not in `absent`, and it
-has no open node offer from you.
+A peer is **free** if its entry has no `instance`, its key is not in `absent`,
+and it has no open node offer from you.
 
 A **place** of a node is filled by a peer in that node, or by an open or
 approved node offer of yours for that node. The `loaded` artifact of an offer

@@ -13,9 +13,16 @@ this line, then stop:
 graph · no gossip · create or join a gossip first
 ```
 
-Else hold `$GOSSIP`, `$NICKNAME`, and `$PUBKEY` (`pubkey`) from the first
-entry of `sessions`. If it has no `pubkey`, print this line, then stop. An empty `$PUBKEY`
-finds no own entry:
+If `sessions` has more than 1 entry, this agent is in more than one gossip.
+Print this line, then stop. Do not pick an entry:
+
+```text
+graph · many gossips · leave all but one gossip, then run this skill again
+```
+
+Else hold `$GOSSIP`, `$NICKNAME`, and `$PUBKEY` (`pubkey`) from the one entry
+of `sessions`. If it has no `pubkey`, print this line, then stop. An empty
+`$PUBKEY` finds no own entry:
 
 ```text
 graph · no session key · update agent-gossip, then start the session again

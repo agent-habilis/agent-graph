@@ -366,30 +366,92 @@ fn the_no_gossip_stop_comes_before_the_no_session_key_stop() {
 }
 
 #[test]
-fn the_restart_list_names_every_field_of_a_graph_entry() {
+fn the_restart_list_names_every_field_of_the_entry_block() {
     let tmp = TempDir::new().unwrap();
-    let text = rendered_skill(tmp.path(), "graph-down").replace('\n', " ");
-    let start = text.find("merges the whole entry again").unwrap();
-    let list = &text[start
-        ..text[start..]
-            .find("The nickname")
-            .map_or(text.len(), |end| start + end)];
+    let text = rendered_skill(tmp.path(), "graph-down");
+    let block = text
+        .split("```json\n")
+        .nth(1)
+        .and_then(|rest| rest.split("```").next())
+        .unwrap();
+    let fields: Vec<&str> = block
+        .lines()
+        .filter_map(|line| line.trim_start().strip_prefix('"'))
+        .filter_map(|rest| rest.split('"').next())
+        .collect();
+    let flat = text.replace('\n', " ");
+    let start = flat.find("merges the whole entry again").unwrap();
+    let end = flat[start..].find("The nickname").unwrap();
+    let list = &flat[start..start + end];
 
-    for field in [
-        "instance",
-        "graph",
-        "hash",
-        "node",
-        "invited_by",
-        "joined_at",
-        "verified",
-        "status",
-        "leader",
-    ] {
+    assert!(
+        fields.len() >= 9,
+        "the block lists too few fields: {fields:?}"
+    );
+    for field in fields {
         assert!(
             list.contains(&format!("`{field}`")),
             "the restart list lacks {field}: {list}"
         );
+    }
+}
+
+#[test]
+fn the_entry_block_holds_each_field_that_a_bullet_documents() {
+    let tmp = TempDir::new().unwrap();
+    let text = rendered_skill(tmp.path(), "graph-down");
+    let block = text
+        .split("```json\n")
+        .nth(1)
+        .and_then(|rest| rest.split("```").next())
+        .unwrap();
+
+    for line in text.lines() {
+        let Some(field) = line
+            .strip_prefix("- `")
+            .and_then(|rest| rest.split_once("` is"))
+            .map(|(field, _)| field)
+        else {
+            continue;
+        };
+        if ["invited_by", "joined_at", "leader", "verified"].contains(&field) {
+            assert!(block.contains(&format!("\"{field}\"")), "{field}: {block}");
+        }
+    }
+    assert!(block.contains("\"verified\""), "{block}");
+    assert!(block.contains("\"leader\""), "{block}");
+}
+
+#[test]
+fn the_session_check_stops_on_more_than_one_session_after_no_gossip() {
+    let tmp = TempDir::new().unwrap();
+    for skill in ["graph-up", "graph-down", "graph-leave", "graph-topology"] {
+        let text = rendered_skill(tmp.path(), skill).replace('\n', " ");
+        let none = text.find("graph · no gossip").unwrap();
+        let many = text
+            .find("If `sessions` has more than 1 entry")
+            .unwrap_or_else(|| panic!("{skill}: no stop on many sessions"));
+        let no_key = text.find("graph · no session key").unwrap();
+
+        assert!(none < many && many < no_key, "{skill}: order of the stops");
+    }
+}
+
+#[test]
+fn the_shared_graph_files_keep_prose_lines_within_80_characters() {
+    for file in ["shared/gossip-session.md", "shared/graph-meta.md"] {
+        let text = fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("skills")
+                .join(file),
+        )
+        .unwrap();
+        let mut fenced = false;
+        for line in text.lines() {
+            fenced ^= line.starts_with("```");
+
+            assert!(fenced || line.chars().count() <= 80, "{file}: {line}");
+        }
     }
 }
 
