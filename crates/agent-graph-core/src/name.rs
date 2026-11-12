@@ -37,7 +37,7 @@ mod tests {
         let name = short();
 
         assert_eq!(name.len(), 7);
-        assert!(name.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f')));
+        assert!(name.chars().all(|ch| matches!(ch, '0'..='9' | 'a'..='f')));
     }
 
     #[test]
