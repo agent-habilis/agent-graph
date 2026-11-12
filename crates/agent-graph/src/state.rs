@@ -6,7 +6,19 @@ use agent_graph_core::node::Node;
 use anyhow::Result;
 use serde_json::{Map, Value};
 
-const DIR: &str = "/tmp/agent-graph";
+/// The folder of the state files: `/tmp/agent-graph`, which agent-statusline
+/// reads. On Windows `/tmp` is no folder of the system, so it is
+/// `%TEMP%\agent-graph`.
+fn dir() -> PathBuf {
+    #[cfg(not(windows))]
+    {
+        PathBuf::from("/tmp/agent-graph")
+    }
+    #[cfg(windows)]
+    {
+        std::env::temp_dir().join("agent-graph")
+    }
+}
 
 /// Write `/tmp/agent-graph/<pid>.json`: the graph and node of the agent
 /// with that pid, for the statusline. A standalone node has no graph, so the
@@ -30,7 +42,7 @@ pub(crate) fn write(
         insert(&mut state, "graph", title, graph.icon.as_deref());
     }
     insert(&mut state, "node", node.0, node.1.icon.as_deref());
-    let dir = PathBuf::from(DIR);
+    let dir = dir();
     fs::create_dir_all(&dir)?;
     let path = dir.join(format!("{pid}.json"));
     let tmp = dir.join(format!("{pid}.json.tmp"));
@@ -42,7 +54,7 @@ pub(crate) fn write(
 /// Remove `/tmp/agent-graph/<pid>.json`. A missing file is not an error: the
 /// agent has no node either way.
 pub(crate) fn remove(pid: u32) -> Result<()> {
-    match fs::remove_file(PathBuf::from(DIR).join(format!("{pid}.json"))) {
+    match fs::remove_file(dir().join(format!("{pid}.json"))) {
         Err(err) if err.kind() != io::ErrorKind::NotFound => Err(err.into()),
         _ => Ok(()),
     }

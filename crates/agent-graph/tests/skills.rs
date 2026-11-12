@@ -8,11 +8,114 @@ use std::process::Command;
 use serde_json::Value;
 use tempfile::TempDir;
 
+/// `bash`.
+#[cfg(not(windows))]
+fn bash() -> Command {
+    Command::new("bash")
+}
+
+/// The bash of Git for Windows. `Command::new("bash")` would find the WSL
+/// `bash.exe` in System32 before the folders of the parent's `PATH`.
+#[cfg(windows)]
+fn bash() -> Command {
+    Command::new(git_usr_bin().join("bash.exe"))
+}
+
+/// The `usr\bin` folder of Git for Windows: three folders above
+/// `git --exec-path`, which is `<git>/mingw64/libexec/git-core`.
+#[cfg(windows)]
+fn git_usr_bin() -> PathBuf {
+    let out = Command::new("git")
+        .arg("--exec-path")
+        .output()
+        .expect("git on PATH");
+    let exec = PathBuf::from(String::from_utf8(out.stdout).unwrap().trim());
+    exec.ancestors()
+        .nth(3)
+        .expect("git --exec-path is <git>/mingw64/libexec/git-core")
+        .join("usr")
+        .join("bin")
+}
+
+/// The `PATH` of a bash block: `dirs`, then the folders of the system.
+#[cfg(not(windows))]
+fn search_path(dirs: &[&Path]) -> String {
+    let mut path = String::new();
+    for dir in dirs {
+        path.push_str(&dir.display().to_string());
+        path.push(':');
+    }
+    path + "/usr/bin:/bin"
+}
+
+/// The `PATH` of a bash block: `dirs`, then the `core_perl` of Git, where
+/// `shasum` is, and its `usr\bin`, joined with `;`. Bash turns it into its own
+/// form when it starts.
+#[cfg(windows)]
+fn search_path(dirs: &[&Path]) -> std::ffi::OsString {
+    let usr_bin = git_usr_bin();
+    let dirs = dirs.iter().map(|dir| dir.to_path_buf());
+    std::env::join_paths(dirs.chain([usr_bin.join("core_perl"), usr_bin])).unwrap()
+}
+
+/// `path` as a shell script writes it. On Windows `\` is an escape in `sh`, so
+/// the path takes `/`.
+fn shell_path(path: &Path) -> String {
+    let text = path.display().to_string();
+    #[cfg(windows)]
+    let text = text.replace('\\', "/");
+    text
+}
+
+/// The folder that bash calls `/tmp`.
+#[cfg(not(windows))]
+fn bash_tmp() -> PathBuf {
+    PathBuf::from("/tmp")
+}
+
+/// The folder that bash calls `/tmp`. On Windows Git Bash puts it in the
+/// temp folder of the user, so `cygpath` names it.
+#[cfg(windows)]
+fn bash_tmp() -> PathBuf {
+    let out = bash()
+        .args(["-c", "cygpath -w /tmp"])
+        .env("PATH", search_path(&[]))
+        .output()
+        .unwrap();
+    PathBuf::from(String::from_utf8(out.stdout).unwrap().trim())
+}
+
+/// The output of `shasum -a 256 <path>`.
+#[cfg(not(windows))]
+fn shasum(path: &Path) -> Vec<u8> {
+    Command::new("shasum")
+        .args(["-a", "256"])
+        .arg(path)
+        .output()
+        .unwrap()
+        .stdout
+}
+
+/// The output of `shasum -a 256 <path>`. On Windows `shasum` is a Perl
+/// script of Git Bash, so bash runs it.
+#[cfg(windows)]
+fn shasum(path: &Path) -> Vec<u8> {
+    bash()
+        .args(["-c", "shasum -a 256 \"$1\"", "shasum"])
+        .arg(shell_path(path))
+        .env("PATH", search_path(&[]))
+        .output()
+        .unwrap()
+        .stdout
+}
+
 fn rendered_skill(dir: &Path, skill: &str) -> String {
     let dest = dir.join("skills");
     let out = Command::new(env!("CARGO_BIN_EXE_agent-graph"))
         .args(["plug", "--path", dest.to_str().unwrap()])
         .env("HOME", dir)
+        // Windows reads the home from `USERPROFILE`.
+        .env("USERPROFILE", dir)
         .output()
         .unwrap();
     assert!(out.status.success());
@@ -41,7 +144,7 @@ fn stub(dir: &Path) -> PathBuf {
         &script,
         format!(
             "#!/bin/sh\nfor arg in \"$@\"; do printf '%s\\0' \"$arg\"; done > {}\n",
-            dir.join("args").display()
+            shell_path(&dir.join("args"))
         ),
     )
     .unwrap();
@@ -63,9 +166,9 @@ fn node_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
         .replace("<node>", "worker");
     let bin = stub(dir);
 
-    let out = Command::new("bash")
+    let out = bash()
         .args(["-c", &command])
-        .env("PATH", format!("{}:/usr/bin:/bin", bin.display()))
+        .env("PATH", search_path(&[&bin]))
         .env("GOSSIP", "g1")
         .env("INVITER", "ann")
         .env("PEER", "bob")
@@ -129,17 +232,10 @@ fn node_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
 /// `agent-gossip` on `PATH`, and return its stdout.
 fn run_block(block: &str, cwd: &Path, bin: &Path, env: &[(&str, &str)]) -> String {
     let agent_graph = Path::new(env!("CARGO_BIN_EXE_agent-graph"));
-    let out = Command::new("bash")
+    let out = bash()
         .args(["-c", block])
         .current_dir(cwd)
-        .env(
-            "PATH",
-            format!(
-                "{}:{}:/usr/bin:/bin",
-                bin.display(),
-                agent_graph.parent().unwrap().display()
-            ),
-        )
+        .env("PATH", search_path(&[bin, agent_graph.parent().unwrap()]))
         .envs(env.iter().copied())
         .output()
         .unwrap();
@@ -182,14 +278,12 @@ fn send_node_gives_the_node_context_that_matches_the_context_hash_of_the_offer()
         .replace("<task id>", "t1");
     run_block(&send_block, &project, &bin, &env);
 
-    let sent = PathBuf::from(format!("/tmp/{hash}-worker.md"));
+    // The block writes `/tmp/<hash>-worker.md` in bash, and passes that path
+    // to agent-gossip.
+    let shell_sent = format!("/tmp/{hash}-worker.md");
+    let sent = bash_tmp().join(format!("{hash}-worker.md"));
     let body = fs::read(&sent).unwrap();
-    let digest = Command::new("shasum")
-        .args(["-a", "256"])
-        .arg(&sent)
-        .output()
-        .unwrap()
-        .stdout;
+    let digest = shasum(&sent);
     fs::remove_file(&sent).unwrap();
     let expected = Command::new(env!("CARGO_BIN_EXE_agent-graph"))
         .args(["graph", "node-up", "squad1/worker"])
@@ -205,5 +299,34 @@ fn send_node_gives_the_node_context_that_matches_the_context_hash_of_the_offer()
     );
     let args = fs::read_to_string(dir.join("args")).unwrap();
     assert!(args.contains("artifact"), "{args}");
-    assert!(args.contains(&sent.display().to_string()), "{args}");
+    assert!(args.contains(&shell_sent), "{args}");
+}
+
+/// On Windows the rendered skills pass `auto` for the agent pid and plain
+/// `hostname`. `$PPID` is left only in the brief and the broadcast, which
+/// run on a peer that may not be Windows, and there beside `--pid auto`.
+#[cfg(windows)]
+#[test]
+fn windows_skills_pass_auto_and_plain_hostname() {
+    let tmp = TempDir::new().unwrap();
+    let dir = tmp.path();
+    rendered_skill(dir, "graph-up");
+    for entry in fs::read_dir(dir.join("skills")).unwrap() {
+        let path = entry.unwrap().path().join("SKILL.md");
+        if !path.is_file() {
+            // `.agent-graph-plug`, the marker of the install.
+            continue;
+        }
+        let text = fs::read_to_string(&path).unwrap();
+        let name = path.display();
+        assert!(!text.contains("--pid \"$PPID\""), "{name}");
+        assert!(!text.contains("--session-pid \"$PPID\""), "{name}");
+        assert!(!text.contains("hostname -s"), "{name}");
+        for line in text.lines().filter(|line| line.contains("PPID")) {
+            assert!(
+                line.contains("--pid auto on Windows, else with --pid"),
+                "{name}: {line}"
+            );
+        }
+    }
 }

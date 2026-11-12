@@ -40,7 +40,8 @@ fn embed_defaults(root: &Path, out_dir: &Path) -> io::Result<()> {
 }
 
 /// Expand each `skills/graph-*/SKILL.md` source into `dest`.
-/// The partials in `skills/shared/` are only spliced in, never emitted.
+/// Partials, in `skills/shared/` or beside a `SKILL.md`, are only spliced in,
+/// never emitted.
 fn render_skills(src: &Path, dest: &Path) -> io::Result<()> {
     println!("cargo:rerun-if-changed={}", src.display());
     if dest.exists() {
@@ -58,7 +59,16 @@ fn render_skills(src: &Path, dest: &Path) -> io::Result<()> {
         })
         .collect();
     skills.sort();
-    let mut loader = |path: &Path| fs::read_to_string(path).map_err(|error| error.to_string());
+    // A build for Windows reads `<dir>/windows/<file>` in place of an included
+    // `<dir>/<file>` when it exists: the shell cannot name the agent process
+    // there and its `hostname` rejects `-s`, so those parts pass `auto` and
+    // plain `hostname`. Includes inside it still resolve from `<dir>`. Every
+    // other target reads the sources as they are. As in agent-gossip's
+    // build.rs.
+    let windows = env::var("CARGO_CFG_TARGET_OS").is_ok_and(|os| os == "windows");
+    let mut loader = |path: &Path| {
+        fs::read_to_string(source_for(path, windows)).map_err(|error| error.to_string())
+    };
     for skill_dir in skills {
         let skill = skill_dir.file_name().expect("skill dir has a name");
         let rendered = slot_template::expand(&skill_dir.join("SKILL.md"), &[], &mut loader)
@@ -68,6 +78,18 @@ fn render_skills(src: &Path, dest: &Path) -> io::Result<()> {
         fs::write(out.join("SKILL.md"), rendered)?;
     }
     Ok(())
+}
+
+/// The file a build reads for `path`: its `windows/` variant on Windows, when
+/// there is one, and else `path`.
+fn source_for(path: &Path, windows: bool) -> PathBuf {
+    if windows && let (Some(dir), Some(name)) = (path.parent(), path.file_name()) {
+        let variant = dir.join("windows").join(name);
+        if variant.is_file() {
+            return variant;
+        }
+    }
+    path.to_path_buf()
 }
 
 /// `include_dir!` does not track its folder, so `src/plug.rs` reads this hash

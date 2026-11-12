@@ -88,7 +88,7 @@ graph · usage · /graph-up --squad-template <graph> [--node <node>] [--name <na
    and records them for the statusline:
 
    ```bash
-   agent-graph graph node-up <graph>/<node> --name "$INSTANCE" --pid "$PPID"
+   <!-- include path="../shared/pid-flag.md" command="   agent-graph graph node-up <graph>/<node> --name \"$INSTANCE\"" -->
    ```
 
 2. Record your place in your meta entry:
@@ -116,7 +116,7 @@ Read the meta document. If another live entry has `instance` `$INSTANCE` and no
 
    ```bash
    agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":null,"graph":null,"hash":null,"node":null,"joined_at":null,"verified":null,"status":"idle"}}}'
-   agent-graph graph node-down --pid "$PPID"
+   <!-- include path="../shared/pid-flag.md" command="   agent-graph graph node-down" -->
    ```
 
 3. Print this line, then stop:

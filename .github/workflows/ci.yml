@@ -32,3 +32,22 @@ jobs:
 
       - name: Gate
         run: cargo task ci
+
+  # The same gate on Windows. A job of its own, so the check above keeps its
+  # name. The runner has Git for Windows, whose bash the skills tests run.
+  windows:
+    name: Check (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: clippy, rustfmt
+
+      - name: Install nightly rustfmt
+        run: rustup toolchain install nightly-2026-06-05 --profile minimal --component rustfmt
+
+      - name: Gate
+        run: cargo task ci

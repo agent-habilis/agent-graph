@@ -49,7 +49,7 @@ const NODE_INDEX: &str = "---\ntype: Node\ndescription: d\n---\n";
 /// macOS, where `/var` is a symlink to `/private/var`.
 fn root() -> (TempDir, PathBuf) {
     let tmp = TempDir::new().unwrap();
-    let path = tmp.path().canonicalize().unwrap();
+    let path = canonical(tmp.path());
     for name in ["worker", "advisor"] {
         write(
             &path
@@ -60,6 +60,34 @@ fn root() -> (TempDir, PathBuf) {
         );
     }
     (tmp, path)
+}
+
+/// `path`, canonicalized.
+#[cfg(not(windows))]
+fn canonical(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap()
+}
+
+/// `path`, canonicalized, without the `\\?\` prefix that `canonicalize`
+/// adds on Windows: the binary prints paths without it.
+#[cfg(windows)]
+fn canonical(path: &Path) -> PathBuf {
+    let path = path.canonicalize().unwrap();
+    match path.to_str().and_then(|text| text.strip_prefix(r"\\?\")) {
+        Some(rest) => PathBuf::from(rest),
+        None => path,
+    }
+}
+
+/// `path` as the binary prints it. The tests join `a/b` in one step, which
+/// keeps the `/` on Windows, where the binary prints `\`.
+fn shown(path: &Path) -> String {
+    let text = path.display().to_string();
+    if cfg!(windows) {
+        text.replace('/', "\\")
+    } else {
+        text
+    }
 }
 
 fn write(path: &Path, content: &str) {
@@ -90,6 +118,22 @@ fn stdout(out: &Output) -> String {
 
 fn stderr(out: &Output) -> String {
     String::from_utf8(out.stderr.clone()).unwrap()
+}
+
+/// The lines of a `list` whose folder, the last column, is under `root`.
+/// `list` reads the `.agent-graph/` folders from the cwd up to the root, so it
+/// also prints what the machine has above the temp root: on Windows the
+/// temp folder is in the home, which can hold a `~/.agent-graph/`.
+fn listed(out: &Output, root: &Path) -> String {
+    stdout(out)
+        .lines()
+        .filter(|line| {
+            line.rsplit('\t')
+                .next()
+                .is_some_and(|dir| Path::new(dir).starts_with(root))
+        })
+        .flat_map(|line| [line, "\n"])
+        .collect()
 }
 
 /// Lint the coding graph with `from` replaced by `to`, and expect one error
@@ -125,11 +169,11 @@ fn graph_list_shows_graphs_from_cwd_and_parents() {
     assert!(out.status.success(), "{}", stderr(&out));
     let description = "One worker and one advisor per project and branch.";
     assert_eq!(
-        stdout(&out),
+        listed(&out, &root),
         format!(
             "coding\t{description}\tbranch\t{}\ndocs\t{description}\tproject\t{}\n",
-            outer.display(),
-            inner.display()
+            shown(&outer),
+            shown(&inner)
         )
     );
 }
@@ -191,7 +235,7 @@ fn graph_lint_reports_path_and_line() {
         .unwrap()
         + 1;
     assert!(
-        stdout(&out).starts_with(&format!("{}:{line}: ", dir.join("index.md").display())),
+        stdout(&out).starts_with(&format!("{}:{line}: ", shown(&dir.join("index.md")))),
         "{}",
         stdout(&out)
     );
@@ -419,7 +463,7 @@ fn graph_nodes_names_graph_local_node() {
 #[test]
 fn graph_lint_accepts_default_graphs() {
     let tmp = TempDir::new().unwrap();
-    let root = tmp.path().canonicalize().unwrap();
+    let root = canonical(tmp.path());
     assert!(run(&root, &["graph", "init"]).status.success());
 
     let out = run(&root, &["graph", "lint"]);
@@ -490,6 +534,40 @@ fn graph_hash_is_same_for_same_content() {
             .chars()
             .all(|char| char.is_ascii_hexdigit()),
         "{first_hash}"
+    );
+}
+
+/// The hash is the id of the graph between peers, so it is the same on every
+/// OS: the relative paths use `/`, and on Windows a CRLF counts as LF. The
+/// value is the SHA-256, computed outside the binary, of the three files of
+/// this graph in path order (`index.md`, `nodes/advisor/index.md`,
+/// `nodes/worker/index.md`): for each one its path, a NUL, its length as
+/// u64 little-endian, then its bytes.
+#[test]
+fn graph_hash_is_the_same_on_every_os() {
+    let (_tmp, root) = root();
+    graph(&root, "coding", CODING);
+
+    assert_eq!(hash(&root, "coding").trim(), GOLDEN_HASH);
+}
+
+const GOLDEN_HASH: &str = "7b240ea7b5d894ef60cfe1a298538bec11ba4664a5ff06920f1b3dbdf31760a0";
+
+#[cfg(windows)]
+#[test]
+fn graph_hash_counts_crlf_as_lf_on_windows() {
+    let (_tmp, root) = root();
+    let lf = graph(&root.join("a"), "coding", CODING);
+    write(&lf.join("nodes/worker/index.md"), NODE_INDEX);
+    let crlf = graph(&root.join("b"), "coding", &CODING.replace('\n', "\r\n"));
+    write(
+        &crlf.join("nodes/worker/index.md"),
+        &NODE_INDEX.replace('\n', "\r\n"),
+    );
+
+    assert_eq!(
+        hash(&root.join("a"), "coding"),
+        hash(&root.join("b"), "coding")
     );
 }
 

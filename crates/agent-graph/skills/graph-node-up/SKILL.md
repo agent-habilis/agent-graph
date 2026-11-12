@@ -53,11 +53,11 @@ Hold the name as `$NAME`: the `--name` value, or else the output of
 `agent-graph name`. Then run:
 
 ```sh
-agent-graph node up <node> --name "$NAME" --pid "$PPID"
+<!-- include path="../shared/pid-flag.md" command="agent-graph node up <node> --name \"$NAME\"" -->
 ```
 
 Run it in the foreground. The tool result puts the body of the node into
-this session. `$PPID` is the agent process. The CLI records the node for the
+<!-- include path="../shared/agent-pid.md" before="this session. " after=" The CLI records the node for the" -->
 statusline under this pid. If the command fails, show its `error:` line and
 stop.
 

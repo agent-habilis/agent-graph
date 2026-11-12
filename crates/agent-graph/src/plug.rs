@@ -52,18 +52,19 @@ impl Agent {
     /// Its presence is the detection signal: `plug` never installs into an
     /// agent that is not on this machine.
     fn agent_dir(self, home: &Path) -> PathBuf {
-        home.join(match self {
-            Agent::ClaudeCode => ".claude",
-            Agent::Pi => ".pi",
-            Agent::Codex => ".codex",
-            Agent::Cursor => ".cursor",
-            Agent::OpenCode => ".config/opencode",
-        })
+        match self {
+            Agent::ClaudeCode => home.join(".claude"),
+            Agent::Pi => home.join(".pi"),
+            Agent::Codex => home.join(".codex"),
+            Agent::Cursor => home.join(".cursor"),
+            // One part per join, so a Windows path has no `/`.
+            Agent::OpenCode => home.join(".config").join("opencode"),
+        }
     }
 
     fn skills_dir(self, home: &Path) -> PathBuf {
         match self {
-            Agent::Pi => home.join(".pi/agent/skills"),
+            Agent::Pi => self.agent_dir(home).join("agent").join("skills"),
             Agent::ClaudeCode | Agent::Codex | Agent::Cursor | Agent::OpenCode => {
                 self.agent_dir(home).join("skills")
             }
@@ -141,9 +142,11 @@ fn selected(agents: &[Agent], paths: &[PathBuf], default: impl Fn(Agent) -> bool
 }
 
 fn home() -> Result<PathBuf> {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .context("`$HOME` is not set")
+    agent_graph_core::home().context(if cfg!(windows) {
+        "the home folder is unknown: `USERPROFILE` is not set and the profile of the user cannot be read"
+    } else {
+        "`$HOME` is not set"
+    })
 }
 
 /// Lists the skills that the last `plug` wrote into a root, so that a later
@@ -228,6 +231,14 @@ fn remove_existing(path: &Path) -> Result<bool> {
     let Ok(metadata) = path.symlink_metadata() else {
         return Ok(false);
     };
+    // On Windows a link to a folder (a junction or a folder symlink) is not a
+    // file: `remove_file` fails on it with access denied. `remove_dir`
+    // removes the link, and not its target.
+    #[cfg(windows)]
+    if std::os::windows::fs::FileTypeExt::is_symlink_dir(&metadata.file_type()) {
+        fs::remove_dir(path).with_context(|| format!("cannot remove {}", path.display()))?;
+        return Ok(true);
+    }
     if metadata.is_dir() {
         fs::remove_dir_all(path)
     } else {

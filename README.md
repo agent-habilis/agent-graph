@@ -24,6 +24,10 @@ agent-graph plug
 
 `plug` writes the agent skills into each agent on this machine. See [Skills](#skills).
 
+On Windows, take the `.zip` of a release, put `agent-graph.exe` on the `PATH`, and run `agent-graph plug`.
+The skills run in the Bash tool, so Claude Code needs Git for Windows.
+There the skills pass `--pid auto`, and the binary finds the agent process itself, because `$PPID` in Git Bash is 1.
+
 ## Layout
 
 ```
@@ -170,6 +174,7 @@ In `index.md`, a line that contains only `@<path>` is replaced with the body of 
 ```
 
 `pid` is the Claude Code process. A statusline script gets the same pid as its parent process.
+On Windows the file is `%TEMP%\agent-graph\<pid>.json`, and `--pid auto` finds the Claude Code process.
 The `graph` key is the `title` of the graph, or its folder name when it has no title.
 A graph or node without an `icon` has no icon key.
 
@@ -179,7 +184,7 @@ The agent skills (`/graph-up --squad-template <graph> [--name <name>]`, `/graph-
 `agent-graph plug` writes them into each agent on this machine: Claude Code, pi, Codex, Cursor, and opencode.
 An agent that is not on the machine is skipped.
 Run `plug` again after each install of a new binary. It also removes the `template-*`, `role-*`, and `team-*` skills of a binary from before the rename back to graph and node.
-`plug` replaces a symbolic link to an old skill folder, and it does not change the target of the link.
+`plug` replaces a symbolic link (or, on Windows, a junction) to an old skill folder, and it does not change the target of the link.
 
 The skill sources in [`crates/agent-graph/skills/`](crates/agent-graph/skills/) are templates. See [`skills/README.md`](crates/agent-graph/skills/README.md).
 
@@ -223,6 +228,6 @@ A change file declares a release, and a merge to `main` cuts it. `knope` (`knope
    Commit messages do not count. While the version is `0.x`, `major` gives `0.2.0`, and `minor` and `patch` both give `0.1.1`.
 2. Merge the PR. If `main` has change files, `.github/workflows/auto-release.yml` runs `knope release`. It commits the bump as `chore: release <version>`, pushes it to `main`, and creates the tag and the GitHub Release.
    The push uses the release GitHub App (secrets `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY`). The App is a bypass actor on the ruleset of `main`.
-3. `auto-release.yml` calls `release.yml`. It builds the binaries for 4 targets, attaches the tarballs and their sha256 files to the release, and updates `Formula/agent-graph.rb` in `agent-habilis/homebrew-tap`. The formula lives only in the tap.
+3. `auto-release.yml` calls `release.yml`. It builds the binaries for 5 targets, attaches the tarballs, the Windows `.zip` and their sha256 files to the release, and updates `Formula/agent-graph.rb` in `agent-habilis/homebrew-tap`. The formula lives only in the tap.
 
 If the bump reaches `main` but the release step fails, the next run finds no change files and no tag, and runs `knope publish`. To retry by hand, start `auto-release.yml` with **Run workflow**.
