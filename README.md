@@ -119,7 +119,7 @@ agent-graph graph init [<dir>]             # write the default graphs, nodes, an
 agent-graph graph node-up squad1/worker    # the body of the graph, then the body of the node
 agent-graph graph node-up squad1/worker --pid N  # also write /tmp/agent-graph/N.json for the statusline
 agent-graph graph node-down --pid N        # remove /tmp/agent-graph/N.json
-agent-graph graph topology [--name N] --meta F --peers F --me NICK  # draw the running graph from gossip meta JSON; --mermaid for the source
+agent-graph graph topology [--name N] --meta F --peers F --me KEY   # draw the running graph from gossip meta JSON; --mermaid for the source
 agent-graph node list                      # standalone nodes: name<TAB>description<TAB>tags<TAB>path
 agent-graph node list --tag '^go$'         # only nodes with a tag that matches the regex
 agent-graph node up worker                 # the body of the standalone node

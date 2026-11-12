@@ -6,7 +6,7 @@ Find the gossip of this session:
 agent-gossip session --session-pid "$PPID"
 ```
 
-Hold `$GOSSIP` and `$NICKNAME` from the output. If there is no session, print
+Hold `$GOSSIP`, `$NICKNAME`, and `$PUBKEY` (`pubkey`) from the output. If there is no session, print
 this line, then stop:
 
 ```text

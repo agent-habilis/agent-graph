@@ -43,12 +43,13 @@ impl Gossip {
         })
     }
 
-    fn meta_peer(&self, nick: &str) -> &Value {
-        &self.meta["document"]["peers"][nick]
+    fn entry(&self, key: &str) -> &Value {
+        &self.meta["document"][key]
     }
 
-    /// The meta entries of the graph: each live peer whose `instance` is
-    /// `instance`. A peer in `absent` left or died, so its entry is history.
+    /// The meta entries of the graph, each with its session key: each live
+    /// peer whose `instance` is `instance`, sorted by nickname. A peer in
+    /// `absent` left or died, so its entry is history.
     fn graph_entries(&self, instance: &str) -> Vec<(&str, &Value)> {
         let absent: Vec<&str> = self.meta["absent"]
             .as_array()
@@ -56,26 +57,36 @@ impl Gossip {
             .flatten()
             .filter_map(Value::as_str)
             .collect();
-        self.meta["document"]["peers"]
+        let mut entries: Vec<(&str, &Value)> = self.meta["document"]
             .as_object()
             .into_iter()
             .flatten()
-            .filter(|(nick, entry)| {
-                entry["instance"] == instance && !absent.contains(&nick.as_str())
-            })
-            .map(|(nick, entry)| (nick.as_str(), entry))
-            .collect()
+            .filter(|(key, entry)| entry["instance"] == instance && !absent.contains(&key.as_str()))
+            .map(|(key, entry)| (key.as_str(), entry))
+            .collect();
+        entries.sort_by_key(|&(key, entry)| (nick(key, entry), key));
+        entries
     }
 
-    fn roster_peer(&self, nick: &str) -> Option<&Value> {
+    fn roster_peer(&self, key: &str) -> Option<&Value> {
         self.roster["peers"]
             .as_array()?
             .iter()
-            .find(|peer| peer["nickname"] == nick)
+            .find(|peer| peer["pubkey"] == key)
     }
 }
 
+/// The nickname of a meta entry: a field of the entry, not its key. Two
+/// peers can share a nickname, so never join an entry by it.
+fn nick<'a>(key: &'a str, entry: &'a Value) -> &'a str {
+    entry["nickname"].as_str().unwrap_or(key)
+}
+
+/// The peers of each node, each with its session key and its meta entry.
+type Placed<'a> = BTreeMap<&'a str, Vec<(&'a str, &'a Value)>>;
+
 /// Draw the graph `instance`, or the graph of `me`, as a Mermaid flowchart.
+/// `me` is the session key of this agent.
 /// Also return one warning per problem, sorted.
 ///
 /// # Errors
@@ -90,8 +101,8 @@ pub fn draw(
 ) -> Result<(String, Vec<String>)> {
     let instance = match instance {
         Some(instance) => instance,
-        None if gossip.meta_peer(me).is_null() => bail!("`{me}` is not in the gossip meta"),
-        None => gossip.meta_peer(me)["instance"]
+        None if gossip.entry(me).is_null() => bail!("`{me}` is not in the gossip meta"),
+        None => gossip.entry(me)["instance"]
             .as_str()
             .ok_or_else(|| anyhow!("`{me}` is not in a graph"))?,
     };
@@ -116,7 +127,7 @@ pub fn draw(
 fn graph_hash<'a>(entries: &[(&str, &'a Value)], me: &str, instance: &str) -> Result<&'a str> {
     if let Some(hash) = entries
         .iter()
-        .find(|(nick, _)| *nick == me)
+        .find(|(key, _)| *key == me)
         .and_then(|(_, entry)| entry["hash"].as_str())
     {
         return Ok(hash);
@@ -185,10 +196,10 @@ fn render(
         })
         .copied()
         .collect();
-    let mut placed: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
-    for (nick, entry) in &peers {
+    let mut placed: Placed<'_> = BTreeMap::new();
+    for &(key, entry) in &peers {
         let node = entry["node"].as_str().unwrap_or_default();
-        placed.entry(node).or_default().push(nick);
+        placed.entry(node).or_default().push((key, entry));
     }
     warnings.extend(unknown_nodes(graph, &placed));
     let mut vertices = String::new();
@@ -204,19 +215,19 @@ fn render(
             .as_ref()
             .map_or(1, |node| usize::try_from(node.count).unwrap_or(usize::MAX));
         let preferred = node.and_then(|node| node.model);
-        let nicks = placed.get(vertex.id.as_str()).cloned().unwrap_or_default();
-        drawn += nicks.len();
-        if nicks.len() < count {
-            let open = count - nicks.len();
+        let members = placed.get(vertex.id.as_str()).cloned().unwrap_or_default();
+        drawn += members.len();
+        if members.len() < count {
+            let open = count - members.len();
             let noun = if open == 1 { "place" } else { "places" };
             warnings.push(format!("{} · {open} open {noun}", vertex.label));
         }
         let (open_shape, close_shape) = if vertex.lead {
-            if nicks.len() > 1 {
+            if members.len() > 1 {
                 warnings.push(format!(
                     "{} · {} peers in the lead node",
                     vertex.label,
-                    nicks.len()
+                    members.len()
                 ));
             }
             ('(', ')')
@@ -224,15 +235,17 @@ fn render(
             ('[', ']')
         };
         let mut peer_ids = Vec::new();
-        for nick in nicks {
-            let meta = gossip.meta_peer(nick);
-            let mut problems = problems(gossip, nick, meta, preferred.as_deref(), me);
+        for (key, meta) in members {
+            let nick = nick(key, meta);
+            let mut problems = problems(gossip, key, meta, preferred.as_deref(), me);
             if let Some(inviter) = meta["invited_by"].as_str()
-                && !peers.iter().any(|(peer, _)| *peer == inviter)
+                && !peers
+                    .iter()
+                    .any(|&(peer, entry)| self::nick(peer, entry) == inviter)
             {
                 problems.push(format!("invited_by {inviter} is not a peer"));
             }
-            let label = label(&vertex.label, nick, meta, nick == me, !problems.is_empty());
+            let label = label(&vertex.label, nick, meta, key == me, !problems.is_empty());
             warnings.extend(
                 problems
                     .into_iter()
@@ -271,7 +284,7 @@ fn entry_problems(instance: &str, hash: &str, entries: &[(&str, &Value)]) -> Vec
     let other: Vec<&str> = entries
         .iter()
         .filter(|(_, entry)| entry["hash"].is_string() && entry["hash"] != hash)
-        .map(|(nick, _)| *nick)
+        .map(|&(key, entry)| nick(key, entry))
         .collect();
     if !other.is_empty() {
         let peers = if other.len() == 1 { "peer" } else { "peers" };
@@ -285,18 +298,19 @@ fn entry_problems(instance: &str, hash: &str, entries: &[(&str, &Value)]) -> Vec
         .iter()
         .filter(|(_, entry)| !entry["hash"].is_string() || entry["hash"] == hash)
         .collect();
-    for (nick, entry) in &same {
-        if let Some(key) = ["hash", "graph", "node"]
+    for &&(key, entry) in &same {
+        if let Some(missing) = ["hash", "graph", "node"]
             .into_iter()
-            .find(|key| !entry[*key].is_string())
+            .find(|field| !entry[*field].is_string())
         {
-            warnings.push(format!("{instance} · {nick} · meta has no {key}"));
+            let nick = nick(key, entry);
+            warnings.push(format!("{instance} · {nick} · meta has no {missing}"));
         }
     }
     let founders: Vec<&str> = same
         .iter()
         .filter(|(_, entry)| entry["invited_by"].is_null())
-        .map(|(nick, _)| *nick)
+        .map(|&&(key, entry)| nick(key, entry))
         .collect();
     if founders.len() > 1 {
         warnings.push(format!(
@@ -334,7 +348,7 @@ fn header(graph: &Graph, instance: &str, hash: &str, drawn: usize) -> String {
 }
 
 /// A warning for each peer in a node that the graph does not have.
-fn unknown_nodes(graph: &Graph, placed: &BTreeMap<&str, Vec<&str>>) -> Vec<String> {
+fn unknown_nodes(graph: &Graph, placed: &Placed<'_>) -> Vec<String> {
     placed
         .iter()
         .filter(|(id, _)| {
@@ -343,10 +357,10 @@ fn unknown_nodes(graph: &Graph, placed: &BTreeMap<&str, Vec<&str>>) -> Vec<Strin
                 .iter()
                 .any(|vertex| vertex.subgraph.is_some() && vertex.id == **id)
         })
-        .flat_map(|(id, nicks)| {
-            nicks
+        .flat_map(|(id, members)| {
+            members
                 .iter()
-                .map(move |nick| format!("{id} · {nick} · not in the graph"))
+                .map(move |&(key, entry)| format!("{id} · {} · not in the graph", nick(key, entry)))
         })
         .collect()
 }
@@ -369,7 +383,7 @@ fn label(node: &str, nick: &str, meta: &Value, me: bool, warn: bool) -> String {
 
 fn problems(
     gossip: &Gossip,
-    nick: &str,
+    key: &str,
     meta: &Value,
     preferred: Option<&str>,
     me: &str,
@@ -385,9 +399,9 @@ fn problems(
     if meta["verified"] == false {
         problems.push("graph not verified".to_string());
     }
-    match gossip.roster_peer(nick) {
+    match gossip.roster_peer(key) {
         Some(peer) if peer["quiet"] == true => problems.push("quiet".to_string()),
-        None if nick != me => problems.push("gone from the roster".to_string()),
+        None if key != me => problems.push("gone from the roster".to_string()),
         _ => {}
     }
     problems

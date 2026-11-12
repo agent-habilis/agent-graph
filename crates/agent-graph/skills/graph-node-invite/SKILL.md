@@ -22,7 +22,8 @@ that has no `external` edge.
 ## Arguments
 
 - `<node>`: the mermaid id of the node, from `agent-graph graph nodes`.
-- `<peer>`: optional. The nickname of the peer to invite.
+- `<peer>`: optional. The nickname of the peer to invite. If two peers have
+  that nickname, print `graph · <peer> is not unique`, then stop.
 
 If there is no `<node>`, print this line, then stop:
 
@@ -36,7 +37,7 @@ graph · usage · /graph-node-invite <node> [<peer>]
 
 ## Gate
 
-1. Read the meta document. Your own entry must make you a peer of its
+1. Read the meta document. Your own entry, `document[$PUBKEY]`, must make you a peer of its
    graph. If it does not, print this line, then stop:
 
    ```text

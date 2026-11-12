@@ -29,12 +29,12 @@ Read your meta entry:
 agent-gossip meta get --gossip "$GOSSIP" --nickname "$NICKNAME"
 ```
 
-If your entry `/peers/$NICKNAME` has an `instance`, remove your place. Then
+If your entry `document[$PUBKEY]` has an `instance`, remove your place. Then
 the graph does not count you, and you are a free peer again. If it has no
 `instance`, write nothing:
 
 ```bash
-agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":null,"leader":null,"graph":null,"hash":null,"node":null,"joined_at":null,"invited_by":null,"verified":null,"status":"idle"}}}'
+agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"instance":null,"leader":null,"graph":null,"hash":null,"node":null,"joined_at":null,"invited_by":null,"verified":null,"status":"idle"}'
 ```
 
 Then:

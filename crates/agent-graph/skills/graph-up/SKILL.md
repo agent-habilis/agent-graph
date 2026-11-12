@@ -63,7 +63,7 @@ graph · usage · /graph-up --squad-template <graph> [--node <node>] [--name <na
    Check `$INSTANCE`, `$GRAPH`, and each node id per the **Graph meta**
    section.
 
-3. Read the meta document, and look at your own entry:
+3. Read the meta document, and look at your own entry, `document[$PUBKEY]`:
    - It has another `instance`: print this line, then stop.
 
      ```text
@@ -74,7 +74,7 @@ graph · usage · /graph-up --squad-template <graph> [--node <node>] [--name <na
      `$HASH` from your entry, not from the local graph, so that new offers
      carry the hash of the running graph. Go to **Offer the open places**.
 
-4. If any live entry (not in `absent`) other than yours has `instance`
+4. If any live entry (key not in `absent`) other than yours has `instance`
    `$INSTANCE`, with any hash and with or without a `node`, print this line,
    then stop:
 
@@ -94,7 +94,7 @@ graph · usage · /graph-up --squad-template <graph> [--node <node>] [--name <na
 2. Record your place in your meta entry:
 
    ```bash
-   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":"'"$INSTANCE"'","graph":"'"$GRAPH"'","hash":"'"$HASH"'","node":"<id>","joined_at":'"$(date +%s)"',"status":"busy"}}}'
+   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"instance":"'"$INSTANCE"'","graph":"'"$GRAPH"'","hash":"'"$HASH"'","node":"<id>","joined_at":'"$(date +%s)"',"status":"busy"}'
    ```
 
    If the third column of your node in `$NODES` is `lead`, add
@@ -113,13 +113,13 @@ a delay. Do this check after your own merge, and again on each later batch,
 before each new offer.
 
 Read the meta document. If another live entry has `instance` `$INSTANCE` and no
-`invited_by`, the smaller nickname keeps the graph. If that is the other peer:
+`invited_by`, the smaller nickname (`.nickname`) keeps the graph. If that is the other peer:
 
 1. Cancel each open offer of yours with `--method CancelTask`.
 2. Remove your place:
 
    ```bash
-   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":null,"leader":null,"graph":null,"hash":null,"node":null,"joined_at":null,"verified":null,"status":"idle"}}}'
+   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"instance":null,"leader":null,"graph":null,"hash":null,"node":null,"joined_at":null,"verified":null,"status":"idle"}'
    agent-graph graph node-down --pid "$PPID"
    ```
 

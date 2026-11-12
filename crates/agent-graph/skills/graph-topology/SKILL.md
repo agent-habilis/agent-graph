@@ -36,7 +36,7 @@ If the command is not found, tell the user to run `cargo task install` in the
 Give the two gossip documents to the command in one call:
 
 ```bash
-agent-graph graph topology [--name <name>] --me "$NICKNAME" \
+agent-graph graph topology [--name <name>] --me "$PUBKEY" \
   --meta <(agent-gossip meta get --gossip "$GOSSIP" --nickname "$NICKNAME") \
   --peers <(agent-gossip peers --gossip "$GOSSIP" --nickname "$NICKNAME")
 ```

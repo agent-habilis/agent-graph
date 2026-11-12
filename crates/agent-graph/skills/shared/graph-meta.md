@@ -1,10 +1,13 @@
 ## Graph meta
 
-The gossip meta document holds the running graph. There is no other copy. Each peer
-writes only its own entry, `/peers/<nickname>`:
+The gossip meta document holds the running graph. There is no other copy. The
+document has one entry for each member, keyed by the session key of the member
+(`pubkey`, lowercase hex). Your own entry is `document[$PUBKEY]`. Each peer
+writes only its own entry. A merge goes to the top level of the entry, with no
+wrapper key:
 
 ```json
-{"peers":{"<nickname>":{
+{
   "instance": "<instance>",
   "graph": "<graph folder name>",
   "hash": "<graph hash>",
@@ -12,8 +15,12 @@ writes only its own entry, `/peers/<nickname>`:
   "invited_by": "<nickname of the inviter>",
   "joined_at": <epoch seconds>,
   "status": "busy"
-}}}
+}
 ```
+
+The nickname of a peer is the field `.nickname` of its entry, not its key. Two
+peers can share a nickname. Never join an entry to a roster row by the
+nickname: match the key of the entry to the `pubkey` of the row.
 
 - `invited_by` is absent only on the founder: the peer that started the
   graph with `/graph-up`.
@@ -27,22 +34,23 @@ writes only its own entry, `/peers/<nickname>`:
   node context that its inviter sent, and it could not check the graph
   hash. `agent-graph graph topology` warns about such a peer. On a peer
   that checked the hash, `verified` is absent.
-- `host` is in the entry too. The gossip skill writes it when the peer
-  joins.
+- `nickname`, `model`, `harness`, `host`, and `cwd` are in the entry too. The
+  gossip skill writes them when the peer joins.
 - Read the document with:
 
   ```bash
   agent-gossip meta get --gossip "$GOSSIP" --nickname "$NICKNAME"
   ```
 
-  The output has `document.peers` and `absent`. `absent` names the entries
-  of peers that left or died. Such an entry is history.
+  The output has `document` and `absent`. `absent` lists the keys of the
+  entries of peers that left or died. Such an entry is history. Your own key
+  is never in `absent`.
 
 A **peer of a graph** is an entry that has the `instance` of the graph, the
-`hash` of the graph, and a `node`, and that is not in `absent`. A peer has one
+`hash` of the graph, and a `node`, and whose key is not in `absent`. A peer has one
 entry, so it is in one graph and one node at most.
 
-A peer is **free** if its entry has no `instance`, it is not in `absent`, and it
+A peer is **free** if its entry has no `instance`, its key is not in `absent`, and it
 has no open node offer from you.
 
 A **place** of a node is filled by a peer in that node, or by an open or
