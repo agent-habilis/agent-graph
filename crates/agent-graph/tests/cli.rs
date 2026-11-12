@@ -879,3 +879,28 @@ fn graph_node_up_with_name_writes_the_name_to_the_state() {
         "{\"graph\":\"g\",\"name\":\"a3f9c1d\",\"node\":\"solo\",\"pid\":4000010}\n"
     );
 }
+
+#[test]
+fn default_graphs_send_user_questions_to_the_leader() {
+    for graph in ["squad1", "squad2", "pair"] {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("defaults/graphs")
+            .join(graph)
+            .join("index.md");
+        let text = fs::read_to_string(&path).unwrap();
+
+        assert!(
+            text.contains("## Questions for the user"),
+            "{graph} has no section on questions for the user"
+        );
+        for needle in [
+            "\"leader\":true",
+            "`instance` and `hash` as you",
+            "no live leader",
+            "accept or decline question of gossip-task",
+            "Read the meta each",
+        ] {
+            assert!(text.contains(needle), "{graph} lacks `{needle}`");
+        }
+    }
+}

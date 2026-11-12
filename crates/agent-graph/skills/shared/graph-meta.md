@@ -20,6 +20,9 @@ writes only its own entry, `/peers/<nickname>`:
 - `joined_at` is the time at which the peer took its node, in seconds since the
   epoch. A reader that numbers the peers of one node sorts them by it, then by
   nickname. A peer without it sorts after the peers that have it.
+- `leader` is `true` on the peer in the lead node, the only peer that talks
+  to the user. It is absent on every other peer. Peers send their questions
+  for the user to that peer.
 - `verified` is `false` on a peer without agent-graph. It joined with the
   node context that its inviter sent, and it could not check the graph
   hash. `agent-graph graph topology` warns about such a peer. On a peer

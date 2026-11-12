@@ -225,6 +225,25 @@ fn graph_lint_rejects_no_lead() {
 }
 
 #[test]
+fn graph_lint_rejects_a_lead_node_with_more_than_one_peer() {
+    let (_tmp, root) = root();
+    let dir = graph(&root, "coding", CODING);
+    write(
+        &dir.join("nodes/worker/index.md"),
+        "---\ntype: Node\ndescription: d\ncount: 2\n---\n",
+    );
+
+    let out = run(&root, &["graph", "lint"]);
+
+    assert_eq!(out.status.code(), Some(1), "{}", stdout(&out));
+    assert!(
+        stdout(&out).contains("lead node `worker` has count 2, must be 1"),
+        "{}",
+        stdout(&out)
+    );
+}
+
+#[test]
 fn graph_lint_accepts_class_statement() {
     let (_tmp, root) = root();
     graph(

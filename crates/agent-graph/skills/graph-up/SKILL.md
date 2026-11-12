@@ -97,6 +97,10 @@ graph · usage · /graph-up --squad-template <graph> [--node <node>] [--name <na
    agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":"'"$INSTANCE"'","graph":"'"$GRAPH"'","hash":"'"$HASH"'","node":"<id>","joined_at":'"$(date +%s)"',"status":"busy"}}}'
    ```
 
+   If the third column of your node in `$NODES` is `lead`, add
+   `"leader":true` to the entry, so that the other peers find the peer that
+   talks to the user.
+
 3. Do the **Second founder check**.
 
 4. From now on, act as your node, and obey its boundaries and the boundaries
@@ -115,7 +119,7 @@ Read the meta document. If another live entry has `instance` `$INSTANCE` and no
 2. Remove your place:
 
    ```bash
-   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":null,"graph":null,"hash":null,"node":null,"joined_at":null,"verified":null,"status":"idle"}}}'
+   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":null,"leader":null,"graph":null,"hash":null,"node":null,"joined_at":null,"verified":null,"status":"idle"}}}'
    agent-graph graph node-down --pid "$PPID"
    ```
 

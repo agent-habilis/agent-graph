@@ -91,6 +91,7 @@ fn node_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
         .and_then(|rest| rest.split('\'').next())
         .unwrap_or_else(|| panic!("no merge in the brief: {text}"))
         .replace("<your nickname>", "bob")
+        .replace("<leader>", "")
         .replace("<epoch seconds>", "1700000000");
     let json: Value =
         serde_json::from_str(&merge).unwrap_or_else(|error| panic!("{error}: {merge}"));
@@ -115,6 +116,7 @@ fn node_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
         .find(|candidate| candidate.contains("verified"))
         .unwrap_or_else(|| panic!("no merge with verified in the brief: {text}"))
         .replace("<your nickname>", "bob")
+        .replace("<leader>", "")
         .replace("<epoch seconds>", "1700000000");
     let unverified_json: Value =
         serde_json::from_str(&unverified).unwrap_or_else(|error| panic!("{error}: {unverified}"));
@@ -206,4 +208,44 @@ fn send_node_gives_the_node_context_that_matches_the_context_hash_of_the_offer()
     let args = fs::read_to_string(dir.join("args")).unwrap();
     assert!(args.contains("artifact"), "{args}");
     assert!(args.contains(&sent.display().to_string()), "{args}");
+}
+
+#[test]
+fn the_lead_peer_marks_its_meta_entry_with_leader_true() {
+    let tmp = TempDir::new().unwrap();
+    let graph_up = rendered_skill(tmp.path(), "graph-up");
+    let invite = rendered_skill(tmp.path(), "graph-node-invite");
+
+    assert!(graph_up.contains("\"leader\":true"), "graph-up");
+    assert!(invite.contains("Lead: <yes|no>"), "the offer brief");
+    assert!(invite.contains(r#"\"leader\":true"#), "the offer brief");
+}
+
+#[test]
+fn every_meta_clear_of_a_graph_entry_also_clears_leader() {
+    let tmp = TempDir::new().unwrap();
+    for skill in ["graph-up", "graph-leave", "graph-down"] {
+        let text = rendered_skill(tmp.path(), skill).replace('\\', "");
+        let clears = text.matches(r#""instance":null"#).count();
+
+        assert!(clears > 0, "{skill} has no meta clear");
+        assert_eq!(
+            text.matches(r#""leader":null"#).count(),
+            clears,
+            "{skill}: a clear leaves leader:true behind"
+        );
+    }
+}
+
+#[test]
+fn the_offer_brief_puts_leader_in_the_merge_json_for_a_lead_offer() {
+    let tmp = TempDir::new().unwrap();
+    let skill = rendered_skill(tmp.path(), "graph-node-invite");
+    let brief = bash_block(&skill, "## Node offer", "a2a call");
+
+    assert!(brief.contains("<leader>"), "no leader slot in the merge");
+    assert!(
+        brief.contains(r#"replace <leader> with \"leader\":true, if Lead is yes"#),
+        "the brief does not say how to fill the slot"
+    );
 }
