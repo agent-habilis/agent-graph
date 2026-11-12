@@ -938,7 +938,7 @@ fn name_prints_a_short_hash_that_differs_between_calls() {
 fn node_up_with_name_writes_the_name_to_the_state() {
     let (_tmp, root) = root();
     node(&root, "solo", &index("d", None, ""));
-    let path = PathBuf::from("/tmp/agent-graph/4000008.json");
+    let path = state_file("4000008");
     let _ = fs::remove_file(&path);
 
     let out = run(
@@ -968,7 +968,7 @@ fn node_up_without_name_writes_a_short_hash_name() {
 fn graph_node_up_with_name_writes_the_name_to_the_state() {
     let (_tmp, root) = root();
     graph_node(&root, "g", "solo", &index("d", None, ""));
-    let path = PathBuf::from("/tmp/agent-graph/4000010.json");
+    let path = state_file("4000010");
     let _ = fs::remove_file(&path);
 
     let out = run(
