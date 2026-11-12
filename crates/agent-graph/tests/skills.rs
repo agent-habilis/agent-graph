@@ -302,7 +302,7 @@ fn the_graph_skills_stop_without_a_session_key_and_break_a_nickname_tie_by_key()
     let tmp = TempDir::new().unwrap();
     let up = rendered_skill(tmp.path(), "graph-up").replace('\n', " ");
 
-    assert!(up.contains("If the output has no `pubkey`"), "no stop");
+    assert!(up.contains("If it has no `pubkey`"), "no stop");
     assert!(up.contains("nicknames are equal, the smaller key"), "tie");
 }
 
@@ -315,7 +315,7 @@ fn the_graph_meta_reference_says_a_restart_gives_a_new_key() {
         text.contains("A restart of the daemon gives a new key"),
         "{text}"
     );
-    assert!(text.contains("merges the whole entry again"), "{text}");
+    assert!(text.contains("The new entry is empty"), "{text}");
 }
 
 #[test]
@@ -366,10 +366,40 @@ fn the_no_gossip_stop_comes_before_the_no_session_key_stop() {
 }
 
 #[test]
-fn the_meta_reference_says_a_restart_leaves_an_empty_entry_to_fill_whole() {
+fn the_restart_list_names_every_field_of_a_graph_entry() {
     let tmp = TempDir::new().unwrap();
     let text = rendered_skill(tmp.path(), "graph-down").replace('\n', " ");
+    let start = text.find("merges the whole entry again").unwrap();
+    let list = &text[start
+        ..text[start..]
+            .find("The nickname")
+            .map_or(text.len(), |end| start + end)];
 
-    assert!(text.contains("The new entry is empty"), "{text}");
-    assert!(text.contains("merges the whole entry"), "{text}");
+    for field in [
+        "instance",
+        "graph",
+        "hash",
+        "node",
+        "invited_by",
+        "joined_at",
+        "verified",
+        "status",
+        "leader",
+    ] {
+        assert!(
+            list.contains(&format!("`{field}`")),
+            "the restart list lacks {field}: {list}"
+        );
+    }
+}
+
+#[test]
+fn the_session_check_looks_for_an_empty_sessions_list() {
+    let tmp = TempDir::new().unwrap();
+    let text = rendered_skill(tmp.path(), "graph-up").replace('\n', " ");
+
+    assert!(
+        text.contains("If the `sessions` list of the output is empty"),
+        "{text}"
+    );
 }
