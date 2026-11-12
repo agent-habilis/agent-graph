@@ -129,7 +129,7 @@ enum GraphCommand {
         /// The output of `agent-gossip peers`.
         #[arg(long)]
         peers: PathBuf,
-        /// The session key of this agent, the `pubkey` of `agent-gossip ready`.
+        /// The session key of this agent, the `pubkey` of `agent-gossip session`.
         #[arg(long)]
         me: String,
         /// Print the Mermaid source instead of the drawing.

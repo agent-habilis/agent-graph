@@ -296,3 +296,56 @@ fn the_graph_meta_reference_reads_the_nickname_from_the_entry() {
         );
     }
 }
+
+#[test]
+fn the_graph_skills_stop_without_a_session_key_and_break_a_nickname_tie_by_key() {
+    let tmp = TempDir::new().unwrap();
+    let up = rendered_skill(tmp.path(), "graph-up").replace('\n', " ");
+
+    assert!(up.contains("If the output has no `pubkey`"), "no stop");
+    assert!(up.contains("nicknames are equal, the smaller key"), "tie");
+}
+
+#[test]
+fn the_graph_meta_reference_says_a_restart_gives_a_new_key() {
+    let tmp = TempDir::new().unwrap();
+    let text = rendered_skill(tmp.path(), "graph-down");
+
+    assert!(
+        text.contains("A restart of the daemon gives a new key"),
+        "{text}"
+    );
+    assert!(text.contains("merges its place again"), "{text}");
+}
+
+#[test]
+fn the_default_graphs_find_the_leader_by_key_and_address_it_by_nickname() {
+    for graph in ["squad1", "squad2", "pair"] {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("defaults/graphs")
+            .join(graph)
+            .join("index.md");
+        let text = fs::read_to_string(&path).unwrap();
+
+        assert!(text.contains("whose key is not in `absent`"), "{graph}");
+        assert!(text.contains("`.nickname` of the leader entry"), "{graph}");
+    }
+}
+
+#[test]
+fn the_lines_that_name_the_own_entry_or_the_nickname_field_fit_in_80_characters() {
+    for skill in ["graph-up", "graph-down", "graph-node-invite"] {
+        let text = fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("skills")
+                .join(skill)
+                .join("SKILL.md"),
+        )
+        .unwrap();
+        for line in text.lines() {
+            let marked = line.contains("document[$PUBKEY]") || line.contains("`.nickname`");
+
+            assert!(!marked || line.chars().count() <= 80, "{skill}: {line}");
+        }
+    }
+}

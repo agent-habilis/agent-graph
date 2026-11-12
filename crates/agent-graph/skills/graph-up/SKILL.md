@@ -113,7 +113,8 @@ a delay. Do this check after your own merge, and again on each later batch,
 before each new offer.
 
 Read the meta document. If another live entry has `instance` `$INSTANCE` and no
-`invited_by`, the smaller nickname (`.nickname`) keeps the graph. If that is the other peer:
+`invited_by`, the smaller nickname (`.nickname`) keeps the graph. If the
+nicknames are equal, the smaller key keeps it. If that is the other peer:
 
 1. Cancel each open offer of yours with `--method CancelTask`.
 2. Remove your place:

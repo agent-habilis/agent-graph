@@ -36,7 +36,8 @@ flowchart LR
 
 The leader is the only node that talks to the user. Its meta entry has
 `"leader":true`. The leader of your graph is the peer with `"leader":true`, the
-same `instance` and `hash` as you, that is not in `absent`. Read the meta each
+same `instance` and `hash` as you, whose key is not in `absent`. Address the
+task to the `.nickname` of the leader entry. Read the meta each
 time you ask, because the leader can change.
 
 A node that is not the leader never asks the user. When it needs an answer

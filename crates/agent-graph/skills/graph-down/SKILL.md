@@ -38,8 +38,9 @@ Read the meta document. Hold `$INSTANCE`:
   ```
 
 Hold as `$PEERS` the nicknames (`.nickname`) of the live entries (keys not in
-`absent`) that have `instance` `$INSTANCE`, other than yours, `document[$PUBKEY]`. If `$PEERS` is empty and your
-entry does not have `instance` `$INSTANCE`, print this line, then stop:
+`absent`) that have `instance` `$INSTANCE`. Leave out your own entry,
+`document[$PUBKEY]`. If `$PEERS` is empty and your entry does not have
+`instance` `$INSTANCE`, print this line, then stop:
 
 ```text
 graph · no graph · $INSTANCE

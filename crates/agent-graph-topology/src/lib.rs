@@ -255,7 +255,7 @@ fn render(
                 "{}__{}__{}",
                 mermaid_id(instance),
                 mermaid_id(&vertex.id),
-                mermaid_id(nick)
+                mermaid_id(key.get(..8).unwrap_or(key))
             );
             let _ = writeln!(
                 vertices,

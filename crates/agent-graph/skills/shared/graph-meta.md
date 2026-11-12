@@ -18,6 +18,10 @@ wrapper key:
 }
 ```
 
+A restart of the daemon gives a new key. The old entry stays in `absent` for
+up to 1 hour, and the peer reads as free. After a restart, a peer of a graph
+merges its place again.
+
 The nickname of a peer is the field `.nickname` of its entry, not its key. Two
 peers can share a nickname. Never join an entry to a roster row by the
 nickname: match the key of the entry to the `pubkey` of the row.

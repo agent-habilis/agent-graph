@@ -37,8 +37,8 @@ graph · usage · /graph-node-invite <node> [<peer>]
 
 ## Gate
 
-1. Read the meta document. Your own entry, `document[$PUBKEY]`, must make you a peer of its
-   graph. If it does not, print this line, then stop:
+1. Read the meta document. Your own entry, `document[$PUBKEY]`, must make
+   you a peer of its graph. If it does not, print this line, then stop:
 
    ```text
    graph · not in a graph · start one with /graph-up --squad-template <graph>

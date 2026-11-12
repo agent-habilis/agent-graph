@@ -164,15 +164,15 @@ fn graph_topology_draws_each_peer_in_a_graph_box_with_its_edges() {
             "flowchart TD\n\
              \x20 outside[user or other graph]\n\
              \x20 subgraph \"squad@main · 3 peers · {short}\"\n\
-             \x20   squad_main__lead__ann(lead · ann ← you · claude-opus-5-5 · busy)\n\
-             \x20   squad_main__worker__bob[worker · bob · claude-sonnet-5 · busy]\n\
-             \x20   squad_main__worker__cy[worker · cy · GPT-6 · idle ⚠]\n\
+             \x20   squad_main__lead__aa01(lead · ann ← you · claude-opus-5-5 · busy)\n\
+             \x20   squad_main__worker__bb02[worker · bob · claude-sonnet-5 · busy]\n\
+             \x20   squad_main__worker__cc03[worker · cy · GPT-6 · idle ⚠]\n\
              \x20 end\n\
-             \x20 squad_main__lead__ann -->|assign a part| squad_main__worker__bob\n\
-             \x20 squad_main__lead__ann -->|assign a part| squad_main__worker__cy\n\
-             \x20 squad_main__worker__bob -->|part result| squad_main__lead__ann\n\
-             \x20 squad_main__worker__cy -->|part result| squad_main__lead__ann\n\
-             \x20 outside ---|external| squad_main__lead__ann\n"
+             \x20 squad_main__lead__aa01 -->|assign a part| squad_main__worker__bb02\n\
+             \x20 squad_main__lead__aa01 -->|assign a part| squad_main__worker__cc03\n\
+             \x20 squad_main__worker__bb02 -->|part result| squad_main__lead__aa01\n\
+             \x20 squad_main__worker__cc03 -->|part result| squad_main__lead__aa01\n\
+             \x20 outside ---|external| squad_main__lead__aa01\n"
         )
     );
     assert_eq!(
@@ -218,7 +218,7 @@ fn graph_topology_does_not_draw_open_places_and_warns() {
     assert!(out.status.success(), "{}", stderr(&out));
     let text = stdout(&out);
     assert!(text.contains("squad@main · 2 peers ·"), "{text}");
-    assert!(!text.contains("__cy"), "{text}");
+    assert!(!text.contains("__cc03"), "{text}");
     assert_eq!(stderr(&out), "warning: worker · 1 open place\n");
 }
 
@@ -239,7 +239,7 @@ fn graph_topology_does_not_warn_on_more_peers_than_count() {
     let text = stdout(&out);
     assert!(text.contains("squad@main · 4 peers ·"), "{text}");
     assert!(
-        text.contains("squad_main__worker__dee[worker · dee ·"),
+        text.contains("squad_main__worker__dd04[worker · dee ·"),
         "{text}"
     );
     assert_eq!(
@@ -259,7 +259,7 @@ fn graph_topology_does_not_count_an_absent_peer() {
 
     assert!(out.status.success(), "{}", stderr(&out));
     let text = stdout(&out);
-    assert!(!text.contains("__cy"), "{text}");
+    assert!(!text.contains("__cc03"), "{text}");
     assert!(text.contains("squad@main · 2 peers ·"), "{text}");
     assert_eq!(stderr(&out), "warning: worker · 1 open place\n");
 }
@@ -276,7 +276,7 @@ fn graph_topology_warns_on_a_gone_peer() {
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
-        stdout(&out).contains("squad_main__worker__bob[worker · bob · claude-sonnet-5 · busy ⚠]")
+        stdout(&out).contains("squad_main__worker__bb02[worker · bob · claude-sonnet-5 · busy ⚠]")
     );
     assert_eq!(
         stderr(&out),
@@ -300,7 +300,7 @@ fn graph_topology_warns_on_a_partial_entry_and_does_not_draw_it() {
     let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert!(!stdout(&out).contains("__dee"), "{}", stdout(&out));
+    assert!(!stdout(&out).contains("__dd04"), "{}", stdout(&out));
     assert!(
         stderr(&out).contains("warning: squad@main · dee · meta has no node\n"),
         "{}",
@@ -379,7 +379,7 @@ fn graph_topology_uses_the_hash_of_me_and_warns_on_another_hash() {
     let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert!(!stdout(&out).contains("__dee"), "{}", stdout(&out));
+    assert!(!stdout(&out).contains("__dd04"), "{}", stdout(&out));
     assert!(
         stderr(&out).contains("warning: squad@main · 1 peer with another hash · dee\n"),
         "{}",
@@ -417,7 +417,7 @@ fn graph_topology_ignores_an_old_entry_without_graph() {
     let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert!(!stdout(&out).contains("__dee"), "{}", stdout(&out));
+    assert!(!stdout(&out).contains("__dd04"), "{}", stdout(&out));
     assert!(!stderr(&out).contains("dee"), "{}", stderr(&out));
 }
 
@@ -430,7 +430,7 @@ fn graph_topology_finds_the_graph_by_hash_for_a_custom_instance_name() {
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
-        stdout(&out).contains("demo__lead__ann -->|assign a part| demo__worker__bob"),
+        stdout(&out).contains("demo__lead__aa01 -->|assign a part| demo__worker__bb02"),
         "{}",
         stdout(&out)
     );
@@ -470,7 +470,7 @@ fn graph_topology_uses_the_edge_name_for_an_empty_label() {
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
-        stdout(&out).contains("squad_main__worker__bob -->|result| squad_main__lead__ann"),
+        stdout(&out).contains("squad_main__worker__bb02 -->|result| squad_main__lead__aa01"),
         "{}",
         stdout(&out)
     );
@@ -490,7 +490,7 @@ fn graph_topology_takes_the_instance_argument() {
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
-        stdout(&out).contains("squad_my_repo__lead__ann(lead · ann · claude-opus-5-5 · busy"),
+        stdout(&out).contains("squad_my_repo__lead__aa01(lead · ann · claude-opus-5-5 · busy"),
         "{}",
         stdout(&out)
     );
@@ -571,7 +571,7 @@ fn graph_topology_finds_a_received_graph_by_hash_in_home() {
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
-        stdout(&out).contains("squad_main__lead__ann -->|assign a part| squad_main__worker__bob")
+        stdout(&out).contains("squad_main__lead__aa01 -->|assign a part| squad_main__worker__bb02")
     );
 }
 
@@ -722,7 +722,7 @@ fn graph_topology_finds_a_local_graph_by_hash_under_another_folder_name() {
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
-        stdout(&out).contains("squad_main__lead__ann -->|assign a part| squad_main__worker__bob")
+        stdout(&out).contains("squad_main__lead__aa01 -->|assign a part| squad_main__worker__bb02")
     );
 }
 
@@ -741,7 +741,7 @@ fn graph_topology_warns_on_a_peer_that_did_not_verify_the_graph() {
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
-        stdout(&out).contains("squad_main__worker__dee[worker · dee · claude-sonnet-5 · busy ⚠]"),
+        stdout(&out).contains("squad_main__worker__dd04[worker · dee · claude-sonnet-5 · busy ⚠]"),
         "{}",
         stdout(&out)
     );
@@ -772,4 +772,30 @@ fn graph_topology_matches_the_roster_by_key_when_two_peers_share_a_nickname() {
         "warning: worker · cy · model GPT-6 does not match sonnet\n\
          warning: worker · cy · quiet\n"
     );
+}
+
+#[test]
+fn graph_topology_draws_two_peers_with_one_nickname_as_two_boxes() {
+    let graph = graph();
+    let meta = meta_with_dee(
+        &graph,
+        &format!(
+            r#"{{"nickname":"cy","model":"claude-sonnet-5","status":"busy","instance":"squad@main","graph":"squad","hash":"{}","node":"worker","invited_by":"ann"}}"#,
+            graph.hash
+        ),
+    )
+    .replace(r#""nickname":"dee","nickname":"cy""#, r#""nickname":"cy""#);
+
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    let mut ids: Vec<&str> = text
+        .lines()
+        .filter(|line| line.contains("worker · cy"))
+        .filter_map(|line| line.split(['(', '[']).next())
+        .map(str::trim)
+        .collect();
+    ids.dedup();
+    assert_eq!(ids.len(), 2, "{text}");
 }
