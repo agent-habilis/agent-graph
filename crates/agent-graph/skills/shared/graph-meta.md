@@ -19,8 +19,9 @@ wrapper key:
 ```
 
 A restart of the daemon gives a new key. The old entry stays in `absent` for
-up to 1 hour, and the peer reads as free. After a restart, a peer of a graph
-merges its place again.
+up to 1 hour, and the peer reads as free. The new entry is empty. After a
+restart, a peer of a graph merges the whole entry again: `instance`, `graph`,
+`hash`, `node`, `joined_at`, `status`, and `leader` if it has one.
 
 The nickname of a peer is the field `.nickname` of its entry, not its key. Two
 peers can share a nickname. Never join an entry to a roster row by the

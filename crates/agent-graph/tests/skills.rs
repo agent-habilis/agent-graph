@@ -315,7 +315,7 @@ fn the_graph_meta_reference_says_a_restart_gives_a_new_key() {
         text.contains("A restart of the daemon gives a new key"),
         "{text}"
     );
-    assert!(text.contains("merges its place again"), "{text}");
+    assert!(text.contains("merges the whole entry again"), "{text}");
 }
 
 #[test]
@@ -348,4 +348,28 @@ fn the_lines_that_name_the_own_entry_or_the_nickname_field_fit_in_80_characters(
             assert!(!marked || line.chars().count() <= 80, "{skill}: {line}");
         }
     }
+}
+
+#[test]
+fn the_no_gossip_stop_comes_before_the_no_session_key_stop() {
+    let tmp = TempDir::new().unwrap();
+    for skill in ["graph-up", "graph-down", "graph-leave", "graph-topology"] {
+        let text = rendered_skill(tmp.path(), skill);
+        let no_gossip = text.find("graph · no gossip").unwrap();
+        let no_key = text.find("graph · no session key").unwrap();
+
+        assert!(
+            no_gossip < no_key,
+            "{skill}: a session with no gossip says no key"
+        );
+    }
+}
+
+#[test]
+fn the_meta_reference_says_a_restart_leaves_an_empty_entry_to_fill_whole() {
+    let tmp = TempDir::new().unwrap();
+    let text = rendered_skill(tmp.path(), "graph-down").replace('\n', " ");
+
+    assert!(text.contains("The new entry is empty"), "{text}");
+    assert!(text.contains("merges the whole entry"), "{text}");
 }
