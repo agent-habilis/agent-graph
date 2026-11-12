@@ -148,7 +148,10 @@ If `.agent-graph` exists, `init` writes nothing and exits 0.
 
 [`examples/graphs/`](examples/graphs/) has larger graphs. `init` does not write them. Copy one into `.agent-graph/graphs/`, then change it for your project.
 
-- `tribe`: one `director` and three squads, each in its own worktree, with `scope: project`. The `core` squad has an `engineer` (the lead) and a `core-dev`. The `ui` squad has a `designer` (the lead), a `ui-dev`, and a `ui-checker`. The `lab` squad has a `scientist` (the lead) and two `runner` peers. The user talks only to the director, and the director talks only to the leads. The common rules are in `shared/rules.md`: folder owners, a merge queue, the approval of the user, and three review rounds at most. Replace the folder table with your folders. The leads list the `review` and `qa` traits, so run `graph init` first.
+- `tribe`: one `director` and three squads, each in its own worktree, with `scope: project`. The `core` squad has an `engineer` (the lead) and a `core-dev`. The `ui` squad has a `designer` (the lead), a `ui-dev`, and a `ui-checker`. The `lab` squad has a `scientist` (the lead) and two `runner` peers. The user talks only to the director, and the director talks only to the leads. The common rules are in `shared/rules.md`: folder owners, a merge queue, the approval of the user, and three review rounds at most. It fits an app with a UI and a part that measures or experiments. Replace the folder table with your folders, and remove a squad that you do not need.
+
+  The leads list the `review` and `qa` traits, which `graph init` writes. If `.agent-graph/` exists already, `init` writes nothing, so copy the traits from [`defaults/traits/`](crates/agent-graph/defaults/traits/).
+  To start it, make the three worktrees, and open 9 sessions in one gossip: one in the main clone, one for each runner, and the others in the worktree of their squad. Then run `/graph-up tribe director` in the session of the main clone.
 
 ## Includes
 

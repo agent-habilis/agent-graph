@@ -3,6 +3,7 @@ type: Graph
 description: One director and three squads (core, ui, lab), each squad with a lead and members in its own worktree.
 title: tribe
 scope: project
+icon: 󰡉
 ---
 
 ```mermaid
@@ -43,21 +44,27 @@ flowchart TB
 
 ## Boundaries
 
+- No communication with nodes outside the graph, except through `external`.
 - The user talks only to the director. The director talks only to the three
   leads (`engineer`, `designer`, `scientist`). Each member talks only to the
   lead of its squad.
 - No lead talks to another lead. No member talks to another squad, to the
-  director, or to the user. One exception: the director can tell the user
-  to open a session that waits on a permission prompt (*Stuck session*).
+  director, or to the user.
+- The user can open the session of any node to answer a permission prompt
+  (*Stuck session*).
 - Graph management (`/graph-up`, `/graph-down`, `/graph-node-invite`,
   `/graph-leave`) is permitted with any gossip peer.
-- `.agent-graph/` changes only through a merged pull request, so that all
-  peers have the same graph hash. The director starts the graph from the
-  clone on the default branch.
+- `.agent-graph/` changes only through a merged pull request. The director
+  starts the graph from the main clone, on the default branch.
 - The director works in the main clone, which stays on the default branch.
   Each squad works in its own fixed worktree, for example `../<repo>-core`,
-  `../<repo>-ui`, and `../<repo>-lab`. Reading files outside the working
-  tree is permitted.
+  `../<repo>-ui`, and `../<repo>-lab`.
+- A peer works in the worktree of its squad, not in the folder where its
+  session started. The order and the task give the path.
+- The nodes of a squad work on the same host. A `runner` works in its own
+  worktree, or in its own clone on another host.
+- Reading files outside the working tree is permitted. No file changes
+  outside the worktree of the node.
 - No changes to a file that another squad owns. Ask the director
   (*Folder owners*).
 
@@ -65,9 +72,9 @@ flowchart TB
 
 ### order-core
 
-The director sends an issue to the `engineer`, or a decision of the user: an
-approved plan, an approved merge, or the end of a dispute. The form is in
-*Order*.
+The director sends to the `engineer` an issue, a decision of the user (an
+approved plan, an approved merge, or the end of a dispute), or the news that
+a pull request of another squad is merged. The form is in *Order*.
 
 ### order-ui
 
@@ -95,6 +102,9 @@ Like `report-core`, from the `scientist`.
 
 The `engineer` sends one step of the plan to the `core-dev`. The form is in
 *Task*.
+
+The `engineer` also uses this edge to send a repair request or an answer to
+a question of the `core-dev`.
 
 ### result-core
 
@@ -124,12 +134,13 @@ line. No verdict.
 ### slice-lab
 
 The `scientist` sends one slice of an experiment to a `runner`: the commit,
-the inputs, the command, the environment, and the deadline.
+the inputs, the command, the environment, the place for the outputs, and the
+deadline.
 
 ### numbers-lab
 
 The `runner` sends back the inputs that are done, the inputs that failed and
-why, the time, and the paths of the outputs. Numbers, no conclusion.
+why, the time, and the place of the outputs. Numbers, no conclusion.
 
 ### external
 

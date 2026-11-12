@@ -21,20 +21,22 @@ project.
 To change a file that another squad owns, ask the director. The director
 sends the request to the owner squad.
 
-In a squad, each file has one owner in each step. All the sessions of a squad
-share one git index. Only the lead commits, with the names of the files:
-`git commit -- <file>...`. Nobody runs `git add -A`, `git add .`, or
-`git commit -a`.
+In a squad, each file has one owner in each step. The lead, the dev, and the
+checker of a squad share one worktree and one git index. Only the lead
+commits, with the names of the files: `git commit -- <file>...`. For a new
+file, run `git add <file>...` first. Nobody runs `git add -A`, `git add .`,
+or `git commit -a`.
 
 ### Order
 
 The message from the director to a lead gives:
 
-- the issue;
+- the issue, and the path of the worktree of the squad;
 - for an issue of more than one squad, the contract between the squads: what
   the lab gives to core (measure, format, criterion), and what core gives to
   ui (state, events, interfaces);
-- or a decision of the user, with the link to the approval.
+- or a decision of the user, with the link to the approval;
+- or the news that a pull request of another squad is merged.
 
 ### Report
 
@@ -47,7 +49,7 @@ translates them for the user.
 
 The message from a lead to a member gives:
 
-- the path of the repository, the branch, and the step of the plan;
+- the path of the worktree, the branch, and the step of the plan;
 - the files that the member can change;
 - the conventions of the project that the member needs.
 
@@ -63,17 +65,22 @@ outside its squad.
 ### Approval of the user
 
 The user approves a plan or a result in the session of the director, with the
-words of the user. The director posts the approval on the pull request: the
-command, the full SHA of the head of the branch, and the exact words of the
-user. Before it executes a plan or merges, the lead checks that the approval
-names the current head. If the branch moved, the lead asks the director for a
-new approval.
+words of the user. The director posts the approval on the pull request: what
+is approved (the plan or the merge), the full SHA of the head of the branch,
+and the exact words of the user. Only the director posts approvals.
+
+Before it executes a plan or merges, the lead checks the approval. The
+approval names the current head, or the branch moved only by clean merges of
+the default branch. If the branch moved in another way, the lead asks the
+director for a new approval. Nobody rebases or force-pushes a branch with an
+approval.
 
 ### Merge queue
 
-One merge at a time, in the order that the director gives. The director lets
-the next merge start when the report of the last merge arrives. After a merge,
-each other lead updates its branch from the default branch.
+One merge at a time, in the order that the director gives. The lead reports
+each merge. Then the director tells each other lead with an order, and lets
+the next merge start. Each other lead merges the default branch into its
+branch.
 
 ### Pull request of another squad
 
@@ -83,16 +90,24 @@ is merged, from the default branch.
 
 ### Stuck session
 
-A lead that waits on a permission prompt cannot send a message. The director
-pings each lead that has an issue in progress. If a lead does not answer in 10
-minutes, the director tells the user which session to open and which command
-to approve. Then the command goes into the permission list of the project.
+A session that waits on a permission prompt cannot send a message. When the
+director waits for a report, it pings the lead. If the lead does not answer in
+10 minutes, the director tells the user which session to open and which
+command to approve. The user can add the command to the permission list of
+the project. A lead reports a member that does not answer to the director in
+the same way.
 
 ### Urgent fix
 
-The lead finishes the current step, then switches the branch in the same
-worktree, makes the fix, and goes back. The director decides which squad
-stops.
+The lead commits and pushes the current step, and tells its members to stop.
+Then it switches the branch in the same worktree, makes the fix, and goes
+back. The director decides which squad stops.
+
+### Slice deadline
+
+If a slice misses its deadline, or a host is down, the `scientist` reports it
+to the director. Nobody runs the slice again on another host without a
+decision of the director.
 
 ### Review dispute
 

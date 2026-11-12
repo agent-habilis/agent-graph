@@ -433,6 +433,7 @@ fn example_tribe_has_one_director_and_three_led_squads() {
     let out = run(&root, &["graph", "nodes", "tribe"]);
 
     assert!(lint.status.success(), "{}", stdout(&lint));
+    assert_eq!(stdout(&lint), "");
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(
         stdout(&out),
@@ -459,6 +460,23 @@ fn example_tribe_nodes_load() {
 
         assert!(out.status.success(), "{node}: {}", stderr(&out));
         assert!(stdout(&out).contains("## Tribe rules"), "{node}");
+    }
+}
+
+#[test]
+fn example_tribe_leads_find_their_traits_after_init() {
+    let (_tmp, root) = root();
+    run(&root, &["graph", "init"]);
+    example_graph(&root, "tribe");
+
+    for lead in ["engineer", "designer", "scientist"] {
+        for name in ["review", "qa"] {
+            let node = format!("tribe/{lead}");
+
+            let out = run(&root, &["trait", "show", name, "--node", &node]);
+
+            assert!(out.status.success(), "{node} {name}: {}", stderr(&out));
+        }
     }
 }
 
