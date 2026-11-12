@@ -22,12 +22,21 @@ fn dir() -> PathBuf {
 
 /// Write `/tmp/agent-graph/<pid>.json`: the graph and node of the agent
 /// with that pid, for the statusline. A standalone node has no graph, so the
-/// file has no `graph` key. The keys stay `graph` and `node`,
-/// because agent-statusline reads them. The write is atomic, so a statusline
+/// file has no `graph` key. The `name` is the label of the agent: the running
+/// graph for a node of a graph, or the node itself. The keys `graph` and `node` stay, because
+/// agent-statusline reads them. The write is atomic, so a statusline
 /// never reads half a file.
-pub(crate) fn write(pid: u32, graph: Option<(&str, &Graph)>, node: (&str, &Node)) -> Result<()> {
+pub(crate) fn write(
+    pid: u32,
+    graph: Option<(&str, &Graph)>,
+    node: (&str, &Node),
+    label: Option<&str>,
+) -> Result<()> {
     let mut state = Map::new();
     state.insert("pid".into(), pid.into());
+    if let Some(label) = label {
+        state.insert("name".into(), label.into());
+    }
     if let Some((name, graph)) = graph {
         let title = graph.title.as_deref().unwrap_or(name);
         insert(&mut state, "graph", title, graph.icon.as_deref());

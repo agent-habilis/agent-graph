@@ -1,7 +1,7 @@
 ---
 name: graph-up
-description: Start a graph in the current gossip. This agent is the founder. It takes one node of the graph, then offers each open place to one free peer of the gossip, through gossip tasks. A node with `count` n needs n peers at the start. The graph lives in the gossip meta. Done when every node has its count. Use when the user says "/graph-up <graph> [<node>] [--instance <name>]", "graph up", or "start the <graph> graph".
-allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(basename:*), Bash(hostname:*), Bash(mkdir:*), Bash(cp:*), Bash(tar:*)
+description: Start a graph in the current gossip. This agent is the founder. It takes one node of the graph, then offers each open place to one free peer of the gossip, through gossip tasks. A node with `count` n needs n peers at the start. The graph lives in the gossip meta. Done when every node has its count. Use when the user says "/graph-up --squad-template <graph> [--node <node>] [--name <name>]", "graph up", or "start the <graph> graph".
+allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*), Bash(hostname:*), Bash(mkdir:*), Bash(cp:*), Bash(tar:*)
 ---
 
 # graph-up
@@ -21,16 +21,18 @@ the bell armed, and track each task in the todo widget.
 
 ## Arguments
 
-- `<graph>`: the graph name, from `agent-graph graph list`.
-- `<node>`: optional. The mermaid id of the node that this agent takes. With
-  no `<node>`, take the first node that `agent-graph graph nodes
+- `--squad-template <graph>`: the graph template, from `agent-graph graph
+  list`.
+- `--node <node>`: optional. The mermaid id of the node that this agent
+  takes. With no `--node`, take the first node that `agent-graph graph nodes
   <graph>` prints.
-- `--instance <name>`: optional. The instance name of the graph.
+- `--name <name>`: optional. The instance name of the graph. The default is
+  a short hash, like a git short hash.
 
-If there is no `<graph>`, print this line, then stop:
+If there is no `--squad-template`, print this line, then stop:
 
 ```text
-graph · usage · /graph-up <graph> [<node>] [--instance <name>]
+graph · usage · /graph-up --squad-template <graph> [--node <node>] [--name <name>]
 ```
 
 <!-- include path="../shared/gossip-session.md" -->
@@ -48,17 +50,15 @@ graph · usage · /graph-up <graph> [<node>] [--instance <name>]
    agent-graph graph hash <graph>
    ```
 
-   If `lint` fails, show its lines, then stop. From `graph list`, hold the
-   `scope` of the graph. Hold the lines of `graph nodes` as `$NODES`.
+   If `lint` fails, show its lines, then stop. Hold the lines of
+   `graph nodes` as `$NODES`.
    `model` is the model that the node prefers, or empty. Hold `<graph>` as
    `$GRAPH` and the hash as `$HASH`. The hash is the id of the graph
    between peers.
 
 2. Hold the instance name as `$INSTANCE`:
-   - `--instance <name>` → `<name>`.
-   - `scope: branch` → `<graph>@<branch>`, with `git branch --show-current`.
-   - `scope: project` → `<graph>@<repo>`, with
-     `basename "$(git rev-parse --show-toplevel)"`.
+   - `--name <name>` → `<name>`.
+   - Else a new short hash: `agent-graph name`.
 
    Check `$INSTANCE`, `$GRAPH`, and each node id per the **Graph meta**
    section.
@@ -88,7 +88,7 @@ graph · usage · /graph-up <graph> [<node>] [--instance <name>]
    and records them for the statusline:
 
    ```bash
-   <!-- include path="../shared/pid-flag.md" command="   agent-graph graph node-up <graph>/<node>" -->
+   <!-- include path="../shared/pid-flag.md" command="   agent-graph graph node-up <graph>/<node> --name \"$INSTANCE\"" -->
    ```
 
 2. Record your place in your meta entry:

@@ -1,6 +1,6 @@
 ---
 name: graph-node-up
-description: Load one standalone node into this session with the `agent-graph` CLI, so that the agent acts as that node and obeys its boundaries. A standalone node lives in `.agent-graph/nodes/`, outside of any graph. Use when the user says "/graph-node-up <node>", "load the <node> node", or "act as the <node> node".
+description: Load one standalone node into this session with the `agent-graph` CLI, so that the agent acts as that node and obeys its boundaries. A standalone node lives in `.agent-graph/nodes/`, outside of any graph. Use when the user says "/graph-node-up --node-template <node> [--name <name>]", "load the <node> node", or "act as the <node> node".
 allowed-tools: Bash(agent-graph:*)
 ---
 
@@ -28,10 +28,15 @@ If the command is not found, tell the user to run `cargo task install` in the
 
 ## Arguments
 
-The node name, `<node>`. If there is no name, print:
+- `--node-template <node>`: the standalone node template, from
+  `/graph-node-list`.
+- `--name <name>`: optional. The name of this agent as the node, shown in
+  the statusline. The default is a short hash, like a git short hash.
+
+If there is no `--node-template`, print:
 
 ```text
-node · usage · /graph-node-up <node>
+node · usage · /graph-node-up --node-template <node> [--name <name>]
 ```
 
 Then stop. To see the names, the user runs `/graph-node-list`.
@@ -44,8 +49,11 @@ node · <name> is a node of a graph · use /graph-up or /graph-node-invite
 
 ## Up
 
+Hold the name as `$NAME`: the `--name` value, or else the output of
+`agent-graph name`. Then run:
+
 ```sh
-<!-- include path="../shared/pid-flag.md" command="agent-graph node up <node>" -->
+<!-- include path="../shared/pid-flag.md" command="agent-graph node up <node> --name \"$NAME\"" -->
 ```
 
 Run it in the foreground. The tool result puts the body of the node into
@@ -63,5 +71,5 @@ When the command succeeds:
 3. Print only this line. Do not summarize the node:
 
 ```text
-node · loaded · <node>
+node · loaded · <name> (<node>)
 ```
