@@ -144,6 +144,12 @@ It also writes four traits. The `worker` nodes of the graphs list `qa` (run the 
 The build puts these files into the binary, so a user needs only the binary.
 If `.agent-graph` exists, `init` writes nothing and exits 0.
 
+## Examples
+
+[`examples/graphs/`](examples/graphs/) has larger graphs. `init` does not write them. Copy one into `.agent-graph/graphs/`, then change it for your project.
+
+- `tribe`: one `director` and three squads, each in its own worktree, with `scope: project`. The `core` squad has an `engineer` (the lead) and a `core-dev`. The `ui` squad has a `designer` (the lead), a `ui-dev`, and a `ui-checker`. The `lab` squad has a `scientist` (the lead) and two `runner` peers. The user talks only to the director, and the director talks only to the leads. The common rules are in `shared/rules.md`: folder owners, a merge queue, the approval of the user, and three review rounds at most. Replace the folder table with your folders. The leads list the `review` and `qa` traits, so run `graph init` first.
+
 ## Includes
 
 In `index.md`, a line that contains only `@<path>` is replaced with the body of that file, without its frontmatter.
