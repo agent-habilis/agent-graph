@@ -6,10 +6,10 @@ allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*), Bash(hostname:*), Bash
 
 # graph-node-invite
 
-A running graph is an instance of a graph in a gossip. `/graph-up` fills each node
-to its `count`. After that, any peer can add a peer to a node with this
-skill. A node can have more peers than its `count`. The new peer is a
-free peer of the gossip. It joins the graph that this agent is a peer of.
+A running graph is an instance of a graph in a gossip. `/graph-up` fills each
+node to its `count`. After that, any peer can add a peer to a node with this
+skill. A node can have more peers than its `count`. The new peer is a free peer
+of the gossip. It joins the graph that this agent is a peer of.
 
 This skill runs in a session that is already in a gossip. It uses the
 **Receive loop**, **Decisions**, **Event handling**, and **Task tracking**

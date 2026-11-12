@@ -333,24 +333,6 @@ fn the_default_graphs_find_the_leader_by_key_and_address_it_by_nickname() {
 }
 
 #[test]
-fn the_lines_that_name_the_own_entry_or_the_nickname_field_fit_in_80_characters() {
-    for skill in ["graph-up", "graph-down", "graph-node-invite"] {
-        let text = fs::read_to_string(
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("skills")
-                .join(skill)
-                .join("SKILL.md"),
-        )
-        .unwrap();
-        for line in text.lines() {
-            let marked = line.contains("document[$PUBKEY]") || line.contains("`.nickname`");
-
-            assert!(!marked || line.chars().count() <= 80, "{skill}: {line}");
-        }
-    }
-}
-
-#[test]
 fn the_no_gossip_stop_comes_before_the_no_session_key_stop() {
     let tmp = TempDir::new().unwrap();
     for skill in ["graph-up", "graph-down", "graph-leave", "graph-topology"] {
@@ -414,9 +396,7 @@ fn the_entry_block_holds_each_field_that_a_bullet_documents() {
         else {
             continue;
         };
-        if ["invited_by", "joined_at", "leader", "verified"].contains(&field) {
-            assert!(block.contains(&format!("\"{field}\"")), "{field}: {block}");
-        }
+        assert!(block.contains(&format!("\"{field}\"")), "{field}: {block}");
     }
     assert!(block.contains("\"verified\""), "{block}");
     assert!(block.contains("\"leader\""), "{block}");
@@ -438,21 +418,57 @@ fn the_session_check_stops_on_more_than_one_session_after_no_gossip() {
 }
 
 #[test]
-fn the_shared_graph_files_keep_prose_lines_within_80_characters() {
-    for file in ["shared/gossip-session.md", "shared/graph-meta.md"] {
-        let text = fs::read_to_string(
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("skills")
-                .join(file),
-        )
-        .unwrap();
-        let mut fenced = false;
-        for line in text.lines() {
-            fenced ^= line.starts_with("```");
-
-            assert!(fenced || line.chars().count() <= 80, "{file}: {line}");
+fn every_skill_and_shared_file_keeps_prose_lines_within_80_characters() {
+    let skills = Path::new(env!("CARGO_MANIFEST_DIR")).join("skills");
+    let mut files = Vec::new();
+    for entry in fs::read_dir(&skills).unwrap() {
+        let path = entry.unwrap().path();
+        if !path.is_dir() {
+            continue;
+        }
+        if path.ends_with("shared") {
+            for file in fs::read_dir(&path).unwrap() {
+                files.push(file.unwrap().path());
+            }
+        } else {
+            files.push(path.join("SKILL.md"));
         }
     }
+    for file in files
+        .iter()
+        .filter(|file| file.extension().is_some_and(|ext| ext == "md"))
+    {
+        let text = fs::read_to_string(file).unwrap();
+        let body = if text.starts_with("---\n") {
+            text.splitn(3, "---\n").nth(2).unwrap()
+        } else {
+            &text
+        };
+        let mut fenced = false;
+        for line in body.lines() {
+            if line.trim_start().starts_with("```") {
+                fenced = !fenced;
+                continue;
+            }
+
+            assert!(
+                fenced || line.chars().count() <= 80,
+                "{}: {line}",
+                file.display()
+            );
+        }
+    }
+}
+
+#[test]
+fn the_entry_block_says_that_it_shows_every_field() {
+    let tmp = TempDir::new().unwrap();
+    let text = rendered_skill(tmp.path(), "graph-down");
+
+    assert!(
+        text.contains("The block shows every field of an entry:\n\n```json"),
+        "{text}"
+    );
 }
 
 #[test]

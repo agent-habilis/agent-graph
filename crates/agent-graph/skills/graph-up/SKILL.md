@@ -6,13 +6,13 @@ allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*), Bash(hostname:*), Bash
 
 # graph-up
 
-A graph is a team of agents. The same graph is a folder on disk and, once
-it runs in a gossip, an instance with a name. Each node of the graph needs `count` peers (1 by default)
-at the start. Later, a peer can add more with `/graph-node-invite`. All peers
-of one node have the same node name. Their gossip nicknames tell them apart.
-This agent is the **founder**. It is a peer of the graph too. It takes its
-own node first, then offers each open place to one free peer of the gossip.
-`up` is done when every node has `count` filled places.
+A graph is a team of agents. The same graph is a folder on disk and, once it
+runs in a gossip, an instance with a name. Each node of the graph needs `count`
+peers (1 by default) at the start. Later, a peer can add more with
+`/graph-node-invite`. All peers of one node have the same node name. Their
+gossip nicknames tell them apart. This agent is the **founder**. It is a peer of
+the graph too. It takes its own node first, then offers each open place to one
+free peer of the gossip. `up` is done when every node has `count` filled places.
 
 This skill runs in a session that is already in a gossip. It uses the
 **Receive loop**, **Decisions**, **Event handling**, and **Task tracking**

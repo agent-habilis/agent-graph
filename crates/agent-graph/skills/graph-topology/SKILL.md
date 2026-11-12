@@ -6,12 +6,11 @@ allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*)
 
 # graph-topology
 
-A running graph is an instance of a graph in a gossip. The gossip meta
-document holds the running graph: each peer writes its instance, graph,
-graph hash, and node into its own entry. `agent-graph graph topology` reads
-the meta document, the roster, and the graph file, and draws the graph: one box per peer, and
-the edges of the graph between the peers. The output is the same for
-the same input.
+A running graph is an instance of a graph in a gossip. The gossip meta document
+holds the running graph: each peer writes its instance, graph, graph hash, and
+node into its own entry. `agent-graph graph topology` reads the meta document,
+the roster, and the graph file, and draws the graph: one box per peer, and the
+edges of the graph between the peers. The output is the same for the same input.
 
 ## Preflight
 
@@ -45,7 +44,7 @@ Show stdout in a `text` fence, without changes: it is a box drawing, and it
 needs a monospace font. Then show each `warning:` line from stderr, below the
 fence.
 
-If the command fails, show its `error:` line, then stop. For
-`is not in a graph`, tell the user to start a graph with `/graph-up --squad-template <graph>`,
-or to give the `--name <name>`. To add a peer to the graph, a peer runs
-`/graph-node-invite <node>`.
+If the command fails, show its `error:` line, then stop. For `is not in a
+graph`, tell the user to start a graph with `/graph-up --squad-template
+<graph>`, or to give the `--name <name>`. To add a peer to the graph, a peer
+runs `/graph-node-invite <node>`.

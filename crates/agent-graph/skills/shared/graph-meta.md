@@ -4,7 +4,9 @@ The gossip meta document holds the running graph. There is no other copy. The
 document has one entry for each member, keyed by the session key of the member
 (`pubkey`, lowercase hex). Your own entry is `document[$PUBKEY]`. Each peer
 writes only its own entry. A merge goes to the top level of the entry, with no
-wrapper key:
+wrapper key.
+
+The block shows every field of an entry:
 
 ```json
 {
