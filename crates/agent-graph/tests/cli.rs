@@ -408,6 +408,78 @@ fn graph_init_squad2_has_sonnet_leader_haiku_workers_and_opus_advisor() {
     );
 }
 
+/// Copy the example graph `examples/graphs/<name>/` into
+/// `<level>/.agent-graph/graphs/<name>/`.
+fn example_graph(level: &Path, name: &str) {
+    let src = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/graphs")
+        .join(name);
+    let files = tree(&src);
+    assert!(!files.is_empty(), "no files in examples/graphs/{name}/");
+    let dest = level.join(".agent-graph/graphs").join(name);
+    for (relative, bytes) in files {
+        let path = dest.join(relative);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, bytes).unwrap();
+    }
+}
+
+#[test]
+fn example_tribe_has_one_director_and_three_led_squads() {
+    let (_tmp, root) = root();
+    example_graph(&root, "tribe");
+
+    let lint = run(&root, &["graph", "lint", "tribe"]);
+    let out = run(&root, &["graph", "nodes", "tribe"]);
+
+    assert!(lint.status.success(), "{}", stdout(&lint));
+    assert_eq!(stdout(&lint), "");
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        stdout(&out),
+        "director\ttribe/director\tlead\t1\topus\n\
+         engineer\ttribe/engineer\tlead\t1\topus\n\
+         core-dev\ttribe/core-dev\t-\t1\tsonnet\n\
+         designer\ttribe/designer\tlead\t1\topus\n\
+         ui-dev\ttribe/ui-dev\t-\t1\tsonnet\n\
+         ui-checker\ttribe/ui-checker\t-\t1\thaiku\n\
+         scientist\ttribe/scientist\tlead\t1\topus\n\
+         runner\ttribe/runner\t-\t2\thaiku\n"
+    );
+}
+
+#[test]
+fn example_tribe_nodes_load() {
+    let (_tmp, root) = root();
+    example_graph(&root, "tribe");
+
+    for line in stdout(&run(&root, &["graph", "nodes", "tribe"])).lines() {
+        let node = line.split('\t').nth(1).unwrap();
+
+        let out = run(&root, &["graph", "node-up", node]);
+
+        assert!(out.status.success(), "{node}: {}", stderr(&out));
+        assert!(stdout(&out).contains("## Tribe rules"), "{node}");
+    }
+}
+
+#[test]
+fn example_tribe_leads_find_their_traits_after_init() {
+    let (_tmp, root) = root();
+    run(&root, &["graph", "init"]);
+    example_graph(&root, "tribe");
+
+    for lead in ["engineer", "designer", "scientist"] {
+        for name in ["review", "qa"] {
+            let node = format!("tribe/{lead}");
+
+            let out = run(&root, &["trait", "show", name, "--node", &node]);
+
+            assert!(out.status.success(), "{node} {name}: {}", stderr(&out));
+        }
+    }
+}
+
 #[test]
 fn graph_init_prints_each_written_path() {
     let (_tmp, root) = root();
