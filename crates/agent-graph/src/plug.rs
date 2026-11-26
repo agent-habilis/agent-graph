@@ -67,7 +67,9 @@ impl Agent {
         })
     }
 
-    /// agy loads skills only from a plugin folder that holds a `plugin.json`.
+    /// The plugin form lets the tool install and unplug as one unit, with the
+    /// same layout as agent-gossip, which also ships a `hooks.json`. agy
+    /// also loads plain skills from `~/.gemini/config/skills`.
     fn plugin_dir(self, home: &Path) -> Option<PathBuf> {
         (self == Agent::Antigravity).then(|| home.join(".gemini/config/plugins/agent-graph"))
     }
@@ -87,9 +89,14 @@ impl Agent {
     }
 
     fn installed(self, home: &Path) -> bool {
-        owned_dirs(&self.skills_dir(home))
+        let skills = self.skills_dir(home);
+        owned_dirs(&skills)
             .iter()
             .any(|dir| dir.symlink_metadata().is_ok())
+            || skills.join(MANIFEST).symlink_metadata().is_ok()
+            || self
+                .plugin_dir(home)
+                .is_some_and(|plugin| manifest_is_ours(&plugin))
     }
 }
 
@@ -124,10 +131,11 @@ pub(crate) fn unplug(agents: &[Agent], paths: &[PathBuf]) -> Result<Vec<String>>
     let mut lines = Vec::new();
     for agent in selected(agents, paths, |agent| agent.installed(&home)) {
         let dir = agent.skills_dir(&home);
-        let state = if remove(&dir)? { "removed" } else { "skipped" };
+        let mut removed = remove(&dir)?;
         if let Some(plugin) = agent.plugin_dir(&home) {
-            remove_manifest(&plugin)?;
+            removed |= remove_manifest(&plugin)?;
         }
+        let state = if removed { "removed" } else { "skipped" };
         lines.push(format!("{state}\t{}\t{}", agent.label(), dir.display()));
     }
     for path in paths {
@@ -218,22 +226,31 @@ fn install(root: &Path) -> Result<()> {
 }
 
 const PLUGIN_MANIFEST: &str = "plugin.json";
+const PLUGIN_MANIFEST_BODY: &str = "{\"name\": \"agent-graph\"}\n";
 
+fn manifest_is_ours(plugin: &Path) -> bool {
+    fs::read_to_string(plugin.join(PLUGIN_MANIFEST)).is_ok_and(|body| body == PLUGIN_MANIFEST_BODY)
+}
+
+/// A `plugin.json` that differs from ours is the file of the user: it stays.
 fn write_manifest(plugin: &Path) -> Result<()> {
     let path = plugin.join(PLUGIN_MANIFEST);
-    fs::write(&path, "{\"name\": \"agent-graph\"}\n")
+    if path.symlink_metadata().is_ok() && !manifest_is_ours(plugin) {
+        return Ok(());
+    }
+    fs::write(&path, PLUGIN_MANIFEST_BODY)
         .with_context(|| format!("cannot write {}", path.display()))
 }
 
-/// Removes the manifest, then the plugin folder if nothing else is in it, so
-/// that a file of the user stays.
-fn remove_manifest(plugin: &Path) -> Result<()> {
-    remove_existing(&plugin.join(PLUGIN_MANIFEST))?;
+/// Removes the manifest if it is the one that `plug` writes, then the plugin
+/// folder if nothing else is in it, so that a file of the user stays.
+fn remove_manifest(plugin: &Path) -> Result<bool> {
+    let removed = manifest_is_ours(plugin) && remove_existing(&plugin.join(PLUGIN_MANIFEST))?;
     // `skills/` is empty after `remove`. A failure here means the user put
     // something else in the folder, and it stays.
     let _ = fs::remove_dir(plugin.join("skills"));
     let _ = fs::remove_dir(plugin);
-    Ok(())
+    Ok(removed)
 }
 
 fn remove(root: &Path) -> Result<bool> {

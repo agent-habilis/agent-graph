@@ -358,3 +358,55 @@ fn unplug_removes_the_whole_agy_plugin() {
     assert!(!home.join(".gemini/config/plugins/agent-graph").exists());
     assert!(home.join(".gemini/antigravity-cli").is_dir());
 }
+
+#[test]
+fn unplug_keeps_the_files_of_a_user_plugin_that_plug_did_not_write() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+    let plugin = home.join(".gemini/config/plugins/agent-graph");
+    fs::create_dir_all(&plugin).unwrap();
+    let mine = "{\"name\":\"mine\",\"disabled\":true}";
+    fs::write(plugin.join("plugin.json"), mine).unwrap();
+    fs::write(plugin.join("hooks.json"), "{}").unwrap();
+
+    let out = run(&home, &["unplug", "--agent", "agy"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(fs::read_to_string(plugin.join("plugin.json")).unwrap(), mine);
+    assert!(plugin.join("hooks.json").is_file());
+}
+
+#[test]
+fn plug_does_not_overwrite_a_plugin_json_of_the_user_for_agy() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+    let plugin = home.join(".gemini/config/plugins/agent-graph");
+    fs::create_dir_all(&plugin).unwrap();
+    let mine = "{\"name\":\"mine\",\"disabled\":true}";
+    fs::write(plugin.join("plugin.json"), mine).unwrap();
+
+    let out = run(&home, &["plug", "--agent", "agy"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(fs::read_to_string(plugin.join("plugin.json")).unwrap(), mine);
+    assert!(plugin.join("skills/graph-up/SKILL.md").is_file());
+}
+
+#[test]
+fn unplug_removes_the_agy_plugin_when_only_its_manifests_remain() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+    assert!(run(&home, &["plug"]).status.success());
+    let plugin = home.join(".gemini/config/plugins/agent-graph");
+    for entry in fs::read_dir(plugin.join("skills")).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            fs::remove_dir_all(path).unwrap();
+        }
+    }
+
+    let out = run(&home, &["unplug"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(!plugin.exists());
+}
