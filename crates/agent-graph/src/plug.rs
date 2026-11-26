@@ -226,10 +226,31 @@ fn install(root: &Path) -> Result<()> {
 }
 
 const PLUGIN_MANIFEST: &str = "plugin.json";
-const PLUGIN_MANIFEST_BODY: &str = "{\"name\": \"agent-graph\"}\n";
+/// The keys that `plug` writes into `plugin.json`.
+const PLUGIN_MANIFEST_KEYS: [&str; 2] = ["name", "version"];
 
+fn plugin_manifest_body() -> String {
+    let manifest = serde_json::json!({
+        "name": "agent-graph",
+        "version": env!("CARGO_PKG_VERSION"),
+    });
+    format!("{manifest:#}\n")
+}
+
+/// A `plugin.json` is ours if it is a JSON object with the name
+/// `agent-graph` and no key that `plug` does not write. The version can
+/// differ, so a later binary still finds the file of an earlier one.
 fn manifest_is_ours(plugin: &Path) -> bool {
-    fs::read_to_string(plugin.join(PLUGIN_MANIFEST)).is_ok_and(|body| body == PLUGIN_MANIFEST_BODY)
+    let Ok(body) = fs::read_to_string(plugin.join(PLUGIN_MANIFEST)) else {
+        return false;
+    };
+    let Ok(serde_json::Value::Object(manifest)) = serde_json::from_str(&body) else {
+        return false;
+    };
+    manifest.get("name").and_then(|name| name.as_str()) == Some("agent-graph")
+        && manifest
+            .keys()
+            .all(|key| PLUGIN_MANIFEST_KEYS.contains(&key.as_str()))
 }
 
 /// A `plugin.json` that differs from ours is the file of the user: it stays.
@@ -238,11 +259,11 @@ fn write_manifest(plugin: &Path) -> Result<()> {
     if path.symlink_metadata().is_ok() && !manifest_is_ours(plugin) {
         return Ok(());
     }
-    fs::write(&path, PLUGIN_MANIFEST_BODY)
+    fs::write(&path, plugin_manifest_body())
         .with_context(|| format!("cannot write {}", path.display()))
 }
 
-/// Removes the manifest if it is the one that `plug` writes, then the plugin
+/// Removes the manifest if it is ours, then the plugin
 /// folder if nothing else is in it, so that a file of the user stays.
 fn remove_manifest(plugin: &Path) -> Result<bool> {
     let removed = manifest_is_ours(plugin) && remove_existing(&plugin.join(PLUGIN_MANIFEST))?;
