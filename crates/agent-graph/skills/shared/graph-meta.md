@@ -32,8 +32,12 @@ writes only its own entry, `/peers/<nickname>`:
   agent-gossip meta get --gossip "$GOSSIP" --nickname "$NICKNAME"
   ```
 
-  The output has `document.peers` and `absent`. `absent` names the entries
-  of peers that left or died. Such an entry is history.
+  The output has `document` and `absent`. `document` has one slice for each
+  peer, keyed by the author key (pubkey) of the peer. Each slice has a
+  `nickname`, and the entry of the peer is in
+  `document.<pubkey>.peers.<nickname>`. A slice without `peers` has no entry.
+  `absent` names the entries of peers that left or died. Such an entry is
+  history.
 
 A **peer of a graph** is an entry that has the `instance` of the graph, the
 `hash` of the graph, and a `node`, and that is not in `absent`. A peer has one

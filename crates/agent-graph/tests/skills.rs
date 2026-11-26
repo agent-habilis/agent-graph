@@ -207,3 +207,19 @@ fn send_node_gives_the_node_context_that_matches_the_context_hash_of_the_offer()
     assert!(args.contains("artifact"), "{args}");
     assert!(args.contains(&sent.display().to_string()), "{args}");
 }
+
+#[test]
+fn skills_that_read_the_meta_document_name_the_pubkey_level() {
+    let tmp = TempDir::new().unwrap();
+    for skill in ["graph-up", "graph-down", "graph-node-invite"] {
+        let body = rendered_skill(tmp.path(), skill);
+        assert!(
+            !body.contains("`document.peers`"),
+            "{skill}: the document is keyed by pubkey, so `document.peers` does not exist"
+        );
+        assert!(
+            body.contains("`document.<pubkey>.peers.<nickname>`"),
+            "{skill}: no path to a peer entry"
+        );
+    }
+}
