@@ -167,14 +167,15 @@ In `index.md`, a line that contains only `@<path>` is replaced with the body of 
 {"node":"worker","node_icon":"󱌢","pid":123}
 ```
 
-`pid` is the Claude Code process. A statusline script gets the same pid as its parent process.
+`pid` is the process of the agent (Claude Code, Antigravity CLI, and others). A statusline script gets the same pid as its parent process.
 The `graph` key is the `title` of the graph, or its folder name when it has no title.
 A graph or node without an `icon` has no icon key.
 
 ## Skills
 
 The agent skills (`/graph-up`, `/graph-down`, `/graph-leave`, `/graph-node-invite`, `/graph-topology` for graphs; `/graph-node-up`, `/graph-node-down`, `/graph-node-list` for standalone nodes; `/graph-trait-run` for traits; and more) are in the binary.
-`agent-graph plug` writes them into each agent on this machine: Claude Code, pi, Codex, Cursor, and opencode.
+`agent-graph plug` writes them into each agent on this machine: Claude Code, pi, Codex, Cursor, opencode, and the Antigravity CLI (`agy`).
+For `agy`, `plug` writes a plugin, `~/.gemini/config/plugins/agent-graph/`, with a `plugin.json` and the skills in `skills/`. `unplug` removes it. Restart `agy` after `plug`.
 An agent that is not on the machine is skipped.
 Run `plug` again after each install of a new binary. It also removes the `template-*`, `role-*`, and `team-*` skills of a binary from before the rename back to graph and node.
 `plug` replaces a symbolic link to an old skill folder, and it does not change the target of the link.
