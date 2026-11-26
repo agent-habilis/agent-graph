@@ -15,6 +15,8 @@ includes expanded.
 This skill loads only standalone nodes. A node of a graph, `<graph>/<node>`,
 joins a running graph through `/graph-up` or `/graph-node-invite`.
 
+<!-- include path="../shared/agy.md" -->
+
 ## Preflight
 
 Make sure that `agent-graph` is on `PATH`:

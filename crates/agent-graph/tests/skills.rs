@@ -223,3 +223,34 @@ fn skills_that_read_the_meta_document_name_the_pubkey_level() {
         );
     }
 }
+
+#[test]
+fn every_skill_tells_agy_to_run_its_commands_outside_the_sandbox() {
+    let tmp = TempDir::new().unwrap();
+    let first = rendered_skill(tmp.path(), "graph-up");
+    assert!(first.contains("BypassSandbox"));
+    let skills = tmp.path().join("skills");
+    let mut seen = 0;
+    for entry in fs::read_dir(&skills).unwrap() {
+        let path = entry.unwrap().path();
+        if !path.join("SKILL.md").is_file() {
+            continue;
+        }
+        seen += 1;
+        let body = fs::read_to_string(path.join("SKILL.md")).unwrap();
+        assert!(
+            body.contains("BypassSandbox"),
+            "{}: no sandbox note for agy",
+            path.display()
+        );
+    }
+    assert_eq!(seen, 11);
+}
+
+#[test]
+fn graph_trait_run_gives_agy_a_path_that_does_not_fork() {
+    let tmp = TempDir::new().unwrap();
+    let body = rendered_skill(tmp.path(), "graph-trait-run");
+    assert!(body.contains("invoke_subagent"));
+    assert!(body.contains("cannot fork the conversation"));
+}

@@ -13,6 +13,8 @@ the meta document, the roster, and the graph file, and draws the graph: one box 
 the edges of the graph between the peers. The output is the same for
 the same input.
 
+<!-- include path="../shared/agy.md" -->
+
 ## Preflight
 
 Make sure that `agent-graph` is on `PATH`:

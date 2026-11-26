@@ -12,6 +12,8 @@ subagent that starts with a copy of this context. Only the report of the fork
 comes back. Thus the context of this session is the same as before, plus the
 report.
 
+<!-- include path="../shared/agy.md" -->
+
 ## Preflight
 
 Make sure that `agent-graph` is on `PATH`:
@@ -25,7 +27,13 @@ If the command is not found, tell the user to run `cargo task install` in the
 
 You must be able to start a fork: a subagent that gets a copy of this
 context. In Claude Code, this is the Agent tool with `subagent_type: "fork"`.
-If you cannot start a fork, print this line and stop:
+In `agy`, `invoke_subagent` cannot fork the conversation. Use it with a
+prompt that has the whole context: the prompt of the **Fork** section, and
+the text of each `## Boundaries` section of the node and of the graph that
+are loaded in this session. The subagent does not see this session, so the
+prompt must carry that text.
+
+If you cannot start a fork or a subagent, print this line and stop:
 
 ```text
 trait · error · this agent cannot fork

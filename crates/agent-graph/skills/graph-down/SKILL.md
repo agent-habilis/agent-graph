@@ -16,6 +16,8 @@ This skill runs in a session that is already in a gossip. It uses the
 **Receive loop** and **Event handling** sections of the gossip skill that
 joined the gossip. Obey them here too: keep the bell armed.
 
+<!-- include path="../shared/agy.md" -->
+
 ## Arguments
 
 `<instance>`: optional. The instance name of the graph, for example

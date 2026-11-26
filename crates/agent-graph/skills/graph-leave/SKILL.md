@@ -13,6 +13,8 @@ its node. The other peers stay. To stop the whole graph, the user runs
 
 <!-- include path="../shared/gossip-session.md" -->
 
+<!-- include path="../shared/agy.md" -->
+
 ## Leave
 
 ```sh

@@ -19,6 +19,8 @@ the bell armed, and track each task in the todo widget.
 Graph management is permitted with any peer of the gossip, also for a node
 that has no `external` edge.
 
+<!-- include path="../shared/agy.md" -->
+
 ## Arguments
 
 - `<node>`: the mermaid id of the node, from `agent-graph graph nodes`.

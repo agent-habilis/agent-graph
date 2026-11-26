@@ -17,6 +17,8 @@ This skill lists only standalone nodes. The nodes of a graph have the name
 `<graph>/<node>`. To see them, the user runs
 `agent-graph graph nodes <graph>`.
 
+<!-- include path="../shared/agy.md" -->
+
 ## Preflight
 
 Make sure that `agent-graph` is on `PATH`:

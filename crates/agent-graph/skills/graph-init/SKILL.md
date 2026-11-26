@@ -31,6 +31,8 @@ The defaults are:
   - `perf`: measures the change against the base commit (workers).
   - `review`: reviews a plan or a diff (advisors).
 
+<!-- include path="../shared/agy.md" -->
+
 ## Target
 
 The target is the root of the git repository. If the cwd is not in a git

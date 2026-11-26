@@ -14,6 +14,8 @@ acting on it.
 This skill is for a standalone node. To leave a node of a running graph, the
 user runs `/graph-leave`.
 
+<!-- include path="../shared/agy.md" -->
+
 ## Preflight
 
 Make sure that `agent-graph` is on `PATH`:

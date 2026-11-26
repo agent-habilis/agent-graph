@@ -19,6 +19,8 @@ This skill runs in a session that is already in a gossip. It uses the
 sections of the gossip skill that joined the gossip. Obey them here too: keep
 the bell armed, and track each task in the todo widget.
 
+<!-- include path="../shared/agy.md" -->
+
 ## Arguments
 
 - `<graph>`: the graph name, from `agent-graph graph list`.
