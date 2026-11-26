@@ -293,3 +293,68 @@ fn unplug_removes_the_manifest() {
 
     assert!(!dest.join(".agent-graph-plug").exists());
 }
+
+#[test]
+fn plug_installs_agy_as_a_plugin_with_a_manifest_and_skills() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+
+    let out = run(&home, &["plug", "--agent", "agy"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let plugin = home.join(".gemini/config/plugins/agent-graph");
+    assert_eq!(
+        fs::read_to_string(plugin.join("plugin.json")).unwrap(),
+        "{\"name\": \"agent-graph\"}\n"
+    );
+    assert!(plugin.join("skills/graph-up/SKILL.md").is_file());
+    assert_eq!(
+        stdout(&out),
+        format!(
+            "installed\tantigravity\t{}\n",
+            plugin.join("skills").display()
+        )
+    );
+}
+
+#[test]
+fn plug_detects_agy_by_its_cli_folder() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+
+    let out = run(&home, &["plug"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        home.join(".gemini/config/plugins/agent-graph/skills/graph-up/SKILL.md")
+            .is_file()
+    );
+}
+
+#[test]
+fn plug_agent_skips_agy_when_it_is_not_on_the_machine() {
+    let (_tmp, home) = root();
+
+    let out = run(&home, &["plug", "--agent", "antigravity"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "skipped\tantigravity\tnot detected\n");
+    assert!(!home.join(".gemini").exists());
+}
+
+#[test]
+fn unplug_removes_the_whole_agy_plugin() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+    assert!(run(&home, &["plug"]).status.success());
+    assert!(
+        home.join(".gemini/config/plugins/agent-graph/plugin.json")
+            .is_file()
+    );
+
+    let out = run(&home, &["unplug"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(!home.join(".gemini/config/plugins/agent-graph").exists());
+    assert!(home.join(".gemini/antigravity-cli").is_dir());
+}

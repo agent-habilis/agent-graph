@@ -28,15 +28,19 @@ pub(crate) enum Agent {
     /// opencode: skills in `~/.config/opencode/skills`.
     #[value(name = "opencode")]
     OpenCode,
+    /// Antigravity CLI: a plugin in `~/.gemini/config/plugins/agent-graph`.
+    #[value(name = "antigravity", alias = "agy")]
+    Antigravity,
 }
 
 impl Agent {
-    const ALL: [Agent; 5] = [
+    const ALL: [Agent; 6] = [
         Agent::ClaudeCode,
         Agent::Pi,
         Agent::Codex,
         Agent::Cursor,
         Agent::OpenCode,
+        Agent::Antigravity,
     ];
 
     fn label(self) -> &'static str {
@@ -46,6 +50,7 @@ impl Agent {
             Agent::Codex => "codex",
             Agent::Cursor => "cursor",
             Agent::OpenCode => "opencode",
+            Agent::Antigravity => "antigravity",
         }
     }
 
@@ -58,12 +63,19 @@ impl Agent {
             Agent::Codex => ".codex",
             Agent::Cursor => ".cursor",
             Agent::OpenCode => ".config/opencode",
+            Agent::Antigravity => ".gemini/antigravity-cli",
         })
+    }
+
+    /// agy loads skills only from a plugin folder that holds a `plugin.json`.
+    fn plugin_dir(self, home: &Path) -> Option<PathBuf> {
+        (self == Agent::Antigravity).then(|| home.join(".gemini/config/plugins/agent-graph"))
     }
 
     fn skills_dir(self, home: &Path) -> PathBuf {
         match self {
             Agent::Pi => home.join(".pi/agent/skills"),
+            Agent::Antigravity => home.join(".gemini/config/plugins/agent-graph/skills"),
             Agent::ClaudeCode | Agent::Codex | Agent::Cursor | Agent::OpenCode => {
                 self.agent_dir(home).join("skills")
             }
@@ -90,6 +102,9 @@ pub(crate) fn plug(agents: &[Agent], paths: &[PathBuf]) -> Result<Vec<String>> {
         if agent.detected(&home) {
             let dir = agent.skills_dir(&home);
             install(&dir)?;
+            if let Some(plugin) = agent.plugin_dir(&home) {
+                write_manifest(&plugin)?;
+            }
             lines.push(format!("installed\t{}\t{}", agent.label(), dir.display()));
         } else {
             lines.push(format!("skipped\t{}\tnot detected", agent.label()));
@@ -110,6 +125,9 @@ pub(crate) fn unplug(agents: &[Agent], paths: &[PathBuf]) -> Result<Vec<String>>
     for agent in selected(agents, paths, |agent| agent.installed(&home)) {
         let dir = agent.skills_dir(&home);
         let state = if remove(&dir)? { "removed" } else { "skipped" };
+        if let Some(plugin) = agent.plugin_dir(&home) {
+            remove_manifest(&plugin)?;
+        }
         lines.push(format!("{state}\t{}\t{}", agent.label(), dir.display()));
     }
     for path in paths {
@@ -197,6 +215,25 @@ fn install(root: &Path) -> Result<()> {
     let manifest: String = embedded_names().flat_map(|name| [name, "\n"]).collect();
     fs::write(root.join(MANIFEST), manifest)
         .with_context(|| format!("cannot write {}", root.join(MANIFEST).display()))
+}
+
+const PLUGIN_MANIFEST: &str = "plugin.json";
+
+fn write_manifest(plugin: &Path) -> Result<()> {
+    let path = plugin.join(PLUGIN_MANIFEST);
+    fs::write(&path, "{\"name\": \"agent-graph\"}\n")
+        .with_context(|| format!("cannot write {}", path.display()))
+}
+
+/// Removes the manifest, then the plugin folder if nothing else is in it, so
+/// that a file of the user stays.
+fn remove_manifest(plugin: &Path) -> Result<()> {
+    remove_existing(&plugin.join(PLUGIN_MANIFEST))?;
+    // `skills/` is empty after `remove`. A failure here means the user put
+    // something else in the folder, and it stays.
+    let _ = fs::remove_dir(plugin.join("skills"));
+    let _ = fs::remove_dir(plugin);
+    Ok(())
 }
 
 fn remove(root: &Path) -> Result<bool> {
