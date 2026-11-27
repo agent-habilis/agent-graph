@@ -10,7 +10,8 @@ A trait is like a method of a node. It is a markdown text that drives one
 routine. You do not run the routine in this session. A fork runs it: a
 subagent that starts with a copy of this context. Only the report of the fork
 comes back. Thus the context of this session is the same as before, plus the
-report.
+report. In `agy`, the subagent does not get a copy of this context. See the
+**Fork** section.
 
 <!-- include path="../shared/agy.md" -->
 
@@ -27,11 +28,8 @@ If the command is not found, tell the user to run `cargo task install` in the
 
 You must be able to start a fork: a subagent that gets a copy of this
 context. In Claude Code, this is the Agent tool with `subagent_type: "fork"`.
-In `agy`, `invoke_subagent` cannot fork the conversation. Use it with a
-prompt that has the whole context: the prompt of the **Fork** section, and
-the text of each `## Boundaries` section of the node and of the graph that
-are loaded in this session. The subagent does not see this session, so the
-prompt must carry that text.
+In `agy`, `invoke_subagent` cannot fork the conversation. Use the subagent
+path of the **Fork** section.
 
 If you cannot start a fork or a subagent, print this line and stop:
 
@@ -88,6 +86,20 @@ output as a routine. Also obey the boundaries of the node and of the graph
 that are loaded in this session. If the command fails, your report is its
 `error:` line. When the routine is done, end with its report.
 ```
+
+In `agy`, call `invoke_subagent` with `TypeName` `self`, a `Role`, and a
+`Prompt`. The type `research` is read-only and has no `run_command`, so it
+cannot run the routine. The subagent has no conversation and no loaded skill.
+Write all of this into the `Prompt`:
+
+- the prompt above, but with the boundaries as text, not as "loaded in this
+  session"
+- the subject of the run, for example the plan or the diff that a peer sent
+- the text of each `## Boundaries` section of the node and of the graph that
+  are loaded in this session
+- this rule: set `BypassSandbox` to true on each `agent-graph`,
+  `agent-gossip`, and `curl` command, and on each command that reads or
+  writes under `~/.agent-graph`
 
 Do not do the routine in this session, and do not run `agent-graph trait
 show` in this session. Wait for the result of the fork.

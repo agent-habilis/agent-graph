@@ -36,8 +36,8 @@ writes only its own entry, `/peers/<nickname>`:
   peer, keyed by the author key (pubkey) of the peer. Each slice has a
   `nickname`, and the entry of the peer is in
   `document.<pubkey>.peers.<nickname>`. A slice without `peers` has no entry.
-  `absent` names the entries of peers that left or died. Such an entry is
-  history.
+  `absent` lists keys of `document`, the pubkeys of the peers that left or
+  died. A slice whose key is in `absent` is history: its entries are not live.
 
 A **peer of a graph** is an entry that has the `instance` of the graph, the
 `hash` of the graph, and a `node`, and that is not in `absent`. A peer has one

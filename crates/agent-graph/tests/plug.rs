@@ -462,3 +462,24 @@ fn a_plugin_json_with_an_extra_key_stays_for_plug_and_unplug() {
     assert!(run(&home, &["unplug", "--agent", "agy"]).status.success());
     assert_eq!(fs::read_to_string(&plugin).unwrap(), mine);
 }
+
+#[cfg(unix)]
+#[test]
+fn plug_and_unplug_do_not_write_through_a_plugin_json_link() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+    let plugin = agy_plugin_json(&home);
+    fs::create_dir_all(plugin.parent().unwrap()).unwrap();
+    let target = home.join("shared-plugin.json");
+    let mine = "{\"name\": \"agent-graph\"}\n";
+    fs::write(&target, mine).unwrap();
+    std::os::unix::fs::symlink(&target, &plugin).unwrap();
+
+    assert!(run(&home, &["plug", "--agent", "agy"]).status.success());
+    assert_eq!(fs::read_to_string(&target).unwrap(), mine);
+    assert!(plugin.symlink_metadata().unwrap().file_type().is_symlink());
+
+    assert!(run(&home, &["unplug", "--agent", "agy"]).status.success());
+    assert_eq!(fs::read_to_string(&target).unwrap(), mine);
+    assert!(plugin.symlink_metadata().unwrap().file_type().is_symlink());
+}

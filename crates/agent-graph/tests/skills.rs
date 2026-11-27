@@ -208,11 +208,34 @@ fn send_node_gives_the_node_context_that_matches_the_context_hash_of_the_offer()
     assert!(args.contains(&sent.display().to_string()), "{args}");
 }
 
+/// The skill folders in the source tree: every `graph-*` folder with a `SKILL.md`.
+fn source_skills() -> Vec<(String, String)> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("skills");
+    let mut skills: Vec<(String, String)> = fs::read_dir(root)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.join("SKILL.md").is_file())
+        .map(|path| {
+            let name = path.file_name().unwrap().to_str().unwrap().to_string();
+            (name, fs::read_to_string(path.join("SKILL.md")).unwrap())
+        })
+        .collect();
+    skills.sort();
+    assert!(!skills.is_empty());
+    skills
+}
+
 #[test]
 fn skills_that_read_the_meta_document_name_the_pubkey_level() {
     let tmp = TempDir::new().unwrap();
-    for skill in ["graph-up", "graph-down", "graph-node-invite"] {
-        let body = rendered_skill(tmp.path(), skill);
+    let readers: Vec<String> = source_skills()
+        .into_iter()
+        .filter(|(_, source)| source.contains("../shared/graph-meta.md"))
+        .map(|(name, _)| name)
+        .collect();
+    assert!(readers.len() >= 3, "{readers:?}");
+    for skill in readers {
+        let body = rendered_skill(tmp.path(), &skill);
         assert!(
             !body.contains("`document.peers`"),
             "{skill}: the document is keyed by pubkey, so `document.peers` does not exist"
@@ -221,36 +244,59 @@ fn skills_that_read_the_meta_document_name_the_pubkey_level() {
             body.contains("`document.<pubkey>.peers.<nickname>`"),
             "{skill}: no path to a peer entry"
         );
+        assert!(
+            body.contains("`absent` lists keys of `document`"),
+            "{skill}: no key for `absent`"
+        );
     }
 }
 
 #[test]
 fn every_skill_tells_agy_to_run_its_commands_outside_the_sandbox() {
     let tmp = TempDir::new().unwrap();
-    let first = rendered_skill(tmp.path(), "graph-up");
-    assert!(first.contains("BypassSandbox"));
-    let skills = tmp.path().join("skills");
-    let mut seen = 0;
-    for entry in fs::read_dir(&skills).unwrap() {
-        let path = entry.unwrap().path();
-        if !path.join("SKILL.md").is_file() {
-            continue;
+    for (name, _) in source_skills() {
+        let body = rendered_skill(tmp.path(), &name);
+        assert!(body.contains("BypassSandbox"), "{name}: no sandbox note");
+        for command in ["`mkdir`", "`cp`", "`tar`", "`ls`", "`curl`", "`agent-gossip`"] {
+            assert!(body.contains(command), "{name}: the sandbox note omits {command}");
         }
-        seen += 1;
-        let body = fs::read_to_string(path.join("SKILL.md")).unwrap();
-        assert!(
-            body.contains("BypassSandbox"),
-            "{}: no sandbox note for agy",
-            path.display()
-        );
+        assert!(body.contains("`~/.agent-graph`"), "{name}: no folder named");
     }
-    assert_eq!(seen, 11);
 }
 
 #[test]
-fn graph_trait_run_gives_agy_a_path_that_does_not_fork() {
+fn graph_trait_run_gives_agy_a_subagent_that_carries_its_own_context() {
     let tmp = TempDir::new().unwrap();
     let body = rendered_skill(tmp.path(), "graph-trait-run");
-    assert!(body.contains("invoke_subagent"));
-    assert!(body.contains("cannot fork the conversation"));
+    for needle in [
+        "invoke_subagent",
+        "cannot fork the conversation",
+        "`TypeName` `self`",
+        "subject of the run",
+        "`## Boundaries`",
+        "`BypassSandbox`",
+    ] {
+        assert!(body.contains(needle), "no {needle}");
+    }
+    assert!(
+        body.contains("In `agy`, the subagent does not get a copy of this context"),
+        "the intro still says that the fork copies the context"
+    );
+}
+
+#[test]
+fn the_node_offer_brief_tells_an_agy_invitee_to_bypass_the_sandbox() {
+    let tmp = TempDir::new().unwrap();
+    for skill in ["graph-up", "graph-node-invite"] {
+        let body = rendered_skill(tmp.path(), skill);
+        let brief = body
+            .lines()
+            .find(|line| line.contains("--text \"Node offer."))
+            .unwrap_or_else(|| panic!("{skill}: no brief"));
+        assert!(
+            brief.contains("In agy, run each command of these steps")
+                && brief.contains("BypassSandbox true"),
+            "{skill}: the brief has no sandbox rule"
+        );
+    }
 }

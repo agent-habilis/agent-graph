@@ -241,7 +241,15 @@ fn plugin_manifest_body() -> String {
 /// `agent-graph` and no key that `plug` does not write. The version can
 /// differ, so a later binary still finds the file of an earlier one.
 fn manifest_is_ours(plugin: &Path) -> bool {
-    let Ok(body) = fs::read_to_string(plugin.join(PLUGIN_MANIFEST)) else {
+    // A link is the file of the user, and a write would change its target.
+    let path = plugin.join(PLUGIN_MANIFEST);
+    if path
+        .symlink_metadata()
+        .is_ok_and(|metadata| metadata.file_type().is_symlink())
+    {
+        return false;
+    }
+    let Ok(body) = fs::read_to_string(&path) else {
         return false;
     };
     let Ok(serde_json::Value::Object(manifest)) = serde_json::from_str(&body) else {

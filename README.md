@@ -176,7 +176,8 @@ A graph or node without an `icon` has no icon key.
 The agent skills (`/graph-up`, `/graph-down`, `/graph-leave`, `/graph-node-invite`, `/graph-topology` for graphs; `/graph-node-up`, `/graph-node-down`, `/graph-node-list` for standalone nodes; `/graph-trait-run` for traits; and more) are in the binary.
 `agent-graph plug` writes them into each agent on this machine: Claude Code, pi, Codex, Cursor, opencode, and the Antigravity CLI (`agy`).
 For `agy`, `plug` writes a plugin, `~/.gemini/config/plugins/agent-graph/`, with a `plugin.json` and the skills in `skills/`. `unplug` removes it. Restart `agy` after `plug`.
-In `agy`, run each `agent-graph` and `agent-gossip` command with `BypassSandbox` set to true. The Standard Sandbox Mode blocks the write to `~/.agent-graph` with `EPERM`, and it blocks the `agent-gossip` calls. Each graph skill says so. `plug` writes a `plugin.json` with a `name` and a `version`. `agy plugin validate --strict` passes on it.
+In `agy`, set `BypassSandbox` to true on each `agent-graph` command, each `agent-gossip` command, each `curl` command, and each command that reads or writes under `~/.agent-graph`. The Standard Sandbox Mode blocks that folder with `EPERM`, and it blocks all network access. Each graph skill says so.
+`plug` writes a `plugin.json` with a `name` and a `version`, and `agy plugin validate --strict` passes on it. If you edit `plugin.json` by hand, for example to add the `logo` key that the validator suggests, it becomes a file of the user. `plug` and `unplug` then leave it alone. A symbolic link at that path also stays as it is.
 An agent that is not on the machine is skipped.
 Run `plug` again after each install of a new binary. It also removes the `template-*`, `role-*`, and `team-*` skills of a binary from before the rename back to graph and node.
 `plug` replaces a symbolic link to an old skill folder, and it does not change the target of the link.
