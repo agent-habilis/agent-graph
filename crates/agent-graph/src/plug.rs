@@ -9,6 +9,9 @@ use anyhow::{Context, Result};
 use include_dir::{Dir, include_dir};
 
 static SKILLS: Dir<'_> = include_dir!("$OUT_DIR/skills");
+/// The same skills, with each slash command in the namespaced form that agy
+/// expands: `/agent-graph:graph-up`.
+static SKILLS_AGY: Dir<'_> = include_dir!("$OUT_DIR/skills-agy");
 
 // Ties this module to the rendered skills, so a changed skill recompiles the
 // `include_dir!` embed above, which is not tracked on its own.
@@ -74,6 +77,15 @@ impl Agent {
         (self == Agent::Antigravity).then(|| home.join(".gemini/config/plugins/agent-graph"))
     }
 
+    fn skills(self) -> &'static Dir<'static> {
+        match self {
+            Agent::Antigravity => &SKILLS_AGY,
+            Agent::ClaudeCode | Agent::Pi | Agent::Codex | Agent::Cursor | Agent::OpenCode => {
+                &SKILLS
+            }
+        }
+    }
+
     fn skills_dir(self, home: &Path) -> PathBuf {
         match self {
             Agent::Pi => home.join(".pi/agent/skills"),
@@ -108,7 +120,7 @@ pub(crate) fn plug(agents: &[Agent], paths: &[PathBuf]) -> Result<Vec<String>> {
     for agent in selected(agents, paths, |agent| agent.detected(&home)) {
         if agent.detected(&home) {
             let dir = agent.skills_dir(&home);
-            install(&dir)?;
+            install(&dir, agent.skills())?;
             if let Some(plugin) = agent.plugin_dir(&home) {
                 write_manifest(&plugin)?;
             }
@@ -118,7 +130,7 @@ pub(crate) fn plug(agents: &[Agent], paths: &[PathBuf]) -> Result<Vec<String>> {
         }
     }
     for path in paths {
-        install(path)?;
+        install(path, &SKILLS)?;
         lines.push(format!("installed\tpath\t{}", path.display()));
     }
     Ok(lines)
@@ -207,10 +219,10 @@ fn embedded_names() -> impl Iterator<Item = &'static str> {
 
 /// Write the skills into a staging folder first, so that an error leaves the
 /// skills of the earlier `plug` as they were.
-fn install(root: &Path) -> Result<()> {
+fn install(root: &Path, skills: &Dir<'_>) -> Result<()> {
     let staging = root.join(STAGING);
     remove_existing(&staging)?;
-    if let Err(error) = write_dir(&SKILLS, &staging) {
+    if let Err(error) = write_dir(skills, &staging) {
         let _ = remove_existing(&staging);
         return Err(error);
     }

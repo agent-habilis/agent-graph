@@ -257,8 +257,18 @@ fn every_skill_tells_agy_to_run_its_commands_outside_the_sandbox() {
     for (name, _) in source_skills() {
         let body = rendered_skill(tmp.path(), &name);
         assert!(body.contains("BypassSandbox"), "{name}: no sandbox note");
-        for command in ["`mkdir`", "`cp`", "`tar`", "`ls`", "`curl`", "`agent-gossip`"] {
-            assert!(body.contains(command), "{name}: the sandbox note omits {command}");
+        for command in [
+            "`mkdir`",
+            "`cp`",
+            "`tar`",
+            "`ls`",
+            "`curl`",
+            "`agent-gossip`",
+        ] {
+            assert!(
+                body.contains(command),
+                "{name}: the sandbox note omits {command}"
+            );
         }
         assert!(body.contains("`~/.agent-graph`"), "{name}: no folder named");
     }
@@ -299,4 +309,62 @@ fn the_node_offer_brief_tells_an_agy_invitee_to_bypass_the_sandbox() {
             "{skill}: the brief has no sandbox rule"
         );
     }
+}
+
+fn agy_rendered_skill(dir: &Path, skill: &str) -> String {
+    fs::create_dir_all(dir.join(".gemini/antigravity-cli")).unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_agent-graph"))
+        .args(["plug", "--agent", "agy"])
+        .env("HOME", dir)
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    fs::read_to_string(
+        dir.join(".gemini/config/plugins/agent-graph/skills")
+            .join(skill)
+            .join("SKILL.md"),
+    )
+    .unwrap()
+}
+
+/// Each place where `body` names the slash command `/<name>` bare: after a
+/// space, a quote, a backtick, a bracket, or at the start of a line, and not
+/// followed by more of a name.
+fn bare_commands(body: &str, name: &str) -> usize {
+    let command = format!("/{name}");
+    body.match_indices(&command)
+        .filter(|(at, _)| {
+            let before = body[..*at].chars().next_back();
+            let after = body[at + command.len()..].chars().next();
+            before.is_none_or(|ch| matches!(ch, ' ' | '"' | '`' | '(' | '[' | '\n'))
+                && after.is_none_or(|ch| !(ch.is_ascii_alphanumeric() || ch == '-' || ch == '_'))
+        })
+        .count()
+}
+
+#[test]
+fn the_agy_render_names_each_slash_command_with_the_plugin_namespace() {
+    let tmp = TempDir::new().unwrap();
+    let names: Vec<String> = source_skills().into_iter().map(|(name, _)| name).collect();
+    let mut namespaced = 0;
+    for skill in &names {
+        let body = agy_rendered_skill(tmp.path(), skill);
+        for name in &names {
+            assert_eq!(
+                bare_commands(&body, name),
+                0,
+                "{skill}: names `/{name}` without the namespace"
+            );
+            namespaced += body.matches(&format!("/agent-graph:{name}")).count();
+        }
+    }
+    assert!(namespaced > 20, "{namespaced}");
+}
+
+#[test]
+fn the_default_render_keeps_the_bare_slash_commands() {
+    let tmp = TempDir::new().unwrap();
+    let body = rendered_skill(tmp.path(), "graph-up");
+    assert!(bare_commands(&body, "graph-leave") > 0);
+    assert!(!body.contains("/agent-graph:"));
 }

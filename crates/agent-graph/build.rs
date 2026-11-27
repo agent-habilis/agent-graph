@@ -14,8 +14,12 @@ fn main() -> io::Result<()> {
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
     embed_defaults(&manifest.join("defaults"), &out_dir)?;
     let rendered = out_dir.join("skills");
-    render_skills(&manifest.join("skills"), &rendered)?;
-    emit_skills_fingerprint(&rendered);
+    render_skills(&manifest.join("skills"), &rendered, None)?;
+    // agy expands a slash command of a plugin skill only in the namespaced
+    // form, `/<plugin>:<skill>`, so it gets its own tree.
+    let rendered_agy = out_dir.join("skills-agy");
+    render_skills(&manifest.join("skills"), &rendered_agy, Some("agent-graph"))?;
+    emit_skills_fingerprint(&[&rendered, &rendered_agy]);
     Ok(())
 }
 
@@ -41,7 +45,9 @@ fn embed_defaults(root: &Path, out_dir: &Path) -> io::Result<()> {
 
 /// Expand each `skills/graph-*/SKILL.md` source into `dest`.
 /// The partials in `skills/shared/` are only spliced in, never emitted.
-fn render_skills(src: &Path, dest: &Path) -> io::Result<()> {
+/// With a `namespace`, each slash command of a skill of this crate is written
+/// as `/<namespace>:<skill>`.
+fn render_skills(src: &Path, dest: &Path, namespace: Option<&str>) -> io::Result<()> {
     println!("cargo:rerun-if-changed={}", src.display());
     if dest.exists() {
         fs::remove_dir_all(dest)?;
@@ -58,11 +64,24 @@ fn render_skills(src: &Path, dest: &Path) -> io::Result<()> {
         })
         .collect();
     skills.sort();
+    let names: Vec<String> = skills
+        .iter()
+        .map(|dir| {
+            dir.file_name()
+                .expect("skill dir has a name")
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
     let mut loader = |path: &Path| fs::read_to_string(path).map_err(|error| error.to_string());
     for skill_dir in skills {
         let skill = skill_dir.file_name().expect("skill dir has a name");
         let rendered = slot_template::expand(&skill_dir.join("SKILL.md"), &[], &mut loader)
             .unwrap_or_else(|error| panic!("skills/{}/SKILL.md: {error}", skill.to_string_lossy()));
+        let rendered = match namespace {
+            Some(namespace) => namespace_commands(&rendered, &names, namespace),
+            None => rendered,
+        };
         let out = dest.join(skill);
         fs::create_dir_all(&out)?;
         fs::write(out.join("SKILL.md"), rendered)?;
@@ -70,20 +89,52 @@ fn render_skills(src: &Path, dest: &Path) -> io::Result<()> {
     Ok(())
 }
 
+/// Writes `/<skill>` as `/<namespace>:<skill>` for each skill in `names`. A
+/// slash command stands after a space, a quote, a backtick, a bracket, or at
+/// the start of a line. A path such as `../shared/graph-meta.md` is not one.
+fn namespace_commands(text: &str, names: &[String], namespace: &str) -> String {
+    let is_name_char = |ch: char| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_';
+    let mut out = String::with_capacity(text.len());
+    let mut before: Option<char> = None;
+    let mut rest = text;
+    while let Some(next) = rest.chars().next() {
+        if next == '/'
+            && before.is_none_or(|prev| matches!(prev, ' ' | '"' | '`' | '(' | '[' | '\n'))
+        {
+            let word = &rest[1..];
+            let len = word
+                .find(|ch: char| !is_name_char(ch))
+                .unwrap_or(word.len());
+            if names.iter().any(|name| name == &word[..len]) {
+                write!(out, "/{namespace}:{}", &word[..len]).expect("write to String");
+                before = word[..len].chars().next_back();
+                rest = &word[len..];
+                continue;
+            }
+        }
+        out.push(next);
+        before = Some(next);
+        rest = &rest[next.len_utf8()..];
+    }
+    out
+}
+
 /// `include_dir!` does not track its folder, so `src/plug.rs` reads this hash
 /// with `env!`: a changed skill recompiles that module and its embed.
-fn emit_skills_fingerprint(rendered: &Path) {
-    let mut files = Vec::new();
-    walk(rendered, &mut files).expect("walk rendered skills");
-    files.sort();
+fn emit_skills_fingerprint(trees: &[&Path]) {
     let mut hasher = DefaultHasher::new();
-    for file in files {
-        file.strip_prefix(rendered)
-            .expect("walked under root")
-            .hash(&mut hasher);
-        fs::read(&file)
-            .expect("read rendered skill")
-            .hash(&mut hasher);
+    for rendered in trees {
+        let mut files = Vec::new();
+        walk(rendered, &mut files).expect("walk rendered skills");
+        files.sort();
+        for file in files {
+            file.strip_prefix(rendered)
+                .expect("walked under root")
+                .hash(&mut hasher);
+            fs::read(&file)
+                .expect("read rendered skill")
+                .hash(&mut hasher);
+        }
     }
     println!(
         "cargo:rustc-env=AGENT_GRAPH_SKILLS_FINGERPRINT={:016x}",

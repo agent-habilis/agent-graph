@@ -369,7 +369,10 @@ fn unplug_keeps_the_files_of_a_user_plugin_that_plug_did_not_write() {
     let out = run(&home, &["unplug", "--agent", "agy"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert_eq!(fs::read_to_string(plugin.join("plugin.json")).unwrap(), mine);
+    assert_eq!(
+        fs::read_to_string(plugin.join("plugin.json")).unwrap(),
+        mine
+    );
     assert!(plugin.join("hooks.json").is_file());
 }
 
@@ -385,7 +388,10 @@ fn plug_does_not_overwrite_a_plugin_json_of_the_user_for_agy() {
     let out = run(&home, &["plug", "--agent", "agy"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert_eq!(fs::read_to_string(plugin.join("plugin.json")).unwrap(), mine);
+    assert_eq!(
+        fs::read_to_string(plugin.join("plugin.json")).unwrap(),
+        mine
+    );
     assert!(plugin.join("skills/graph-up/SKILL.md").is_file());
 }
 
