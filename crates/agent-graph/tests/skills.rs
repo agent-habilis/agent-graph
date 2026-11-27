@@ -348,7 +348,13 @@ fn the_agy_render_names_each_slash_command_with_the_plugin_namespace() {
     let names: Vec<String> = source_skills().into_iter().map(|(name, _)| name).collect();
     let mut namespaced = 0;
     for skill in &names {
-        let body = agy_rendered_skill(tmp.path(), skill);
+        // The down broadcast is for peers of every agent, so it keeps the bare
+        // form on purpose. Another test pins it.
+        let body: String = agy_rendered_skill(tmp.path(), skill)
+            .lines()
+            .filter(|line| !line.contains("is down · each peer"))
+            .collect::<Vec<_>>()
+            .join("\n");
         for name in &names {
             assert_eq!(
                 bare_commands(&body, name),
@@ -367,4 +373,21 @@ fn the_default_render_keeps_the_bare_slash_commands() {
     let body = rendered_skill(tmp.path(), "graph-up");
     assert!(bare_commands(&body, "graph-leave") > 0);
     assert!(!body.contains("/agent-graph:"));
+}
+
+#[test]
+fn the_down_broadcast_is_the_same_in_each_render_and_names_both_forms() {
+    let tmp = TempDir::new().unwrap();
+    let broadcast = |body: String| {
+        body.lines()
+            .find(|line| line.contains("is down · each peer"))
+            .map(str::to_string)
+            .expect("no down broadcast")
+    };
+    let bare = broadcast(rendered_skill(tmp.path(), "graph-down"));
+    let agy = broadcast(agy_rendered_skill(tmp.path(), "graph-down"));
+
+    assert_eq!(bare, agy, "peers of every agent read this text");
+    assert!(bare.contains("/graph-leave"), "{bare}");
+    assert!(bare.contains("/agent-graph:graph-leave"), "{bare}");
 }

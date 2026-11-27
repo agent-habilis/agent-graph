@@ -55,7 +55,7 @@ graph · no graph · $INSTANCE
 2. If `$PEERS` is not empty, tell them. One broadcast reaches each peer:
 
    ```bash
-   agent-gossip a2a broadcast --gossip "$GOSSIP" --nickname "$NICKNAME" --text "graph $INSTANCE is down · each peer of $INSTANCE: run /graph-leave. Without the /graph-leave skill, run agent-graph graph node-down --pid \"\$PPID\" if agent-graph is on your PATH, then clear your meta entry: agent-gossip meta merge --gossip \"\$GOSSIP\" --nickname \"\$NICKNAME\" --merge '{\"peers\":{\"<your nickname>\":{\"instance\":null,\"graph\":null,\"hash\":null,\"node\":null,\"invited_by\":null,\"verified\":null,\"status\":\"idle\"}}}'. Then stop acting as your node."
+   agent-gossip a2a broadcast --gossip "$GOSSIP" --nickname "$NICKNAME" --text "graph $INSTANCE is down · each peer of $INSTANCE: run your graph-leave skill (<!-- bare -->/graph-leave, or /agent-graph:graph-leave in agy). Without that skill, run agent-graph graph node-down --pid \"\$PPID\" if agent-graph is on your PATH, then clear your meta entry: agent-gossip meta merge --gossip \"\$GOSSIP\" --nickname \"\$NICKNAME\" --merge '{\"peers\":{\"<your nickname>\":{\"instance\":null,\"graph\":null,\"hash\":null,\"node\":null,\"invited_by\":null,\"verified\":null,\"status\":\"idle\"}}}'. Then stop acting as your node."
    ```
 
 3. If your own entry has `instance` `$INSTANCE`, leave your node:

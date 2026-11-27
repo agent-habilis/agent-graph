@@ -78,10 +78,7 @@ fn render_skills(src: &Path, dest: &Path, namespace: Option<&str>) -> io::Result
         let skill = skill_dir.file_name().expect("skill dir has a name");
         let rendered = slot_template::expand(&skill_dir.join("SKILL.md"), &[], &mut loader)
             .unwrap_or_else(|error| panic!("skills/{}/SKILL.md: {error}", skill.to_string_lossy()));
-        let rendered = match namespace {
-            Some(namespace) => namespace_commands(&rendered, &names, namespace),
-            None => rendered,
-        };
+        let rendered = namespace_commands(&rendered, &names, namespace);
         let out = dest.join(skill);
         fs::create_dir_all(&out)?;
         fs::write(out.join("SKILL.md"), rendered)?;
@@ -89,16 +86,32 @@ fn render_skills(src: &Path, dest: &Path, namespace: Option<&str>) -> io::Result
     Ok(())
 }
 
-/// Writes `/<skill>` as `/<namespace>:<skill>` for each skill in `names`. A
-/// slash command stands after a space, a quote, a backtick, a bracket, or at
-/// the start of a line. A path such as `../shared/graph-meta.md` is not one.
-fn namespace_commands(text: &str, names: &[String], namespace: &str) -> String {
+/// Keeps a slash command bare: the renderer drops the marker and leaves the
+/// `/<skill>` that follows it as it is. It is for a text that a peer of any
+/// agent reads.
+const BARE: &str = "<!-- bare -->";
+
+/// Drops each `BARE` marker. With a `namespace`, it also writes `/<skill>` as
+/// `/<namespace>:<skill>` for each skill in `names`. A slash command stands
+/// after a space, a quote, a backtick, a bracket, or at the start of a line. A
+/// path such as `../shared/graph-meta.md` is not one.
+fn namespace_commands(text: &str, names: &[String], namespace: Option<&str>) -> String {
+    let Some(namespace) = namespace else {
+        return text.replace(BARE, "");
+    };
     let is_name_char = |ch: char| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_';
     let mut out = String::with_capacity(text.len());
     let mut before: Option<char> = None;
     let mut rest = text;
+    let mut keep_bare = false;
     while let Some(next) = rest.chars().next() {
+        if let Some(after_marker) = rest.strip_prefix(BARE) {
+            keep_bare = true;
+            rest = after_marker;
+            continue;
+        }
         if next == '/'
+            && !keep_bare
             && before.is_none_or(|prev| matches!(prev, ' ' | '"' | '`' | '(' | '[' | '\n'))
         {
             let word = &rest[1..];
@@ -112,6 +125,7 @@ fn namespace_commands(text: &str, names: &[String], namespace: &str) -> String {
                 continue;
             }
         }
+        keep_bare = false;
         out.push(next);
         before = Some(next);
         rest = &rest[next.len_utf8()..];
