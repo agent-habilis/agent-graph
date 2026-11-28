@@ -957,6 +957,21 @@ fn the_node_offer_brief_declines_when_agent_graph_is_too_old() {
 }
 
 #[test]
+fn the_graph_down_broadcast_tells_agy_to_write_pid_auto() {
+    let tmp = TempDir::new().unwrap();
+    let body = rendered_skill(tmp.path(), "graph-down");
+    let broadcast = body
+        .lines()
+        .find(|line| line.contains("--text \"graph $INSTANCE is down"))
+        .expect("the broadcast");
+    let ppid = broadcast.find("node-down --pid \\\"\\$PPID\\\"").expect("--pid");
+    let advice = broadcast
+        .find("In agy, write --pid auto in place of --pid \\\"\\$PPID\\\".")
+        .expect("no agy advice");
+    assert!(ppid < advice);
+}
+
+#[test]
 fn the_node_offer_brief_declines_when_agent_gossip_is_too_old_and_names_the_conversation_id() {
     let tmp = TempDir::new().unwrap();
     for skill in ["graph-up", "graph-node-invite"] {
