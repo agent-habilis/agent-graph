@@ -799,3 +799,127 @@ fn graph_topology_draws_two_peers_with_one_nickname_as_two_boxes() {
     ids.dedup();
     assert_eq!(ids.len(), 2, "{text}");
 }
+
+/// A folder with an `agent-gossip` that records its arguments, and answers
+/// `meta get` and `peers` with the given text. It returns the folder.
+fn gossip_stub(graph: &Graph, meta: &str, roster: &str, exit: i32) -> PathBuf {
+    let bin = graph.root.join("stub-bin");
+    write(&bin.join("meta.json"), meta);
+    write(&bin.join("peers.json"), roster);
+    let script = bin.join("agent-gossip");
+    fs::write(
+        &script,
+        format!(
+            "#!/bin/sh\necho \"$@\" >> '{dir}/calls'\n\
+             if [ {exit} -ne 0 ]; then echo 'daemon is down' >&2; exit {exit}; fi\n\
+             case \"$1\" in meta) cat '{dir}/meta.json';; peers) cat '{dir}/peers.json';; esac\n",
+            dir = bin.display(),
+        ),
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    bin
+}
+
+fn run_with_stub(graph: &Graph, bin: &Path, args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_agent-graph"))
+        .args(["graph", "topology", "--mermaid"])
+        .args(args)
+        .current_dir(&graph.root)
+        .env("HOME", &graph.home)
+        .env("PATH", format!("{}:/usr/bin:/bin", bin.display()))
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn graph_topology_reads_the_gossip_through_agent_gossip_with_gossip_and_nickname() {
+    let graph = graph();
+    let files = topology(&graph, &meta(&graph), ROSTER, &["--me", ANN_KEY]);
+    let bin = gossip_stub(&graph, &meta(&graph), ROSTER, 0);
+
+    let out = run_with_stub(
+        &graph,
+        &bin,
+        &["--gossip", "g1", "--nickname", "ann", "--me", ANN_KEY],
+    );
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), stdout(&files));
+    assert_eq!(stderr(&out), stderr(&files));
+    let calls = fs::read_to_string(bin.join("calls")).unwrap();
+    assert!(
+        calls.contains("meta get --gossip g1 --nickname ann"),
+        "{calls}"
+    );
+    assert!(
+        calls.contains("peers --gossip g1 --nickname ann"),
+        "{calls}"
+    );
+}
+
+#[test]
+fn graph_topology_reports_an_agent_gossip_that_fails() {
+    let graph = graph();
+    let bin = gossip_stub(&graph, &meta(&graph), ROSTER, 3);
+
+    let out = run_with_stub(
+        &graph,
+        &bin,
+        &["--gossip", "g1", "--nickname", "ann", "--me", ANN_KEY],
+    );
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("daemon is down"), "{}", stderr(&out));
+}
+
+#[test]
+fn graph_topology_reports_a_missing_agent_gossip() {
+    let graph = graph();
+    let empty = graph.root.join("empty-bin");
+    fs::create_dir_all(&empty).unwrap();
+
+    let out = run_with_stub(
+        &graph,
+        &empty,
+        &["--gossip", "g1", "--nickname", "ann", "--me", ANN_KEY],
+    );
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("agent-gossip"), "{}", stderr(&out));
+}
+
+#[test]
+fn graph_topology_takes_the_gossip_flags_or_the_files_and_nothing_else() {
+    let graph = graph();
+    let bin = gossip_stub(&graph, &meta(&graph), ROSTER, 0);
+    let (meta_file, peers_file) = (bin.join("meta.json"), bin.join("peers.json"));
+    let (meta_text, peers_text) = (meta_file.to_str().unwrap(), peers_file.to_str().unwrap());
+
+    for args in [
+        vec!["--me", ANN_KEY],
+        vec!["--gossip", "g1", "--me", ANN_KEY],
+        vec!["--nickname", "ann", "--me", ANN_KEY],
+        vec!["--meta", meta_text, "--me", ANN_KEY],
+        vec![
+            "--gossip",
+            "g1",
+            "--nickname",
+            "ann",
+            "--meta",
+            meta_text,
+            "--peers",
+            peers_text,
+            "--me",
+            ANN_KEY,
+        ],
+    ] {
+        let out = run_with_stub(&graph, &bin, &args);
+
+        assert_eq!(out.status.code(), Some(2), "{args:?}: {}", stderr(&out));
+    }
+}

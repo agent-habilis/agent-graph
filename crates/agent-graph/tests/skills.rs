@@ -218,7 +218,7 @@ fn the_lead_peer_marks_its_meta_entry_with_leader_true() {
     let invite = rendered_skill(tmp.path(), "graph-node-invite");
 
     assert!(graph_up.contains("\"leader\":true"), "graph-up");
-    assert!(invite.contains("Lead: <yes|no>"), "the offer brief");
+    assert!(invite.contains("Lead: <yes or no>"), "the offer brief");
     assert!(invite.contains(r#"\"leader\":true"#), "the offer brief");
 }
 
@@ -726,46 +726,56 @@ fn graph_trait_run_tells_agy_not_to_poll_the_subagent() {
     }
 }
 
-/// What is wrong with one shell command text, or none. The text can span lines.
-/// `$(` and `${` expand in double quotes too, but not in single quotes or after
-/// a backslash. `&&`, `||`, and `>` are shell syntax only outside quotes. A
-/// `#` that starts a word outside quotes begins a comment.
-fn shell_constructs(command: &str) -> Vec<String> {
+/// What a shell would do in a command text that `agy` cannot match against an
+/// allow rule: a substitution, a pipe, a list, a redirect, a background job.
+/// With `strict`, quotes protect nothing, for text that a peer reads and
+/// then types as a command. Else `$(`, `${`, and a backtick count in double
+/// quotes too, and nothing counts in single quotes or after a backslash. A
+/// `<word>` or `<some words>` is a placeholder. A `#` that starts a word
+/// outside quotes begins a comment.
+fn scan_shell(command: &str, strict: bool) -> Vec<String> {
     let chars: Vec<char> = command.chars().collect();
     let mut found = Vec::new();
-    let (mut single, mut double) = (false, false);
-    // A `<` outside quotes opens a placeholder such as `<graph name>`, and the
-    // next `>` closes it. A `>` with no `<` before it is a redirect.
-    let mut placeholder = false;
+    let (mut single, mut double, mut ticked) = (false, false, false);
     let mut at = 0;
     while at < chars.len() {
         let here = chars[at];
         let next = chars.get(at + 1).copied();
-        if single {
+        let quoted = !strict && (single || double);
+        if single && !strict {
             single = here != '\'';
         } else if here == '\\' {
             at += 1;
-        } else if double {
-            match (here, next) {
-                ('"', _) => double = false,
-                ('$', Some('(' | '{')) => found.push(format!("`${}`", next.unwrap())),
-                _ => {}
-            }
+        } else if !strict && !single && here == '\'' && !double {
+            single = true;
+        } else if !strict && here == '"' {
+            double = !double;
         } else {
             match (here, next) {
-                ('\'', _) => single = true,
-                ('"', _) => double = true,
+                ('$', Some('(' | '{')) => found.push(format!("`${}`", next.unwrap())),
+                ('`', _) => {
+                    // A pair of backticks is one substitution.
+                    ticked = !ticked;
+                    if ticked {
+                        found.push("a backtick".to_string());
+                    }
+                }
+                _ if quoted => {}
                 ('#', _) if at == 0 || chars[at - 1].is_whitespace() => {
                     while at < chars.len() && chars[at] != '\n' {
                         at += 1;
                     }
                 }
-                ('$', Some('(' | '{')) => found.push(format!("`${}`", next.unwrap())),
-                ('&', Some('&')) => found.push("`&&`".to_string()),
-                ('|', Some('|')) => found.push("`||`".to_string()),
-                ('<', _) => placeholder = true,
-                ('>', _) if placeholder => placeholder = false,
-                ('>', _) => found.push("`>`".to_string()),
+                ('&', Some('&')) | ('|', Some('|')) => {
+                    found.push(format!("`{here}{here}`"));
+                    at += 1;
+                }
+                ('&' | '|' | ';' | '>', _) => found.push(format!("`{here}`")),
+                ('<', Some('(')) => found.push("`<(`".to_string()),
+                ('<', _) => match placeholder_end(&chars, at) {
+                    Some(end) => at = end,
+                    None => found.push("`<`".to_string()),
+                },
                 _ => {}
             }
         }
@@ -774,22 +784,47 @@ fn shell_constructs(command: &str) -> Vec<String> {
     found
 }
 
-/// The commands of the `bash` and `sh` blocks of a skill, each with the line
-/// where it starts.
+/// The index of the `>` that closes the placeholder that starts at `open`:
+/// a letter, then letters, digits, spaces, `_`, `.`, or `-`.
+fn placeholder_end(chars: &[char], open: usize) -> Option<usize> {
+    let mut at = open + 1;
+    if !chars.get(at)?.is_ascii_alphabetic() {
+        return None;
+    }
+    while let Some(&here) = chars.get(at) {
+        match here {
+            '>' => return Some(at),
+            ' ' | '_' | '.' | '-' => {}
+            _ if here.is_ascii_alphanumeric() => {}
+            _ => return None,
+        }
+        at += 1;
+    }
+    None
+}
+
+fn shell_constructs(command: &str) -> Vec<String> {
+    scan_shell(command, false)
+}
+
+/// The commands of the `bash`, `sh`, `shell`, and untagged blocks of a skill,
+/// each with the line where it starts. A block with another tag, such as
+/// `text`, holds output or data.
 fn commands_of(body: &str) -> Vec<(usize, String)> {
     let mut commands = Vec::new();
-    let mut block: Option<Vec<&str>> = None;
-    let mut start = 0;
+    let mut open: Option<(bool, usize, Vec<&str>)> = None;
     for (number, line) in body.lines().enumerate() {
         let trimmed = line.trim_start();
-        if let Some(fence) = trimmed.strip_prefix("```") {
-            if let Some(lines) = block.take() {
-                commands.push((start, lines.join("\n")));
-            } else if matches!(fence, "bash" | "sh") {
-                block = Some(Vec::new());
-                start = number + 2;
+        if let Some(tag) = trimmed.strip_prefix("```") {
+            match open.take() {
+                Some((true, start, lines)) => commands.push((start, lines.join("\n"))),
+                Some((false, ..)) => {}
+                None => {
+                    let is_command = matches!(tag, "" | "bash" | "sh" | "shell");
+                    open = Some((is_command, number + 2, Vec::new()));
+                }
             }
-        } else if let Some(lines) = block.as_mut() {
+        } else if let Some((_, _, lines)) = open.as_mut() {
             lines.push(trimmed);
         }
     }
@@ -801,12 +836,13 @@ fn the_shell_construct_scanner_knows_quotes_comments_and_escapes() {
     for clean in [
         "agent-gossip a2a call --text \"run <id> or <node>\"",
         "agent-graph node list --tag '<regex>' # only nodes with a tag > 1",
-        "agent-gossip a2a call --text \"mkdir && tar, a || b, a > b\"",
-        "echo '$(date) ${HOME} && ||'",
-        "echo \"\\$(date) \\${HOME}\"",
+        "agent-gossip a2a call --text \"mkdir && tar, a || b, a > b, a | b; c &\"",
+        "echo '$(date) ${HOME} && || `x`'",
+        "echo \"\\$(date) \\${HOME} \\`x\\`\"",
         "agent-gossip meta merge --merge '{\"a\":\"'\"$INSTANCE\"'\"}'",
         "agent-graph graph topology \\\n  --me \"$PUBKEY\"",
-        "agent-graph graph nodes <graph name> --x [--name <name>]",
+        "agent-graph graph nodes <graph name> --x [--name <name>] <graph>/<node>",
+        "agent-graph graph pack \"$SOURCE\" --output /tmp/$HASH.tar",
     ] {
         assert_eq!(shell_constructs(clean), Vec::<String>::new(), "{clean}");
     }
@@ -818,9 +854,41 @@ fn the_shell_construct_scanner_knows_quotes_comments_and_escapes() {
         ("a || b", "`||`"),
         ("a > b", "`>`"),
         ("a 2>/dev/null", "`>`"),
+        ("a `date`", "a backtick"),
+        ("a \"`date`\"", "a backtick"),
+        ("a | b", "`|`"),
+        ("a ; b", "`;`"),
+        ("a;b", "`;`"),
+        ("diff <(a)", "`<(`"),
+        ("a &", "`&`"),
+        ("a < in", "`<`"),
+        ("a <2", "`<`"),
     ] {
         assert_eq!(shell_constructs(dirty), [construct], "{dirty}");
     }
+    assert_eq!(shell_constructs("a < in > out"), ["`<`", "`>`"]);
+    assert_eq!(
+        scan_shell("say \"a && b\" and '$(x)'", true),
+        ["`&&`", "`$(`"]
+    );
+}
+
+#[test]
+fn the_scanner_reads_each_kind_of_fence_that_holds_commands() {
+    let body = "```bash\na $(x)\n```\n\n```sh\na | b\n```\n\n```shell\na ; b\n```\n\n```\na && b\n```\n\n```text\n💬 a $(x) | b\n```\n\nafter\n";
+    let found: Vec<(usize, Vec<String>)> = commands_of(body)
+        .into_iter()
+        .map(|(line, command)| (line, shell_constructs(&command)))
+        .collect();
+    assert_eq!(
+        found,
+        [
+            (2, vec!["`$(`".to_string()]),
+            (6, vec!["`|`".to_string()]),
+            (10, vec!["`;`".to_string()]),
+            (14, vec!["`&&`".to_string()]),
+        ]
+    );
 }
 
 #[test]
@@ -846,9 +914,10 @@ fn the_node_offer_brief_asks_no_peer_for_a_shell_construct() {
             .lines()
             .find(|line| line.contains("--text \"Node offer."))
             .unwrap_or_else(|| panic!("{skill}: no brief"));
-        for construct in ["&&", "||", "$(", "${"] {
-            assert!(!brief.contains(construct), "{skill}: `{construct}`");
-        }
+        // The peer reads the text of the brief as plain text, so quotes
+        // protect nothing in it.
+        let text = brief.split_once("--text \"").unwrap().1;
+        assert_eq!(scan_shell(text, true), Vec::<String>::new(), "{skill}");
     }
 }
 
@@ -949,4 +1018,28 @@ fn no_skill_allows_a_tool_that_it_does_not_run() {
             );
         }
     }
+}
+
+#[test]
+fn the_agy_render_has_ppid_only_after_session_pid_and_in_escaped_brief_text() {
+    let tmp = TempDir::new().unwrap();
+    let mut seen = 0;
+    for (name, _) in source_skills() {
+        for (number, line) in agy_rendered_skill(tmp.path(), &name).lines().enumerate() {
+            for (at, _) in line.match_indices("$PPID") {
+                let before = &line[..at];
+                let after_session_pid = before.ends_with("--session-pid \"");
+                let escaped = before.ends_with('\\');
+                // `--pid "$PPID"` is `--pid auto` in this render, and prose
+                // can name `$PPID` only in code that these two cases cover.
+                assert!(
+                    after_session_pid || escaped,
+                    "{name}:{}: `$PPID` outside `--session-pid` and escaped text: {line:.100}",
+                    number + 1
+                );
+                seen += 1;
+            }
+        }
+    }
+    assert!(seen > 0, "the check found no `$PPID` at all");
 }

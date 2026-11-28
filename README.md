@@ -126,6 +126,7 @@ agent-graph graph install <folder>         # copy a graph to ~/.agent-graph/grap
 agent-graph graph install --tar F --expect HASH  # extract a tar file of a graph; keep it only if its hash is HASH
 agent-graph graph node-down --pid N        # remove /tmp/agent-graph/N.json
 agent-graph graph topology [--name N] --meta F --peers F --me KEY   # draw the running graph from gossip meta JSON; --mermaid for the source
+agent-graph graph topology [--name N] --gossip G --nickname N --me KEY   # the same; the command runs agent-gossip itself
 agent-graph node list                      # standalone nodes: name<TAB>description<TAB>tags<TAB>path
 agent-graph node list --tag '^go$'         # only nodes with a tag that matches the regex
 agent-graph node up worker                 # the body of the standalone node

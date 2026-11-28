@@ -34,12 +34,10 @@ If the command is not found, tell the user to run `cargo task install` in the
 
 ## Draw
 
-Give the two gossip documents to the command in one call:
+The command reads the two gossip documents itself, through `agent-gossip`:
 
 ```bash
-agent-graph graph topology [--name <name>] --me "$PUBKEY" \
-  --meta <(agent-gossip meta get --gossip "$GOSSIP" --nickname "$NICKNAME") \
-  --peers <(agent-gossip peers --gossip "$GOSSIP" --nickname "$NICKNAME")
+agent-graph graph topology [--name <name>] --me "$PUBKEY" --gossip "$GOSSIP" --nickname "$NICKNAME"
 ```
 
 Show stdout in a `text` fence, without changes: it is a box drawing, and it

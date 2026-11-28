@@ -1055,3 +1055,54 @@ fn graph_node_up_output_to_a_folder_that_is_missing_fails() {
     assert_eq!(out.status.code(), Some(1));
     assert!(stderr(&out).contains("context.md"), "{}", stderr(&out));
 }
+
+#[test]
+fn graph_node_up_writes_the_output_file_before_the_statusline_record() {
+    let (_tmp, root) = root();
+    graph_node(&root, "graph", "worker", &index("w", None, ""));
+    let missing = root.join("no-such-folder/context.md");
+    let state = PathBuf::from("/tmp/agent-graph/4000012.json");
+    let _ = fs::remove_file(&state);
+
+    let out = run(
+        &root,
+        &[
+            "graph",
+            "node-up",
+            "graph/worker",
+            "--pid",
+            "4000012",
+            "--output",
+            missing.to_str().unwrap(),
+        ],
+    );
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(!state.exists(), "the statusline record was written first");
+}
+
+#[cfg(unix)]
+#[test]
+fn graph_node_up_output_does_not_write_through_a_link() {
+    let (_tmp, root) = root();
+    graph_node(&root, "graph", "worker", &index("w", None, ""));
+    let target = root.join("precious.txt");
+    fs::write(&target, "keep\n").unwrap();
+    let link = root.join("context.md");
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+
+    let out = run(
+        &root,
+        &[
+            "graph",
+            "node-up",
+            "graph/worker",
+            "--output",
+            link.to_str().unwrap(),
+        ],
+    );
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("symbolic link"), "{}", stderr(&out));
+    assert_eq!(fs::read_to_string(&target).unwrap(), "keep\n");
+}

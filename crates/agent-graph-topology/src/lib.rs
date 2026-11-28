@@ -23,23 +23,31 @@ impl Gossip {
     /// Fails when a file cannot be read or parsed, or holds an
     /// `agent-gossip` error.
     pub fn read(meta: &Path, roster: &Path) -> Result<Self> {
-        let read = |path: &Path| -> Result<Value> {
-            let text =
-                fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+        let read = |path: &Path| -> Result<String> {
+            fs::read_to_string(path).with_context(|| format!("read {}", path.display()))
+        };
+        let label = |path: &Path| path.display().to_string();
+        Self::parse(&read(meta)?, &label(meta), &read(roster)?, &label(roster))
+    }
+
+    /// Parse the text of `agent-gossip meta get` and of `agent-gossip peers`.
+    /// A label names each text in an error.
+    ///
+    /// # Errors
+    ///
+    /// Fails when a text cannot be parsed, or holds an `agent-gossip` error.
+    pub fn parse(meta: &str, meta_label: &str, roster: &str, roster_label: &str) -> Result<Self> {
+        let parse = |text: &str, label: &str| -> Result<Value> {
             let value: Value =
-                serde_json::from_str(&text).with_context(|| format!("parse {}", path.display()))?;
+                serde_json::from_str(text).with_context(|| format!("parse {label}"))?;
             if value["ok"] == false {
-                bail!(
-                    "{}: agent-gossip failed: {}",
-                    path.display(),
-                    value["error"]
-                );
+                bail!("{label}: agent-gossip failed: {}", value["error"]);
             }
             Ok(value)
         };
         Ok(Self {
-            meta: read(meta)?,
-            roster: read(roster)?,
+            meta: parse(meta, meta_label)?,
+            roster: parse(roster, roster_label)?,
         })
     }
 

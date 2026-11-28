@@ -9,7 +9,6 @@ mod state;
 
 use std::collections::BTreeMap;
 use std::env;
-use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -162,17 +161,26 @@ enum GraphCommand {
     /// Draw the running graph: one box per peer in its node, and the
     /// edges between them. Prints one `warning:` line per problem to
     /// stderr.
+    #[command(group = ArgGroup::new("source").required(true).args(["meta", "gossip"]))]
     Topology {
         /// The graph instance name, for example `squad1@main`. The default
         /// is the graph of `--me`.
         #[arg(long = "name")]
         instance: Option<String>,
-        /// The output of `agent-gossip meta get`.
-        #[arg(long)]
-        meta: PathBuf,
-        /// The output of `agent-gossip peers`.
-        #[arg(long)]
-        peers: PathBuf,
+        /// The output of `agent-gossip meta get`, in a file.
+        #[arg(long, requires = "peers", conflicts_with = "gossip")]
+        meta: Option<PathBuf>,
+        /// The output of `agent-gossip peers`, in a file.
+        #[arg(long, requires = "meta", conflicts_with = "gossip")]
+        peers: Option<PathBuf>,
+        /// The gossip id. The command runs `agent-gossip meta get` and
+        /// `agent-gossip peers` for it, so a shell needs no process
+        /// substitution.
+        #[arg(long, requires = "nickname")]
+        gossip: Option<String>,
+        /// The nickname of this agent in the gossip.
+        #[arg(long, requires = "gossip")]
+        nickname: Option<String>,
         /// The session key of this agent, the `pubkey` of `agent-gossip session`.
         #[arg(long)]
         me: String,
@@ -415,6 +423,42 @@ fn parse_hash(text: &str) -> Result<String, String> {
     }
 }
 
+/// The gossip documents, from two files, or from `agent-gossip` itself.
+fn read_gossip(
+    meta: Option<PathBuf>,
+    peers: Option<PathBuf>,
+    gossip: Option<String>,
+    nickname: Option<String>,
+) -> Result<topology::Gossip> {
+    if let (Some(meta), Some(peers)) = (meta, peers) {
+        return topology::Gossip::read(&meta, &peers);
+    }
+    let (Some(gossip), Some(nickname)) = (gossip, nickname) else {
+        unreachable!("clap requires the two files, or --gossip with --nickname");
+    };
+    let ask = |args: &[&str]| -> Result<String> {
+        let out = std::process::Command::new("agent-gossip")
+            .args(args)
+            .args(["--gossip", &gossip, "--nickname", &nickname])
+            .output()
+            .context("cannot run agent-gossip")?;
+        if !out.status.success() {
+            bail!(
+                "agent-gossip {} failed: {}",
+                args.join(" "),
+                String::from_utf8_lossy(&out.stderr).trim()
+            );
+        }
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    };
+    topology::Gossip::parse(
+        &ask(&["meta", "get"])?,
+        "agent-gossip meta get",
+        &ask(&["peers"])?,
+        "agent-gossip peers",
+    )
+}
+
 fn graph_list(graphs: &BTreeMap<String, PathBuf>, stdout: &mut impl Write) -> Result<()> {
     for (name, dir) in graphs {
         match graph::load(dir) {
@@ -521,10 +565,12 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
             instance,
             meta,
             peers,
+            gossip,
+            nickname,
             me,
             mermaid,
         } => {
-            let gossip = topology::Gossip::read(&meta, &peers)?;
+            let gossip = read_gossip(meta, peers, gossip, nickname)?;
             draw_topology(&graphs, &gossip, instance.as_deref(), &me, mermaid, stdout)?;
         }
         GraphCommand::NodeUp {
@@ -622,18 +668,25 @@ fn graph_node_up(
     stdout: &mut impl Write,
 ) -> Result<()> {
     let context = graph_node_context(graphs, name)?;
-    if let Some(pid) = pid {
-        state::write(
-            pid.resolve()?,
-            Some((context.graph_name, &context.graph)),
-            (context.node_name, &context.node),
-            label,
-        )?;
-    }
-    match output {
-        Some(file) => fs::write(file, &context.text)
-            .with_context(|| format!("cannot write {}", file.display()))?,
-        None => write!(stdout, "{}", context.text)?,
+    let record = || -> Result<()> {
+        if let Some(pid) = pid {
+            state::write(
+                pid.resolve()?,
+                Some((context.graph_name, &context.graph)),
+                (context.node_name, &context.node),
+                label,
+            )?;
+        }
+        Ok(())
+    };
+    // The file comes first: a file that cannot be written must not leave a
+    // statusline record behind.
+    if let Some(file) = output {
+        output::write_new(file, context.text.as_bytes())?;
+        record()?;
+    } else {
+        record()?;
+        write!(stdout, "{}", context.text)?;
     }
     Ok(())
 }
