@@ -499,7 +499,7 @@ fn source_skills() -> Vec<(String, String)> {
         })
         .collect();
     skills.sort();
-    assert!(!skills.is_empty());
+    assert_ne!(skills.len(), 0, "no skill");
     skills
 }
 

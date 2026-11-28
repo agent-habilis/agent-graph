@@ -330,8 +330,8 @@ mod tests {
             .process(std::process::id())
             .expect("this process");
         assert_eq!(me.ppid, std::os::unix::process::parent_id());
-        assert!(!me.name.is_empty());
+        assert_ne!(me.name, "");
         let parent = SystemTable.process(me.ppid).expect("the parent");
-        assert!(!parent.name.is_empty());
+        assert_ne!(parent.name, "");
     }
 }
