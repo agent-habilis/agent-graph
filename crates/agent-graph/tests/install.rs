@@ -602,6 +602,43 @@ fn install_skips_apple_double_entries_so_a_tar_of_an_older_peer_installs() {
     assert!(!copy.join("nodes/w/._index.md").exists());
 }
 
+#[cfg(target_os = "macos")]
+#[test]
+fn install_accepts_the_tar_that_the_system_tar_makes_for_a_file_with_an_xattr() {
+    let (_tmp, root) = root();
+    let src = root.join("src");
+    let hash = graph_folder(&src);
+    xattr::set(src.join("index.md"), "com.example.test", b"x").unwrap();
+    let file = root.join("graph.tar");
+    // No COPYFILE_DISABLE: this is the tar of a peer that does not set it.
+    let status = Command::new("/usr/bin/tar")
+        .arg("-cf")
+        .arg(&file)
+        .arg("-C")
+        .arg(&src)
+        .arg(".")
+        .status()
+        .unwrap();
+    assert!(status.success());
+    // `tar -tf` hides the AppleDouble entries, so read the file the way the
+    // installer does.
+    let names: Vec<String> = tar::Archive::new(fs::File::open(&file).unwrap())
+        .entries()
+        .unwrap()
+        .map(|entry| entry.unwrap().path().unwrap().display().to_string())
+        .collect();
+    assert!(
+        names.iter().any(|name| name.contains("._")),
+        "the system tar made no AppleDouble entry: {names:?}"
+    );
+
+    let out = install_tar(&root, &file, &hash);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let copy = installed(&root).join(&hash);
+    assert!(!copy.join("._index.md").exists());
+}
+
 /// A graph folder `<root>/.agent-graph/graphs/g` with a nested node and an
 /// extended attribute on one file. Returns the hash.
 fn graph_with_an_xattr(root: &Path) -> String {
