@@ -935,6 +935,12 @@ fn pid_auto_names_the_agent_above_the_shell_for_up_and_down() {
     ] {
         let out = run_in_shell(&root, &[up[0], up[1], name, "--pid", "auto"]);
         assert!(out.status.success(), "{}", stderr(&out));
+        // One line says which process `auto` found, so a wrong one shows.
+        assert!(
+            stderr(&out).contains(&format!("--pid auto is process {agent} (")),
+            "{}",
+            stderr(&out)
+        );
         let state: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(state["pid"], agent, "{state}");
@@ -943,6 +949,12 @@ fn pid_auto_names_the_agent_above_the_shell_for_up_and_down() {
         assert!(removed.status.success(), "{}", stderr(&removed));
         assert!(!path.exists(), "{name}: the state file stays");
     }
+
+    // Only one test uses the pid of this process, so no other thread writes
+    // or removes the file while the checks run.
+    let plain = run_in_shell(&root, &["node", "up", "solo"]);
+    assert!(plain.status.success(), "{}", stderr(&plain));
+    assert!(!path.exists(), "a plain node up wrote a state file");
 }
 
 #[test]
@@ -954,20 +966,6 @@ fn pid_accepts_a_number_or_auto_and_nothing_else() {
 
     assert_eq!(out.status.code(), Some(2));
     assert!(stderr(&out).contains("a pid or `auto`"), "{}", stderr(&out));
-}
-
-#[test]
-fn a_plain_node_up_still_writes_no_state_file() {
-    let (_tmp, root) = root();
-    node(&root, "solo", &index("d", None, ""));
-    let agent = std::process::id();
-    let path = PathBuf::from(format!("/tmp/agent-graph/{agent}.json"));
-    let _ = fs::remove_file(&path);
-
-    let out = run_in_shell(&root, &["node", "up", "solo"]);
-
-    assert!(out.status.success(), "{}", stderr(&out));
-    assert!(!path.exists());
 }
 
 #[test]
