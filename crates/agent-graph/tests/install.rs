@@ -290,3 +290,279 @@ fn install_of_a_missing_folder_or_tar_fails_and_leaves_nothing() {
     assert_eq!(file.status.code(), Some(1), "{}", stderr(&file));
     assert_eq!(entries(&root), Vec::<String>::new());
 }
+
+/// One entry of a hand-made tar file.
+struct Entry<'a> {
+    path: &'a str,
+    kind: tar::EntryType,
+    mode: u32,
+    data: &'a [u8],
+}
+
+fn file_entry<'a>(path: &'a str, data: &'a [u8]) -> Entry<'a> {
+    Entry {
+        path,
+        kind: tar::EntryType::Regular,
+        mode: 0o644,
+        data,
+    }
+}
+
+fn build_tar(file: &Path, entries: &[Entry<'_>]) {
+    let mut builder = tar::Builder::new(fs::File::create(file).unwrap());
+    for entry in entries {
+        let mut header = tar::Header::new_gnu();
+        let name = entry.path.as_bytes();
+        header.as_gnu_mut().unwrap().name[..name.len()].copy_from_slice(name);
+        header.set_entry_type(entry.kind);
+        header.set_mode(entry.mode);
+        header.set_size(entry.data.len() as u64);
+        header.set_cksum();
+        builder.append(&header, entry.data).unwrap();
+    }
+    builder.finish().unwrap();
+}
+
+const INDEX: &[u8] = b"---\ntype: Graph\ndescription: g\nscope: branch\n---\n";
+
+fn install_tar(root: &Path, file: &Path, expect: &str) -> Output {
+    run(
+        root,
+        &[
+            "graph",
+            "install",
+            "--tar",
+            file.to_str().unwrap(),
+            "--expect",
+            expect,
+        ],
+    )
+}
+
+/// The hash of a graph folder that holds `files`, made in a scratch folder.
+fn hash_of(root: &Path, files: &[(&str, &[u8])]) -> String {
+    let dir = root.join("hash-scratch");
+    let _ = fs::remove_dir_all(&dir);
+    for (path, data) in files {
+        fs::create_dir_all(dir.join(path).parent().unwrap()).unwrap();
+        fs::write(dir.join(path), data).unwrap();
+    }
+    let hash = graph::hash(&dir).unwrap();
+    fs::remove_dir_all(&dir).unwrap();
+    hash
+}
+
+#[test]
+fn install_replaces_an_installed_folder_whose_content_does_not_match_its_name() {
+    let (_tmp, root) = root();
+    let src = root.join("src");
+    let hash = graph_folder(&src);
+    assert!(
+        run(&root, &["graph", "install", src.to_str().unwrap()])
+            .status
+            .success()
+    );
+    let copy = installed(&root).join(&hash);
+    fs::write(copy.join("index.md"), "tampered\n").unwrap();
+    fs::write(copy.join("extra.md"), "extra\n").unwrap();
+
+    let out = run(&root, &["graph", "install", src.to_str().unwrap()]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(graph::hash(&copy).unwrap(), hash);
+    assert!(!copy.join("extra.md").exists());
+    assert_eq!(entries(&root), [hash]);
+}
+
+#[test]
+fn install_replaces_a_folder_that_does_not_match_its_name_when_it_installs_a_tar_too() {
+    let (_tmp, root) = root();
+    let files: [(&str, &[u8]); 1] = [("index.md", INDEX)];
+    let hash = hash_of(&root, &files);
+    let copy = installed(&root).join(&hash);
+    fs::create_dir_all(&copy).unwrap();
+    fs::write(copy.join("index.md"), "tampered\n").unwrap();
+    let file = root.join("g.tar");
+    build_tar(&file, &[file_entry("index.md", INDEX)]);
+
+    let out = install_tar(&root, &file, &hash);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(graph::hash(&copy).unwrap(), hash);
+}
+
+#[test]
+fn install_stages_outside_the_graphs_folder_and_removes_a_stale_stage() {
+    let (_tmp, root) = root();
+    let src = root.join("src");
+    graph_folder(&src);
+    let staging = root.join(".agent-graph/.staging");
+    let stale = staging.join("old.tmp-1");
+    let fresh = staging.join("fresh.tmp-2");
+    fs::create_dir_all(&stale).unwrap();
+    fs::create_dir_all(&fresh).unwrap();
+    let two_hours_ago = std::time::SystemTime::now() - std::time::Duration::from_hours(2);
+    fs::File::open(&stale)
+        .unwrap()
+        .set_modified(two_hours_ago)
+        .unwrap();
+
+    let out = run(&root, &["graph", "install", src.to_str().unwrap()]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(!stale.exists(), "a stale stage stays");
+    assert!(fresh.exists(), "a recent stage of another process goes");
+    assert_eq!(entries(&root).len(), 1, "{:?}", entries(&root));
+}
+
+#[test]
+fn a_failed_tar_install_leaves_nothing_in_the_staging_folder() {
+    let (_tmp, root) = root();
+    let file = root.join("g.tar");
+    build_tar(&file, &[file_entry("index.md", INDEX)]);
+
+    let out = install_tar(&root, &file, &"e".repeat(64));
+
+    assert_eq!(out.status.code(), Some(1));
+    let staging = root.join(".agent-graph/.staging");
+    let left: Vec<_> = fs::read_dir(&staging)
+        .map(Iterator::count)
+        .into_iter()
+        .collect();
+    assert!(left.iter().all(|count| *count == 0), "{left:?}");
+}
+
+#[test]
+fn install_refuses_a_tar_with_too_many_entries() {
+    let (_tmp, root) = root();
+    let file = root.join("many.tar");
+    let names: Vec<String> = (0..10_001).map(|number| format!("f{number}.md")).collect();
+    let entries_: Vec<Entry<'_>> = names.iter().map(|name| file_entry(name, b"")).collect();
+    build_tar(&file, &entries_);
+
+    let out = install_tar(&root, &file, &"f".repeat(64));
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(
+        stderr(&out).contains("too many entries"),
+        "{}",
+        stderr(&out)
+    );
+    assert_eq!(entries(&root), Vec::<String>::new());
+}
+
+#[test]
+fn install_refuses_a_tar_over_the_size_limit_before_it_writes_the_big_file() {
+    let (_tmp, root) = root();
+    let file = root.join("big.tar");
+    let big = vec![0_u8; 16 * 1024 * 1024 + 1];
+    build_tar(
+        &file,
+        &[file_entry("index.md", INDEX), file_entry("big.bin", &big)],
+    );
+
+    let out = install_tar(&root, &file, &"1".repeat(64));
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("too large"), "{}", stderr(&out));
+    assert_eq!(entries(&root), Vec::<String>::new());
+}
+
+#[test]
+fn install_refuses_an_absolute_path_in_a_tar() {
+    let (_tmp, root) = root();
+    let file = root.join("abs.tar");
+    build_tar(&file, &[file_entry("/index.md", INDEX)]);
+    let files: [(&str, &[u8]); 1] = [("index.md", INDEX)];
+    let hash = hash_of(&root, &files);
+
+    let out = install_tar(&root, &file, &hash);
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("outside"), "{}", stderr(&out));
+    assert_eq!(entries(&root), Vec::<String>::new());
+}
+
+#[cfg(unix)]
+#[test]
+fn install_sets_a_mode_of_0644_for_a_file_and_0755_for_a_folder() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (_tmp, root) = root();
+    let files: [(&str, &[u8]); 2] = [("index.md", INDEX), ("nodes/w/index.md", b"n\n")];
+    let hash = hash_of(&root, &files);
+    let file = root.join("g.tar");
+    build_tar(
+        &file,
+        &[
+            Entry {
+                path: "nodes",
+                kind: tar::EntryType::Directory,
+                mode: 0o700,
+                data: b"",
+            },
+            Entry {
+                path: "nodes/w",
+                kind: tar::EntryType::Directory,
+                mode: 0o700,
+                data: b"",
+            },
+            Entry {
+                mode: 0o777,
+                ..file_entry("index.md", INDEX)
+            },
+            Entry {
+                mode: 0o600,
+                ..file_entry("nodes/w/index.md", b"n\n")
+            },
+        ],
+    );
+
+    let out = install_tar(&root, &file, &hash);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let copy = installed(&root).join(&hash);
+    let mode = |path: &Path| fs::metadata(path).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode(&copy.join("index.md")), 0o644);
+    assert_eq!(mode(&copy.join("nodes/w/index.md")), 0o644);
+    assert_eq!(mode(&copy.join("nodes")), 0o755);
+    assert_eq!(mode(&copy.join("nodes/w")), 0o755);
+}
+
+#[cfg(unix)]
+#[test]
+fn install_of_a_folder_sets_the_same_modes() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (_tmp, root) = root();
+    let src = root.join("src");
+    let hash = graph_folder(&src);
+    fs::set_permissions(src.join("index.md"), fs::Permissions::from_mode(0o600)).unwrap();
+    fs::set_permissions(src.join("nodes"), fs::Permissions::from_mode(0o700)).unwrap();
+
+    let out = run(&root, &["graph", "install", src.to_str().unwrap()]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let copy = installed(&root).join(hash);
+    let mode = |path: &Path| fs::metadata(path).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode(&copy.join("index.md")), 0o644);
+    assert_eq!(mode(&copy.join("nodes")), 0o755);
+}
+
+#[test]
+fn install_refuses_an_empty_home() {
+    let (_tmp, root) = root();
+    let src = root.join("src");
+    graph_folder(&src);
+
+    let out = Command::new(env!("CARGO_BIN_EXE_agent-graph"))
+        .args(["graph", "install", src.to_str().unwrap()])
+        .env("HOME", "")
+        .current_dir(&root)
+        .output()
+        .unwrap();
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("HOME"), "{}", stderr(&out));
+    assert!(!root.join(".agent-graph").exists());
+}
