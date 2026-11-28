@@ -262,10 +262,15 @@ fn no_graph_skill_writes_or_reads_the_peers_shape_of_the_meta() {
         "graph-node-invite",
         "graph-topology",
     ] {
-        let text = rendered_skill(tmp.path(), skill).replace('\\', "");
+        for text in [
+            rendered_skill(tmp.path(), skill),
+            agy_rendered_skill(tmp.path(), skill),
+        ] {
+            let text = text.replace('\\', "");
 
-        for old in [r#"{"peers":"#, "document.peers", "/peers/"] {
-            assert!(!text.contains(old), "{skill} still has `{old}`");
+            for old in [r#"{"peers":"#, "document.peers", "/peers/"] {
+                assert!(!text.contains(old), "{skill} still has `{old}`");
+            }
         }
     }
 }
@@ -638,4 +643,34 @@ fn the_down_broadcast_is_the_same_in_each_render_and_names_both_forms() {
     assert_eq!(bare, agy, "peers of every agent read this text");
     assert!(bare.contains("/graph-leave"), "{bare}");
     assert!(bare.contains("/agent-graph:graph-leave"), "{bare}");
+}
+
+#[test]
+fn the_agy_sandbox_rule_of_the_offer_brief_follows_the_a_or_b_choice() {
+    let tmp = TempDir::new().unwrap();
+    for skill in ["graph-up", "graph-node-invite"] {
+        let body = rendered_skill(tmp.path(), skill);
+        let brief = body
+            .lines()
+            .find(|line| line.contains("--text \"Node offer."))
+            .unwrap_or_else(|| panic!("{skill}: no brief"));
+        let rule = brief
+            .find("In agy, run each command of these steps")
+            .unwrap_or_else(|| panic!("{skill}: no sandbox rule"));
+        let choice = brief.find("else do B.").unwrap();
+        let first_step = brief.find("A1.").unwrap();
+
+        assert!(
+            brief.contains("decline with the reason: has a node. Else, after you accept"),
+            "{skill}: the rule splits the decline sentence from its Else"
+        );
+        assert!(
+            choice < rule && rule < first_step,
+            "{skill}: the rule is not between the A-or-B choice and A1"
+        );
+        assert!(
+            brief.contains("each command that reads or writes under ~/.agent-graph"),
+            "{skill}: the rule does not cover each command under ~/.agent-graph"
+        );
+    }
 }

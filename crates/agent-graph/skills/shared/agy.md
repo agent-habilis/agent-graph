@@ -9,6 +9,6 @@ The Standard Sandbox Mode of `agy` blocks each read and each write under
 
 - each `agent-graph` command
 - each `agent-gossip` command
-- each `mkdir`, `cp`, `tar`, and `ls` command that reads or writes under
-  `~/.agent-graph`
+- each command that reads or writes under `~/.agent-graph`, such as `mkdir`,
+  `cp`, `tar`, `ls`, `rm`, and `cat`
 - each `curl` command
