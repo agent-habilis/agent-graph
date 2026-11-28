@@ -1187,8 +1187,8 @@ fn the_allowed_tools_of_a_skill_are_the_commands_that_it_runs() {
                 }
             }
         }
-        for (prefix, used) in allowed.iter().zip(used) {
-            if !used {
+        for (prefix, was_used) in allowed.iter().zip(used) {
+            if !was_used {
                 problems.push(format!(
                     "{name}: allows `{prefix}` and runs no such command"
                 ));

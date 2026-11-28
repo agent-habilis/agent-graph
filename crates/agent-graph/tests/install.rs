@@ -602,6 +602,59 @@ fn install_skips_apple_double_entries_so_a_tar_of_an_older_peer_installs() {
     assert!(!copy.join("nodes/w/._index.md").exists());
 }
 
+/// `tests/fixtures/apple-double.tar` is the tar that `/usr/bin/tar` on macOS
+/// made, with no `COPYFILE_DISABLE`, for a graph whose files have an xattr. It
+/// holds a `._` entry for each file and folder. It was made once, so that the
+/// check runs on each OS and not only on macOS. The graph is `index.md` and
+/// `nodes/worker/index.md`, and its hash is below.
+const APPLE_DOUBLE_TAR: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/fixtures/apple-double.tar"
+);
+const APPLE_DOUBLE_HASH: &str = "0cd6499109c5a696d160babb7b86a186ad69a6ab60d44f0f983c2f2cb4f4eca1";
+
+#[test]
+fn install_accepts_the_committed_tar_that_macos_made_with_apple_double_entries() {
+    let names: Vec<String> = tar::Archive::new(fs::File::open(APPLE_DOUBLE_TAR).unwrap())
+        .entries()
+        .unwrap()
+        .map(|entry| {
+            entry
+                .unwrap()
+                .path()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    assert!(
+        names.iter().any(|name| name.contains("._")),
+        "the fixture has no AppleDouble entry: {names:?}"
+    );
+    let (_tmp, root) = root();
+
+    let out = install_tar(&root, Path::new(APPLE_DOUBLE_TAR), APPLE_DOUBLE_HASH);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let copy = installed(&root).join(APPLE_DOUBLE_HASH);
+    assert!(copy.join("index.md").is_file());
+    assert!(copy.join("nodes/worker/index.md").is_file());
+    assert_eq!(graph::hash(&copy).unwrap(), APPLE_DOUBLE_HASH);
+    assert!(
+        graph::files(&copy).unwrap().len() == 2,
+        "the copy holds more than the graph"
+    );
+    for entry in fs::read_dir(&copy).unwrap() {
+        assert!(
+            !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with("._")
+        );
+    }
+}
+
 #[cfg(target_os = "macos")]
 #[test]
 fn install_accepts_the_tar_that_the_system_tar_makes_for_a_file_with_an_xattr() {
