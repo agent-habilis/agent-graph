@@ -36,6 +36,8 @@ An optional tag regex. With no argument, list all standalone nodes.
 
 ## List
 
+Run each line as its own command:
+
 ```sh
 agent-graph node list                 # all standalone nodes
 agent-graph node list --tag '<regex>' # only nodes with a tag that matches

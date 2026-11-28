@@ -59,7 +59,9 @@ graph · no graph · $INSTANCE
    agent-gossip a2a broadcast --gossip "$GOSSIP" --nickname "$NICKNAME" --text "graph $INSTANCE is down · each peer of $INSTANCE: run your graph-leave skill (<!-- bare -->/graph-leave, or /agent-graph:graph-leave in agy). Without that skill, run agent-graph graph node-down --pid \"\$PPID\" if agent-graph is on your PATH, then clear your meta entry: agent-gossip meta merge --gossip \"\$GOSSIP\" --nickname \"\$NICKNAME\" --merge '{\"instance\":null,\"leader\":null,\"joined_at\":null,\"graph\":null,\"hash\":null,\"node\":null,\"invited_by\":null,\"verified\":null,\"status\":\"idle\"}'. Then stop acting as your node."
    ```
 
-3. If your own entry has `instance` `$INSTANCE`, leave your node:
+3. If your own entry has `instance` `$INSTANCE`, leave your node.
+
+   Run each line as its own command:
 
    ```bash
    agent-graph graph node-down --pid "$PPID"

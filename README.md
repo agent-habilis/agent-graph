@@ -121,6 +121,7 @@ agent-graph graph node-up squad1/worker --pid N  # also write /tmp/agent-graph/N
 agent-graph graph node-up squad1/worker --pid auto  # the same, for the first ancestor that is not a shell
 agent-graph graph node-up squad1/worker --output F  # write the text to F and print nothing
 agent-graph graph node-hash squad1/worker  # SHA-256 of what node-up prints: the check of a node context
+agent-graph graph pack squad1 --output F    # write the graph as a tar file for install --tar: regular files only, no ._ entries
 agent-graph graph install <folder>         # copy a graph to ~/.agent-graph/graphs/<hash>, print the hash
 agent-graph graph install --tar F --expect HASH  # extract a tar file of a graph; keep it only if its hash is HASH
 agent-graph graph node-down --pid N        # remove /tmp/agent-graph/N.json

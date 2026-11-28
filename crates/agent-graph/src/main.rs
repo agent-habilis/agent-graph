@@ -2,6 +2,8 @@ mod agent_pid;
 mod fetch;
 mod init;
 mod install;
+mod output;
+mod pack;
 mod plug;
 mod state;
 
@@ -110,6 +112,16 @@ enum GraphCommand {
         /// The hash that the graph in the tar file must have.
         #[arg(long, requires = "tar", value_parser = parse_hash)]
         expect: Option<String>,
+    },
+    /// Write a graph as a tar file for `install --tar`. The tar holds only
+    /// the files that the hash covers, as regular files, so it has no
+    /// extended attributes and no `._` entries.
+    Pack {
+        /// The graph name.
+        name: String,
+        /// The tar file to write.
+        #[arg(long)]
+        output: PathBuf,
     },
     /// Print the graph's body, then the body of one of its nodes, with their
     /// `@file` includes expanded.
@@ -533,6 +545,7 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
             tar,
             expect,
         } => graph_install(folder, tar, expect, stdout)?,
+        GraphCommand::Pack { name, output } => pack::pack(find(&name)?, &output)?,
         GraphCommand::NodeHash { name } => graph_node_hash(&graphs, &name, stdout)?,
         GraphCommand::NodeDown { pid } => state::remove(pid.resolve()?)?,
     }

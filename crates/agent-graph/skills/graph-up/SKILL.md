@@ -1,7 +1,7 @@
 ---
 name: graph-up
 description: Start a graph in the current gossip. This agent is the founder. It takes one node of the graph, then offers each open place to one free peer of the gossip, through gossip tasks. A node with `count` n needs n peers at the start. The graph lives in the gossip meta. Done when every node has its count. Use when the user says "/graph-up --squad-template <graph> [--node <node>] [--name <name>]", "graph up", or "start the <graph> graph".
-allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*), Bash(hostname:*), Bash(mkdir:*), Bash(cp:*), Bash(tar:*)
+allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*), Bash(hostname:*)
 ---
 
 # graph-up
@@ -43,7 +43,9 @@ graph · usage · /graph-up --squad-template <graph> [--node <node>] [--name <na
 
 ## Gate
 
-1. Read and check the graph:
+1. Read and check the graph.
+
+   Run each line as its own command:
 
    ```bash
    agent-graph graph lint <graph>
@@ -125,7 +127,9 @@ Read the meta document. If another live entry has `instance` `$INSTANCE` and no
 nicknames are equal, the smaller key keeps it. If that is the other peer:
 
 1. Cancel each open offer of yours with `--method CancelTask`.
-2. Remove your place:
+2. Remove your place.
+
+   Run each line as its own command:
 
    ```bash
    agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"instance":null,"leader":null,"graph":null,"hash":null,"node":null,"joined_at":null,"verified":null,"status":"idle"}'

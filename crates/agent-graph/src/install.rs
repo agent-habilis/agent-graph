@@ -192,6 +192,13 @@ pub(crate) fn from_tar(file: &Path, expect: &str) -> Result<String> {
     Ok(expect.to_string())
 }
 
+/// macOS `tar` writes `._<name>` for a file with extended attributes, unless
+/// `COPYFILE_DISABLE` is set. It is not part of the graph.
+fn is_apple_double(path: &Path) -> bool {
+    path.file_name()
+        .is_some_and(|name| name.to_string_lossy().starts_with("._"))
+}
+
 /// Extract regular files and folders only. A link could point out of the
 /// folder, and a path with `..` or a root could write out of it. The sizes in
 /// the headers are summed before a file is written.
@@ -210,7 +217,7 @@ fn extract(source: impl io::Read, dest: &Path) -> Result<()> {
         let path = entry.path()?.into_owned();
         let shown = path.display();
         let kind = entry.header().entry_type();
-        if kind == EntryType::XGlobalHeader {
+        if kind == EntryType::XGlobalHeader || is_apple_double(&path) {
             continue;
         }
         if !matches!(kind, EntryType::Regular | EntryType::Directory) {

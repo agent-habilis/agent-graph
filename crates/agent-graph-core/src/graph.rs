@@ -211,11 +211,8 @@ fn parse_mermaid(content: &str, graph: &mut Graph) {
 ///
 /// Fails when a file in `dir` cannot be read.
 pub fn hash(dir: &Path) -> io::Result<String> {
-    let mut files = Vec::new();
-    collect_files(dir, &mut files)?;
-    files.sort();
     let mut hasher = Sha256::new();
-    for file in files {
+    for file in files(dir)? {
         let content = fs::read(&file)?;
         let relative = file.strip_prefix(dir).unwrap_or(&file);
         hasher.update(relative.to_string_lossy().as_bytes());
@@ -238,6 +235,19 @@ fn hex(digest: &[u8]) -> String {
         let _ = write!(text, "{byte:02x}");
     }
     text
+}
+
+/// Each file under `dir`, in path order. These are the files that `hash`
+/// covers. A link to a folder is followed.
+///
+/// # Errors
+///
+/// Fails when a folder in `dir` cannot be read.
+pub fn files(dir: &Path) -> io::Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    collect_files(dir, &mut files)?;
+    files.sort();
+    Ok(files)
 }
 
 fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> io::Result<()> {

@@ -885,3 +885,68 @@ fn the_node_offer_brief_declines_when_agent_graph_is_too_old() {
         );
     }
 }
+
+/// The `bash` and `sh` blocks of a skill: the line of the fence, the command
+/// lines (a trailing `\` joins the next line, a blank or `#` line is not one),
+/// and the text before the fence.
+fn blocks_of(body: &str) -> Vec<(usize, Vec<String>, String)> {
+    let lines: Vec<&str> = body.lines().collect();
+    let mut blocks = Vec::new();
+    let mut at = 0;
+    while at < lines.len() {
+        let fence = lines[at].trim_start();
+        if matches!(fence, "```bash" | "```sh") {
+            let before = lines[at.saturating_sub(4)..at].join(" ");
+            let mut commands: Vec<String> = Vec::new();
+            let mut joined = false;
+            at += 1;
+            while at < lines.len() && !lines[at].trim_start().starts_with("```") {
+                let line = lines[at].trim();
+                if !line.is_empty() && !line.starts_with('#') {
+                    match (joined, commands.last_mut()) {
+                        (true, Some(last)) => last.push_str(line),
+                        _ => commands.push(line.to_string()),
+                    }
+                    joined = line.ends_with('\\');
+                }
+                at += 1;
+            }
+            blocks.push((at, commands, before));
+        }
+        at += 1;
+    }
+    blocks
+}
+
+#[test]
+fn a_block_with_more_than_one_command_says_to_run_each_as_its_own_command() {
+    let tmp = TempDir::new().unwrap();
+    let mut problems = Vec::new();
+    for (name, _) in source_skills() {
+        for (line, commands, before) in blocks_of(&rendered_skill(tmp.path(), &name)) {
+            if commands.len() > 1 && !before.contains("own command") {
+                problems.push(format!(
+                    "{name}:{line}: {} commands, no `own command`",
+                    commands.len()
+                ));
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+#[test]
+fn no_skill_allows_a_tool_that_it_does_not_run() {
+    for (name, source) in source_skills() {
+        let allowed = source
+            .lines()
+            .find(|line| line.starts_with("allowed-tools:"))
+            .unwrap_or_default();
+        for tool in ["mkdir", "cp", "tar", "curl", "mktemp"] {
+            assert!(
+                !allowed.contains(&format!("Bash({tool}:")),
+                "{name}: allows {tool}"
+            );
+        }
+    }
+}

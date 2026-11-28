@@ -566,3 +566,178 @@ fn install_refuses_an_empty_home() {
     assert!(stderr(&out).contains("HOME"), "{}", stderr(&out));
     assert!(!root.join(".agent-graph").exists());
 }
+
+/// Run with a working folder and a home folder of their own.
+fn run_in(cwd: &Path, home: &Path, args: &[&str]) -> Output {
+    fs::create_dir_all(cwd).unwrap();
+    Command::new(env!("CARGO_BIN_EXE_agent-graph"))
+        .args(args)
+        .env("HOME", home)
+        .current_dir(cwd)
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn install_skips_apple_double_entries_so_a_tar_of_an_older_peer_installs() {
+    let (_tmp, root) = root();
+    let files: [(&str, &[u8]); 2] = [("index.md", INDEX), ("nodes/w/index.md", b"n\n")];
+    let hash = hash_of(&root, &files);
+    let file = root.join("old.tar");
+    build_tar(
+        &file,
+        &[
+            file_entry("index.md", INDEX),
+            file_entry("._index.md", b"\0\x05\x16\x07 apple double"),
+            file_entry("nodes/w/index.md", b"n\n"),
+            file_entry("nodes/w/._index.md", b"\0\x05\x16\x07"),
+        ],
+    );
+
+    let out = install_tar(&root, &file, &hash);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let copy = installed(&root).join(&hash);
+    assert!(!copy.join("._index.md").exists());
+    assert!(!copy.join("nodes/w/._index.md").exists());
+}
+
+/// A graph folder `<root>/.agent-graph/graphs/g` with a nested node and an
+/// extended attribute on one file. Returns the hash.
+fn graph_with_an_xattr(root: &Path) -> String {
+    let dir = root.join(".agent-graph/graphs/g");
+    let hash = graph_folder(&dir);
+    #[cfg(unix)]
+    xattr::set(dir.join("index.md"), "user.test", b"x").ok();
+    hash
+}
+
+#[test]
+fn graph_pack_writes_a_tar_that_install_accepts_with_the_hash_of_the_graph() {
+    let (_tmp, root) = root();
+    let hash = graph_with_an_xattr(&root);
+    let file = root.join("g.tar");
+    let home = root.join("home");
+
+    let packed = run_in(
+        &root,
+        &home,
+        &["graph", "pack", "g", "--output", file.to_str().unwrap()],
+    );
+    let out = run_in(
+        &root,
+        &home,
+        &[
+            "graph",
+            "install",
+            "--tar",
+            file.to_str().unwrap(),
+            "--expect",
+            &hash,
+        ],
+    );
+
+    assert!(packed.status.success(), "{}", stderr(&packed));
+    assert_eq!(stdout(&packed), "");
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        graph::hash(&home.join(".agent-graph/graphs").join(&hash)).unwrap(),
+        hash
+    );
+}
+
+#[test]
+fn graph_pack_holds_only_regular_files_in_path_order_with_fixed_headers() {
+    let (_tmp, root) = root();
+    graph_with_an_xattr(&root);
+    let (first, second) = (root.join("a.tar"), root.join("b.tar"));
+    let home = root.join("home");
+
+    for file in [&first, &second] {
+        let out = run_in(
+            &root,
+            &home,
+            &["graph", "pack", "g", "--output", file.to_str().unwrap()],
+        );
+        assert!(out.status.success(), "{}", stderr(&out));
+    }
+
+    assert_eq!(fs::read(&first).unwrap(), fs::read(&second).unwrap());
+    let mut archive = tar::Archive::new(fs::File::open(&first).unwrap());
+    let mut seen = Vec::new();
+    for entry in archive.entries().unwrap() {
+        let entry = entry.unwrap();
+        let header = entry.header();
+        assert_eq!(header.entry_type(), tar::EntryType::Regular);
+        assert_eq!(header.mode().unwrap(), 0o644);
+        assert_eq!(
+            (
+                header.uid().unwrap(),
+                header.gid().unwrap(),
+                header.mtime().unwrap()
+            ),
+            (0, 0, 0)
+        );
+        seen.push(entry.path().unwrap().display().to_string());
+    }
+    assert_eq!(seen, ["index.md", "nodes/worker/index.md"]);
+}
+
+#[test]
+fn graph_pack_of_an_unknown_graph_fails_and_writes_no_file() {
+    let (_tmp, root) = root();
+    let file = root.join("g.tar");
+
+    let out = run_in(
+        &root,
+        &root,
+        &["graph", "pack", "nope", "--output", file.to_str().unwrap()],
+    );
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("not found"), "{}", stderr(&out));
+    assert!(!file.exists());
+}
+
+#[test]
+fn graph_pack_refuses_a_graph_over_the_size_limit() {
+    let (_tmp, root) = root();
+    graph_with_an_xattr(&root);
+    fs::write(
+        root.join(".agent-graph/graphs/g/big.bin"),
+        vec![0_u8; 16 * 1024 * 1024 + 1],
+    )
+    .unwrap();
+    let file = root.join("g.tar");
+
+    let out = run_in(
+        &root,
+        &root,
+        &["graph", "pack", "g", "--output", file.to_str().unwrap()],
+    );
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("too large"), "{}", stderr(&out));
+    assert!(!file.exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn graph_pack_does_not_write_through_a_link() {
+    let (_tmp, root) = root();
+    graph_with_an_xattr(&root);
+    let target = root.join("precious.txt");
+    fs::write(&target, "keep\n").unwrap();
+    let link = root.join("g.tar");
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+
+    let out = run_in(
+        &root,
+        &root,
+        &["graph", "pack", "g", "--output", link.to_str().unwrap()],
+    );
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("symbolic link"), "{}", stderr(&out));
+    assert_eq!(fs::read_to_string(&target).unwrap(), "keep\n");
+}

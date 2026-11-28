@@ -6,13 +6,14 @@ the gossip skill, with these rules for node offers:
 - **A task brief `send graph <hash>`:** if `<hash>` is `$HASH` and the peer
   has an open offer of yours, the task serves your offer. Accept it without
   the accept or decline question. Else decline it with the reason: no offer
-  for this graph. Pack the graph folder and send it as the result. The
-  folder is the last column of `agent-graph graph list` for a local
-  graph, or `~/.agent-graph/graphs/$HASH` for a received graph:
+  for this graph. Pack the graph with `agent-graph graph pack` and send the
+  file as the result. `$SOURCE` names a local graph, or a received one.
+
+  Run each line as its own command:
 
   ```bash
   agent-gossip a2a status --gossip "$GOSSIP" --nickname "$NICKNAME" --task-id "<task id>" --state working
-  COPYFILE_DISABLE=1 tar -cf /tmp/$HASH.tar -C "<graph folder>" .
+  agent-graph graph pack "$SOURCE" --output /tmp/$HASH.tar
   agent-gossip a2a artifact --gossip "$GOSSIP" --nickname "$NICKNAME" --task-id "<task id>" --file /tmp/$HASH.tar --text "graph $HASH"
   ```
 
@@ -22,7 +23,9 @@ the gossip skill, with these rules for node offers:
   peer has an open offer of yours for `<node>`, accept it without the accept or
   decline question. Else decline it with the reason: no offer for this node.
   Send the text that `agent-graph graph node-up` writes to a file. Its SHA-256
-  is the `$CONTEXT_HASH` of your offer:
+  is the `$CONTEXT_HASH` of your offer.
+
+  Run each line as its own command:
 
   ```bash
   agent-gossip a2a status --gossip "$GOSSIP" --nickname "$NICKNAME" --task-id "<task id>" --state working
