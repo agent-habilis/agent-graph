@@ -997,6 +997,7 @@ fn no_skill_depends_on_the_working_folder_of_a_command() {
 }
 
 const PLACEHOLDER_RULE: &str = "is a placeholder, not a shell variable";
+const ESCAPED_RULE: &str = "stays as it is: it is text for a peer";
 
 /// agy matches an Always Allow rule against the start of a command line, and
 /// its documented rule says that `$VAR` and `${VAR}` disable the match. So an
@@ -1028,6 +1029,10 @@ fn a_placeholder_in_an_agy_command_line_comes_with_the_rule_to_write_its_value()
                 }
             }
         }
+        assert!(
+            body.contains(ESCAPED_RULE),
+            "{name}: no rule that an escaped placeholder is text for a peer"
+        );
         if !placeholders.is_empty() {
             assert!(
                 body.contains(PLACEHOLDER_RULE),
@@ -1038,6 +1043,34 @@ fn a_placeholder_in_an_agy_command_line_comes_with_the_rule_to_write_its_value()
         }
     }
     assert!(seen > 0, "no agy command line has a placeholder");
+}
+
+/// The scanner above sees only fences, so a command that the prose tells the
+/// agent to run in an inline span must be allowed too.
+#[test]
+fn prose_names_no_command_that_the_skill_does_not_allow() {
+    let tmp = TempDir::new().unwrap();
+    let mut problems = Vec::new();
+    for (name, source) in source_skills() {
+        let allowed = allowed_prefixes(&source);
+        let mut in_fence = false;
+        for (number, line) in rendered_skill(tmp.path(), &name).lines().enumerate() {
+            if line.trim_start().starts_with("```") {
+                in_fence = !in_fence;
+            } else if !in_fence && !line.contains("--text \"") {
+                for span in line.split('`').skip(1).step_by(2) {
+                    let command = span.split_whitespace().next().unwrap_or_default();
+                    let shell = [
+                        "hostname", "date", "tar", "ls", "cp", "mkdir", "curl", "mktemp",
+                    ];
+                    if shell.contains(&command) && !allowed.iter().any(|prefix| prefix == command) {
+                        problems.push(format!("{name}:{}: `{span}`", number + 1));
+                    }
+                }
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
 #[test]

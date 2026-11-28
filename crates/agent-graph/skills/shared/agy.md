@@ -17,4 +17,5 @@ command already runs outside the sandbox: run it as it is.
 shell variable such as `$NAME` or `${NAME}` defeats the match. So a command
 line has literal values only. Each `$NAME` in a command of this skill
 is a placeholder, not a shell variable. Before you run the command, write the
-value of `$NAME` in its place. Do not set a shell variable.
+value of `$NAME` in its place. Do not set a shell variable. A `\$NAME`, with a
+backslash, stays as it is: it is text for a peer, and the peer fills it in.

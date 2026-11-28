@@ -23,8 +23,8 @@ Compute that hash before the offer. The command prints it. Hold it as
 agent-graph graph node-hash "$SOURCE/<node>"
 ```
 
-Before the offer, look at the meta `host` of the peer. If it is your host
-(`hostname -s`), and `~/.agent-graph/graphs/$HASH/` does not exist, copy the
+Before the offer, look at the meta `host` of the peer. If it is the `host` of
+your own meta entry, and `~/.agent-graph/graphs/$HASH/` does not exist, copy the
 graph folder there. Then the peer has the graph, and no transfer is necessary.
 The folder is the last column of `agent-graph graph list` for a local graph.
 The command prints `$HASH`:
