@@ -20,12 +20,9 @@ pub(crate) fn fetch(url: &str) -> Result<(Trait, PathBuf)> {
         bail!("`{url}` must start with https://");
     }
     let body = download(url, loopback)?;
-    let dir = tempfile::Builder::new()
-        .prefix("agent-graph-trait.")
-        .tempdir()
-        .context("cannot create a temp folder")?;
+    let dir = private_dir()?;
     let file = dir.path().join("index.md");
-    fs::write(&file, body).with_context(|| format!("cannot write {}", file.display()))?;
+    write_private(&file, &body).with_context(|| format!("cannot write {}", file.display()))?;
     let item =
         traits::load(&file).map_err(|reason| anyhow!("{url} is not a valid trait: {reason}"))?;
     // The fork reads the file after this command ends, so the folder stays.
@@ -33,10 +30,39 @@ pub(crate) fn fetch(url: &str) -> Result<(Trait, PathBuf)> {
     Ok((item, kept.join("index.md")))
 }
 
+/// A new folder that only this user can enter: the file in it is text from
+/// outside the project, and the fork obeys it.
+fn private_dir() -> Result<tempfile::TempDir> {
+    let mut builder = tempfile::Builder::new();
+    builder.prefix("agent-graph-trait.");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        builder.permissions(fs::Permissions::from_mode(0o700));
+    }
+    builder.tempdir().context("cannot create a temp folder")
+}
+
+fn write_private(file: &std::path::Path, body: &[u8]) -> std::io::Result<()> {
+    use std::io::Write as _;
+
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(file)?.write_all(body)
+}
+
 fn download(url: &str, loopback: bool) -> Result<Vec<u8>> {
+    // A redirect from a local server could lead to any `http://` host, so a
+    // loopback URL follows none. An `https://` URL follows only `https://`.
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(TIMEOUT))
         .https_only(!loopback)
+        .max_redirects(if loopback { 0 } else { 10 })
         .build()
         .into();
     let mut response = agent.get(url).call().map_err(|error| {
@@ -46,6 +72,9 @@ fn download(url: &str, loopback: bool) -> Result<Vec<u8>> {
             anyhow!("{url}: {error}")
         }
     })?;
+    if response.status().is_redirection() {
+        bail!("{url}: the server answered with a redirect, and a local URL follows none");
+    }
     let mut body = Vec::new();
     response
         .body_mut()

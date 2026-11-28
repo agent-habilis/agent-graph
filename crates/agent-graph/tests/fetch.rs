@@ -169,3 +169,65 @@ fn trait_fetch_takes_an_https_url_and_a_loopback_http_url_only() {
     }
     assert_eq!(left_in(&root), Vec::<String>::new());
 }
+
+/// Serve one response, and tell whether a client ever came.
+fn serve_counting(
+    status: &str,
+    headers: &str,
+    body: &[u8],
+) -> (String, std::sync::mpsc::Receiver<()>) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let (status, headers, body) = (status.to_string(), headers.to_string(), body.to_vec());
+    thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let _ = sender.send(());
+        let mut request = [0_u8; 2048];
+        let _ = stream.read(&mut request);
+        let head = format!(
+            "HTTP/1.1 {status}\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        );
+        let _ = stream.write_all(head.as_bytes());
+        let _ = stream.write_all(&body);
+    });
+    (format!("http://127.0.0.1:{port}/index.md"), receiver)
+}
+
+#[test]
+fn trait_fetch_follows_no_redirect_for_a_loopback_http_url() {
+    let (_tmp, root) = root();
+    let (target, target_hit) = serve_counting("200 OK", "", TRAIT.as_bytes());
+    let (url, _) = serve_counting("302 Found", &format!("Location: {target}\r\n"), b"");
+
+    let out = fetch(&root, &url);
+
+    assert_eq!(out.status.code(), Some(1), "{}", stderr(&out));
+    assert!(stderr(&out).contains("redirect"), "{}", stderr(&out));
+    assert!(
+        target_hit
+            .recv_timeout(std::time::Duration::from_millis(300))
+            .is_err(),
+        "the client followed the redirect"
+    );
+    assert_eq!(left_in(&root), Vec::<String>::new());
+}
+
+#[cfg(unix)]
+#[test]
+fn trait_fetch_makes_a_private_folder_and_file() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (_tmp, root) = root();
+    let url = serve("200 OK", TRAIT.as_bytes().to_vec());
+
+    let out = fetch(&root, &url);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    let file = Path::new(text.trim_end().split('\t').nth(2).unwrap());
+    let mode = |path: &Path| fs::metadata(path).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode(file.parent().unwrap()), 0o700);
+    assert_eq!(mode(file), 0o600);
+}
