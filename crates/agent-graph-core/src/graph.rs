@@ -297,6 +297,9 @@ pub fn lint(dir: &Path, graph: &Graph) -> Vec<(usize, String)> {
         .collect();
 
     errors.extend(node_errors(dir, graph));
+    if let Err(reason) = include::expand(dir, &dir.join("index.md")) {
+        errors.push((1, format!("index.md has a bad include: {reason:#}")));
+    }
 
     let mut names: Vec<&str> = Vec::new();
     for edge in &graph.edges {
