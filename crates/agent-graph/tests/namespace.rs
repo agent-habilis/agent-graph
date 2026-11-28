@@ -79,6 +79,23 @@ fn the_agy_render_writes_the_conversation_where_a_command_has_session_pid() {
 }
 
 #[test]
+fn the_agy_render_writes_a_placeholder_inside_a_single_quoted_text_without_a_quote_juggle() {
+    assert_eq!(
+        agy("--merge '{\"a\":\"'\"$INSTANCE\"'\",\"b\":'\"$JOINED_AT\"',\"c\":1}'"),
+        "--merge '{\"a\":\"$INSTANCE\",\"b\":$JOINED_AT,\"c\":1}'"
+    );
+    for text in ["'\"$x y\"'", "'\"$\"'", "a '\"$A", "'\"$A\" '"] {
+        assert_eq!(agy(text), text, "{text}");
+    }
+}
+
+#[test]
+fn the_default_render_keeps_the_quote_juggle() {
+    let text = "--merge '{\"a\":\"'\"$INSTANCE\"'\"}'";
+    assert_eq!(namespace::namespace_commands(text, &names(), None), text);
+}
+
+#[test]
 fn the_default_render_keeps_session_pid_ppid() {
     let text = "agent-gossip session --session-pid \"$PPID\"";
     assert_eq!(namespace::namespace_commands(text, &names(), None), text);

@@ -12,3 +12,9 @@ command already runs outside the sandbox: run it as it is.
 - each `agent-graph` command
 - each `agent-gossip` command
 - each command that reads or writes under `~/.agent-graph`
+
+`agy` matches an Always Allow rule against the start of a command line, and a
+shell variable such as `$NAME` or `${NAME}` defeats the match. So a command
+line has literal values only. Each `$NAME` in a command of this skill
+is a placeholder, not a shell variable. Before you run the command, write the
+value of `$NAME` in its place. Do not set a shell variable.

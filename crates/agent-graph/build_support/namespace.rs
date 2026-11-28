@@ -28,9 +28,11 @@ pub(crate) fn namespace_commands(text: &str, names: &[String], namespace: Option
     };
     // `agy` reads a shell-free command line: `--pid auto` finds the agent
     // without `$PPID`.
-    let text = text
-        .replace(PID_PPID, PID_AUTO)
-        .replace(SESSION_PPID, SESSION_CONVERSATION);
+    let text = unjuggle(
+        &text
+            .replace(PID_PPID, PID_AUTO)
+            .replace(SESSION_PPID, SESSION_CONVERSATION),
+    );
     let text = text.as_str();
     let is_name_char = |ch: char| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_';
     let mut out = String::with_capacity(text.len());
@@ -63,5 +65,36 @@ pub(crate) fn namespace_commands(text: &str, names: &[String], namespace: Option
         before = Some(next);
         rest = &rest[next.len_utf8()..];
     }
+    out
+}
+
+/// Writes each `'"$NAME"'` as `$NAME`. A shell closes a single-quoted text,
+/// quotes the variable, and opens the text again. An agent that fills in the
+/// placeholder writes the value inside the one text instead.
+fn unjuggle(text: &str) -> String {
+    const OPEN: &str = "'\"$";
+    const CLOSE: &str = "\"'";
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find(OPEN) {
+        let after = &rest[at + OPEN.len()..];
+        let len = after
+            .find(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_'))
+            .unwrap_or(after.len());
+        let named = after
+            .chars()
+            .next()
+            .is_some_and(|ch| ch.is_ascii_alphabetic() || ch == '_');
+        if named && after[len..].starts_with(CLOSE) {
+            out.push_str(&rest[..at]);
+            out.push('$');
+            out.push_str(&after[..len]);
+            rest = &after[len + CLOSE.len()..];
+        } else {
+            out.push_str(&rest[..at + OPEN.len()]);
+            rest = after;
+        }
+    }
+    out.push_str(rest);
     out
 }

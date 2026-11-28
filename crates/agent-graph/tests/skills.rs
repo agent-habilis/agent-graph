@@ -996,6 +996,50 @@ fn no_skill_depends_on_the_working_folder_of_a_command() {
     }
 }
 
+const PLACEHOLDER_RULE: &str = "is a placeholder, not a shell variable";
+
+/// agy matches an Always Allow rule against the start of a command line, and
+/// its documented rule says that `$VAR` and `${VAR}` disable the match. So an
+/// agy command line holds literal values: each `$NAME` in a command of the
+/// agy render is a placeholder, and the skill must say to write the value in
+/// its place. A `'"$NAME"'` quote juggle is not a command line that an agent
+/// can fill in, so the agy render writes it as `$NAME`.
+#[test]
+fn a_placeholder_in_an_agy_command_line_comes_with_the_rule_to_write_its_value() {
+    let tmp = TempDir::new().unwrap();
+    let mut seen = 0;
+    for (name, _) in source_skills() {
+        let body = agy_rendered_skill(tmp.path(), &name);
+        let mut placeholders = Vec::new();
+        for (line, commands, _) in blocks_of(&body) {
+            for command in commands {
+                assert!(
+                    !command.contains("'\"$"),
+                    "{name}:{line}: a quote juggle in an agy command: {command:.80}"
+                );
+                for (at, _) in command.match_indices('$') {
+                    let named = command[at + 1..]
+                        .chars()
+                        .next()
+                        .is_some_and(|ch| ch.is_ascii_uppercase() || ch == '_');
+                    if named && !command[..at].ends_with('\\') {
+                        placeholders.push(format!("{name}:{line}: {command:.60}"));
+                    }
+                }
+            }
+        }
+        if !placeholders.is_empty() {
+            assert!(
+                body.contains(PLACEHOLDER_RULE),
+                "{name}: placeholders in commands but no rule to write their values: {}",
+                placeholders[0]
+            );
+            seen += 1;
+        }
+    }
+    assert!(seen > 0, "no agy command line has a placeholder");
+}
+
 #[test]
 fn the_graph_down_broadcast_tells_agy_to_write_pid_auto() {
     let tmp = TempDir::new().unwrap();
