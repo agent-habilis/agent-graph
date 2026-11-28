@@ -1047,20 +1047,53 @@ fn a_block_with_more_than_one_command_says_to_run_each_as_its_own_command() {
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
+/// The command prefixes in the `allowed-tools` line of a skill: `agent-graph`
+/// for `Bash(agent-graph:*)`.
+fn allowed_prefixes(source: &str) -> Vec<String> {
+    let line = source
+        .lines()
+        .find(|line| line.starts_with("allowed-tools:"))
+        .unwrap_or_default();
+    line.split("Bash(")
+        .skip(1)
+        .filter_map(|part| part.split(":*)").next())
+        .map(str::to_string)
+        .collect()
+}
+
+/// Each command of each block of a skill must be allowed by its
+/// `allowed-tools`, and each allowed tool must run: a command that is not
+/// allowed asks the user for approval, and a tool that no command uses is a
+/// permission for nothing.
 #[test]
-fn no_skill_allows_a_tool_that_it_does_not_run() {
+fn the_allowed_tools_of_a_skill_are_the_commands_that_it_runs() {
+    let tmp = TempDir::new().unwrap();
+    let mut problems = Vec::new();
     for (name, source) in source_skills() {
-        let allowed = source
-            .lines()
-            .find(|line| line.starts_with("allowed-tools:"))
-            .unwrap_or_default();
-        for tool in ["mkdir", "cp", "tar", "curl", "mktemp"] {
-            assert!(
-                !allowed.contains(&format!("Bash({tool}:")),
-                "{name}: allows {tool}"
-            );
+        let allowed = allowed_prefixes(&source);
+        let mut used = vec![false; allowed.len()];
+        for (line, commands, _) in blocks_of(&rendered_skill(tmp.path(), &name)) {
+            for command in commands {
+                let found = allowed.iter().position(|prefix| {
+                    command == *prefix || command.starts_with(&format!("{prefix} "))
+                });
+                match found {
+                    Some(at) => used[at] = true,
+                    None => problems.push(format!(
+                        "{name}:{line}: `{command:.40}` is not in allowed-tools"
+                    )),
+                }
+            }
+        }
+        for (prefix, used) in allowed.iter().zip(used) {
+            if !used {
+                problems.push(format!(
+                    "{name}: allows `{prefix}` and runs no such command"
+                ));
+            }
         }
     }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
 #[test]

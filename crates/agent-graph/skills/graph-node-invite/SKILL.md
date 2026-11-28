@@ -1,7 +1,7 @@
 ---
 name: graph-node-invite
 description: Add one peer to the running graph of this agent. Any peer of the graph can do it. It offers one node of the graph to a free peer of the gossip, through a gossip task, and the peer joins the graph in that node. Use when the user says "/graph-node-invite <node> [<peer>]", "invite a <node>", "add a <node> to the graph", or "grow the graph".
-allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*), Bash(hostname:*)
+allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*)
 ---
 
 # graph-node-invite

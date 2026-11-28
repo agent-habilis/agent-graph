@@ -1,7 +1,7 @@
 ---
 name: graph-up
 description: Start a graph in the current gossip. This agent is the founder. It takes one node of the graph, then offers each open place to one free peer of the gossip, through gossip tasks. A node with `count` n needs n peers at the start. The graph lives in the gossip meta. Done when every node has its count. Use when the user says "/graph-up --squad-template <graph> [--node <node>] [--name <name>]", "graph up", or "start the <graph> graph".
-allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*), Bash(hostname:*)
+allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*), Bash(date:*)
 ---
 
 # graph-up
@@ -95,7 +95,8 @@ graph · usage · /graph-up --squad-template <graph> [--node <node>] [--name <na
    agent-graph graph node-up <graph>/<node> --name "$INSTANCE" --pid "$PPID"
    ```
 
-2. Read the time. The command prints a number. Hold it as `$JOINED_AT`:
+2. Read the time. The command prints a number. Write that number in place of
+   `$JOINED_AT` in the next command. It is not a shell variable:
 
    ```bash
    date +%s
