@@ -1,3 +1,4 @@
+mod agent_pid;
 mod init;
 mod plug;
 mod state;
@@ -10,6 +11,7 @@ use std::process::ExitCode;
 
 use agent_graph_core::{graph, include, name as short_name, node, traits};
 use agent_graph_topology as topology;
+use agent_pid::PidArg;
 use anyhow::{Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use regex::Regex;
@@ -102,18 +104,21 @@ enum GraphCommand {
         /// the statusline shows the name of the graph template.
         #[arg(long = "name")]
         label: Option<String>,
-        /// The pid of the agent. Records the graph and the node in
-        /// `/tmp/agent-graph/<pid>.json` for the statusline.
+        /// The pid of the agent, or `auto` for the first ancestor of this
+        /// command that is not a shell. Records the graph and the node in
+        /// `/tmp/agent-graph/<pid>.json` for the statusline. Without it,
+        /// nothing is recorded.
         #[arg(long)]
-        pid: Option<u32>,
+        pid: Option<PidArg>,
     },
     /// Remove the graph and the node of an agent from the statusline:
     /// `/tmp/agent-graph/<pid>.json`.
     #[command(name = "node-down")]
     NodeDown {
-        /// The pid of the agent.
+        /// The pid of the agent, or `auto` for the first ancestor of this
+        /// command that is not a shell.
         #[arg(long)]
-        pid: u32,
+        pid: PidArg,
     },
     /// Draw the running graph: one box per peer in its node, and the
     /// edges between them. Prints one `warning:` line per problem to
@@ -156,17 +161,20 @@ enum NodeCommand {
         /// default is a new short hash.
         #[arg(long = "name")]
         label: Option<String>,
-        /// The pid of the agent. Records the node in
-        /// `/tmp/agent-graph/<pid>.json` for the statusline.
+        /// The pid of the agent, or `auto` for the first ancestor of this
+        /// command that is not a shell. Records the node in
+        /// `/tmp/agent-graph/<pid>.json` for the statusline. Without it,
+        /// nothing is recorded.
         #[arg(long)]
-        pid: Option<u32>,
+        pid: Option<PidArg>,
     },
     /// Remove the standalone node of an agent from the statusline:
     /// `/tmp/agent-graph/<pid>.json`.
     Down {
-        /// The pid of the agent.
+        /// The pid of the agent, or `auto` for the first ancestor of this
+        /// command that is not a shell.
         #[arg(long)]
-        pid: u32,
+        pid: PidArg,
     },
 }
 
@@ -255,7 +263,7 @@ fn run_node(command: NodeCommand, cwd: &Path, stdout: &mut impl Write) -> Result
             let text = include::expand(dir, &dir.join("index.md"))?;
             if let Some(pid) = pid {
                 state::write(
-                    pid,
+                    pid.resolve()?,
                     None,
                     (&name, &node),
                     Some(&label.unwrap_or_else(short_name::short)),
@@ -263,7 +271,7 @@ fn run_node(command: NodeCommand, cwd: &Path, stdout: &mut impl Write) -> Result
             }
             write!(stdout, "{text}")?;
         }
-        NodeCommand::Down { pid } => state::remove(pid)?,
+        NodeCommand::Down { pid } => state::remove(pid.resolve()?)?,
     }
     Ok(())
 }
@@ -434,7 +442,7 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
         GraphCommand::NodeUp { name, label, pid } => {
             graph_node_up(&graphs, &name, label.as_deref(), pid, stdout)?;
         }
-        GraphCommand::NodeDown { pid } => state::remove(pid)?,
+        GraphCommand::NodeDown { pid } => state::remove(pid.resolve()?)?,
     }
     Ok(())
 }
@@ -465,7 +473,7 @@ fn graph_node_up(
     graphs: &BTreeMap<String, PathBuf>,
     name: &str,
     label: Option<&str>,
-    pid: Option<u32>,
+    pid: Option<PidArg>,
     stdout: &mut impl Write,
 ) -> Result<()> {
     let (graph_name, node_name, graph_dir, dir) = find_graph_node(graphs, name)?;
@@ -476,7 +484,12 @@ fn graph_node_up(
     let mut text = include::expand(graph_dir, &graph_dir.join("index.md"))?;
     text += &include::expand(graph_dir, &dir.join("index.md"))?;
     if let Some(pid) = pid {
-        state::write(pid, Some((graph_name, &graph)), (node_name, &node), label)?;
+        state::write(
+            pid.resolve()?,
+            Some((graph_name, &graph)),
+            (node_name, &node),
+            label,
+        )?;
     }
     write!(stdout, "{text}")?;
     Ok(())

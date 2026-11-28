@@ -904,3 +904,68 @@ fn default_graphs_send_user_questions_to_the_leader() {
         }
     }
 }
+
+/// Run the binary behind `sh -c`, so that a shell stands between this test and
+/// the command, as it does for an agent. The `exit` keeps the shell from
+/// replacing itself with the command.
+fn run_in_shell(cwd: &Path, args: &[&str]) -> Output {
+    fs::create_dir_all(cwd).unwrap();
+    Command::new("sh")
+        .args(["-c", "\"$0\" \"$@\"; exit $?"])
+        .arg(env!("CARGO_BIN_EXE_agent-graph"))
+        .args(args)
+        .current_dir(cwd)
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn pid_auto_names_the_agent_above_the_shell_for_up_and_down() {
+    let (_tmp, root) = root();
+    node(&root, "solo", &index("d", None, ""));
+    graph_node(&root, "graph", "worker", &index("w", None, ""));
+    // This test process is the agent, and `sh` is the shell below it.
+    let agent = std::process::id();
+    let path = PathBuf::from(format!("/tmp/agent-graph/{agent}.json"));
+    let _ = fs::remove_file(&path);
+
+    for (up, down, name) in [
+        (["node", "up"], ["node", "down"], "solo"),
+        (["graph", "node-up"], ["graph", "node-down"], "graph/worker"),
+    ] {
+        let out = run_in_shell(&root, &[up[0], up[1], name, "--pid", "auto"]);
+        assert!(out.status.success(), "{}", stderr(&out));
+        let state: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(state["pid"], agent, "{state}");
+
+        let removed = run_in_shell(&root, &[down[0], down[1], "--pid", "auto"]);
+        assert!(removed.status.success(), "{}", stderr(&removed));
+        assert!(!path.exists(), "{name}: the state file stays");
+    }
+}
+
+#[test]
+fn pid_accepts_a_number_or_auto_and_nothing_else() {
+    let (_tmp, root) = root();
+    node(&root, "solo", &index("d", None, ""));
+
+    let out = run(&root, &["node", "up", "solo", "--pid", "soon"]);
+
+    assert_eq!(out.status.code(), Some(2));
+    assert!(stderr(&out).contains("a pid or `auto`"), "{}", stderr(&out));
+}
+
+#[test]
+fn a_plain_node_up_still_writes_no_state_file() {
+    let (_tmp, root) = root();
+    node(&root, "solo", &index("d", None, ""));
+    let agent = std::process::id();
+    let path = PathBuf::from(format!("/tmp/agent-graph/{agent}.json"));
+    let _ = fs::remove_file(&path);
+
+    let out = run_in_shell(&root, &["node", "up", "solo"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(!path.exists());
+}
