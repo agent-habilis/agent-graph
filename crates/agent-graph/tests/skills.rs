@@ -581,7 +581,7 @@ fn agy_rendered_skill(dir: &Path, skill: &str) -> String {
 }
 
 /// Each place where `body` names the slash command `/<name>` bare: after a
-/// space, a quote, a backtick, a bracket, or at the start of a line, and not
+/// space, a quote (double or single), a backtick, a bracket, or at the start of a line, and not
 /// followed by more of a name.
 fn bare_commands(body: &str, name: &str) -> usize {
     let command = format!("/{name}");
@@ -589,7 +589,7 @@ fn bare_commands(body: &str, name: &str) -> usize {
         .filter(|(at, _)| {
             let before = body[..*at].chars().next_back();
             let after = body[at + command.len()..].chars().next();
-            before.is_none_or(|ch| matches!(ch, ' ' | '"' | '`' | '(' | '[' | '\n'))
+            before.is_none_or(|ch| matches!(ch, ' ' | '"' | '\'' | '`' | '(' | '[' | '\n'))
                 && after.is_none_or(|ch| !(ch.is_ascii_alphanumeric() || ch == '-' || ch == '_'))
         })
         .count()
@@ -710,4 +710,19 @@ fn the_agy_sandbox_rule_applies_only_when_run_command_has_the_parameter() {
             && readme.contains("already runs outside the sandbox"),
         "README: the rule does not depend on the parameter"
     );
+}
+
+#[test]
+fn graph_trait_run_tells_agy_not_to_poll_the_subagent() {
+    let tmp = TempDir::new().unwrap();
+    let body = rendered_skill(tmp.path(), "graph-trait-run").replace('\n', " ");
+    for needle in [
+        "`invoke_subagent` returns at once with a `conversationId`",
+        "the subagent runs in the background",
+        "Do not poll the subagent",
+        "End the turn with the gossip bell armed",
+        "`agy` delivers the reply of the subagent as a message",
+    ] {
+        assert!(body.contains(needle), "no `{needle}`");
+    }
 }

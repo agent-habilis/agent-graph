@@ -102,6 +102,10 @@ Write all of this into the `Prompt`:
   command that reads or writes under `~/.agent-graph`. If `run_command` has no
   such parameter, the command already runs outside the sandbox
 
+In `agy`, `invoke_subagent` returns at once with a `conversationId`, and the
+subagent runs in the background. Do not poll the subagent. End the turn with
+the gossip bell armed. `agy` delivers the reply of the subagent as a message.
+
 Do not do the routine in this session, and do not run `agent-graph trait
 show` in this session. Wait for the result of the fork.
 

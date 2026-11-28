@@ -121,10 +121,18 @@ pub(crate) fn plug(agents: &[Agent], paths: &[PathBuf]) -> Result<Vec<String>> {
         if agent.detected(&home) {
             let dir = agent.skills_dir(&home);
             install(&dir, agent.skills())?;
-            if let Some(plugin) = agent.plugin_dir(&home) {
-                write_manifest(&plugin)?;
-            }
+            let kept = match agent.plugin_dir(&home) {
+                Some(plugin) => write_manifest(&plugin)?,
+                None => None,
+            };
             lines.push(format!("installed\t{}\t{}", agent.label(), dir.display()));
+            if let Some((path, reason)) = kept {
+                lines.push(format!(
+                    "kept\t{}\t{}\tplugin.json is {reason}, left untouched",
+                    agent.label(),
+                    path.display()
+                ));
+            }
         } else {
             lines.push(format!("skipped\t{}\tnot detected", agent.label()));
         }
@@ -274,13 +282,22 @@ fn manifest_is_ours(plugin: &Path) -> bool {
 }
 
 /// A `plugin.json` that differs from ours is the file of the user: it stays.
-fn write_manifest(plugin: &Path) -> Result<()> {
+/// Returns the path and the reason when it stays.
+fn write_manifest(plugin: &Path) -> Result<Option<(PathBuf, &'static str)>> {
     let path = plugin.join(PLUGIN_MANIFEST);
-    if path.symlink_metadata().is_ok() && !manifest_is_ours(plugin) {
-        return Ok(());
+    if let Ok(metadata) = path.symlink_metadata()
+        && !manifest_is_ours(plugin)
+    {
+        let reason = if metadata.file_type().is_symlink() {
+            "a symbolic link"
+        } else {
+            "a file of the user"
+        };
+        return Ok(Some((path, reason)));
     }
     fs::write(&path, plugin_manifest_body())
-        .with_context(|| format!("cannot write {}", path.display()))
+        .with_context(|| format!("cannot write {}", path.display()))?;
+    Ok(None)
 }
 
 /// Removes the manifest if it is ours, then the plugin

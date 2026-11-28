@@ -506,3 +506,63 @@ fn plug_and_unplug_do_not_write_through_a_plugin_json_link() {
     assert_eq!(fs::read_to_string(&target).unwrap(), mine);
     assert!(plugin.symlink_metadata().unwrap().file_type().is_symlink());
 }
+
+#[test]
+fn plug_says_that_it_left_a_plugin_json_of_the_user_untouched() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+    let plugin = agy_plugin_json(&home);
+    fs::create_dir_all(plugin.parent().unwrap()).unwrap();
+    fs::write(&plugin, "{\"name\":\"mine\"}").unwrap();
+
+    let out = run(&home, &["plug", "--agent", "agy"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    let line = text
+        .lines()
+        .find(|line| line.starts_with("kept\t"))
+        .unwrap_or_else(|| panic!("no kept line: {text}"));
+    assert_eq!(
+        line,
+        format!(
+            "kept\tantigravity\t{}\tplugin.json is a file of the user, left untouched",
+            plugin.display()
+        )
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn plug_says_that_it_left_a_plugin_json_link_untouched() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+    let plugin = agy_plugin_json(&home);
+    fs::create_dir_all(plugin.parent().unwrap()).unwrap();
+    let target = home.join("shared-plugin.json");
+    fs::write(&target, "{\"name\": \"agent-graph\"}\n").unwrap();
+    std::os::unix::fs::symlink(&target, &plugin).unwrap();
+
+    let out = run(&home, &["plug", "--agent", "agy"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stdout(&out).contains(&format!(
+            "kept\tantigravity\t{}\tplugin.json is a symbolic link, left untouched\n",
+            plugin.display()
+        )),
+        "{}",
+        stdout(&out)
+    );
+}
+
+#[test]
+fn plug_prints_no_kept_line_for_a_plugin_json_of_its_own() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+
+    for _ in 0..2 {
+        let out = run(&home, &["plug", "--agent", "agy"]);
+        assert!(!stdout(&out).contains("kept\t"), "{}", stdout(&out));
+    }
+}
