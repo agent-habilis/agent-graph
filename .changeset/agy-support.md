@@ -4,7 +4,7 @@ default: minor
 
 # Support the Antigravity CLI, and run agent-graph commands without a shell
 
-The skills now work in `agy`. Its sandbox, its missing working folder, and its Always Allow rule shaped the changes. A command line of a skill holds no shell construct and no shell variable, so a rule can match it.
+The skills now work in `agy`. Its sandbox, its missing working folder, and its Always Allow rule shaped the changes. A command line of an `agy` skill holds no shell construct and no shell variable, so a rule can match it. The skills of the other agents keep `$PPID` and the quote juggle.
 
 New commands and flags:
 
