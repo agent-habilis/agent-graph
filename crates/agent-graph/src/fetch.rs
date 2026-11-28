@@ -56,15 +56,27 @@ fn write_private(file: &std::path::Path, body: &[u8]) -> std::io::Result<()> {
     options.open(file)?.write_all(body)
 }
 
-fn download(url: &str, loopback: bool) -> Result<Vec<u8>> {
+/// The client. It trusts the certificate store of the operating system, as
+/// `curl` and the browsers do, so a private CA that a company or a proxy
+/// installs there works. The bundled list of Mozilla roots would not.
+fn agent(loopback: bool) -> ureq::Agent {
     // A redirect from a local server could lead to any `http://` host, so a
     // loopback URL follows none. An `https://` URL follows only `https://`.
-    let agent: ureq::Agent = ureq::Agent::config_builder()
+    ureq::Agent::config_builder()
         .timeout_global(Some(TIMEOUT))
         .https_only(!loopback)
         .max_redirects(if loopback { 0 } else { 10 })
+        .tls_config(
+            ureq::tls::TlsConfig::builder()
+                .root_certs(ureq::tls::RootCerts::PlatformVerifier)
+                .build(),
+        )
         .build()
-        .into();
+        .into()
+}
+
+fn download(url: &str, loopback: bool) -> Result<Vec<u8>> {
+    let agent = agent(loopback);
     let mut response = agent.get(url).call().map_err(|error| {
         if let ureq::Error::StatusCode(code) = error {
             anyhow!("{url}: the server answered HTTP {code}")
@@ -104,7 +116,21 @@ fn is_loopback_http(url: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::is_loopback_http;
+    use super::{agent, is_loopback_http};
+
+    #[test]
+    fn the_client_trusts_the_certificate_store_of_the_operating_system() {
+        for loopback in [false, true] {
+            let client = agent(loopback);
+            assert!(
+                matches!(
+                    client.config().tls_config().root_certs(),
+                    ureq::tls::RootCerts::PlatformVerifier
+                ),
+                "loopback {loopback}"
+            );
+        }
+    }
 
     #[test]
     fn only_a_loopback_host_may_use_http() {

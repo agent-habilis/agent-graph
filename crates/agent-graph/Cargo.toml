@@ -29,7 +29,7 @@ regex.workspace = true
 serde_json.workspace = true
 tar = "0.4.46"
 tempfile = "3"
-ureq = "3.5.2"
+ureq = { version = "3.5.2", features = ["platform-verifier"] }
 
 [build-dependencies]
 # Renders the multi-file `skills/` sources into one SKILL.md per skill. A copy
