@@ -1188,3 +1188,38 @@ fn node_up_rejects_an_include_of_an_apple_double_file() {
         assert!(!stdout(&out).contains("never printed"), "{name}");
     }
 }
+
+#[test]
+fn graph_init_takes_the_folder_as_dir_or_as_a_positional_argument() {
+    let (_tmp, root) = root();
+    let elsewhere = root.join("elsewhere");
+    let by_flag = root.join("by-flag");
+    let by_position = root.join("by-position");
+    fs::create_dir_all(&by_flag).unwrap();
+    fs::create_dir_all(&by_position).unwrap();
+
+    let flag = run(
+        &elsewhere,
+        &["graph", "init", "--dir", by_flag.to_str().unwrap()],
+    );
+    let before = run(
+        &elsewhere,
+        &["--dir", by_flag.to_str().unwrap(), "graph", "init"],
+    );
+    let position = run(
+        &elsewhere,
+        &["graph", "init", by_position.to_str().unwrap()],
+    );
+
+    assert!(flag.status.success(), "{}", stderr(&flag));
+    assert!(by_flag.join(".agent-graph/graphs").is_dir());
+    assert!(before.status.success(), "{}", stderr(&before));
+    assert!(
+        stderr(&before).contains("already exists"),
+        "{}",
+        stderr(&before)
+    );
+    assert!(position.status.success(), "{}", stderr(&position));
+    assert!(by_position.join(".agent-graph/graphs").is_dir());
+    assert!(!elsewhere.join(".agent-graph").exists());
+}

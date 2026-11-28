@@ -119,7 +119,10 @@ enum GraphCommand {
     /// Write the default graphs and nodes into `<dir>/.agent-graph/`. Does nothing if
     /// `.agent-graph` exists.
     Init {
-        /// The folder to write into. The default is the current directory.
+        /// The folder to write into. The default is the start folder, which
+        /// `--dir` sets. The id differs from the global `--dir`, which clap
+        /// would take for the same argument.
+        #[arg(id = "target", value_name = "DIR")]
         dir: Option<PathBuf>,
     },
     /// Put a graph at `~/.agent-graph/graphs/<hash>`, from a folder or from a
