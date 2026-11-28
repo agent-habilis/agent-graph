@@ -97,8 +97,8 @@ Write all of this into the `Prompt`:
 - the text of each `## Boundaries` section of the node and of the graph that
   are loaded in this session
 - this rule: if `run_command` has the parameter `BypassSandbox`, set it to
-  true on each `agent-graph`, `agent-gossip`, and `curl` command, and on each
-  command that reads or writes under `~/.agent-graph`. If `run_command` has no
+  true on each `agent-graph` and `agent-gossip` command, and on each command
+  that reads or writes under `~/.agent-graph`. If `run_command` has no
   such parameter, the command already runs outside the sandbox
 
 In `agy`, `invoke_subagent` returns at once with a `conversationId`, and the

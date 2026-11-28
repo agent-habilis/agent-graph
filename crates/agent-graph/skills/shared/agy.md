@@ -11,6 +11,5 @@ command already runs outside the sandbox: run it as it is.
 
 - each `agent-graph` command
 - each `agent-gossip` command
-- each command that reads or writes under `~/.agent-graph`, such as `mkdir`,
-  `cp`, `tar`, `ls`, `rm`, and `cat`
-- each `curl` command
+- each command that reads or writes under `~/.agent-graph`, such as `tar` and
+  `ls`

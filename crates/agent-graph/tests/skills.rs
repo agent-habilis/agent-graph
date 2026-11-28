@@ -509,17 +509,17 @@ fn every_skill_tells_agy_to_run_its_commands_outside_the_sandbox() {
     for (name, _) in source_skills() {
         let body = rendered_skill(tmp.path(), &name);
         assert!(body.contains("BypassSandbox"), "{name}: no sandbox note");
-        for command in [
-            "`mkdir`",
-            "`cp`",
-            "`tar`",
-            "`ls`",
-            "`curl`",
-            "`agent-gossip`",
-        ] {
+        // The commands that the skills run now: no `curl`, `mkdir`, or `cp`.
+        for command in ["`agent-graph`", "`agent-gossip`", "`tar`", "`ls`"] {
             assert!(
                 body.contains(command),
                 "{name}: the sandbox note omits {command}"
+            );
+        }
+        for command in ["`curl`", "`mkdir`", "`cp`"] {
+            assert!(
+                !body.contains(command),
+                "{name}: the sandbox note names {command}, which no skill runs"
             );
         }
         assert!(body.contains("`~/.agent-graph`"), "{name}: no folder named");
@@ -849,5 +849,39 @@ fn the_node_offer_brief_asks_no_peer_for_a_shell_construct() {
         for construct in ["&&", "||", "$(", "${"] {
             assert!(!brief.contains(construct), "{skill}: `{construct}`");
         }
+    }
+}
+
+#[test]
+fn the_readme_sandbox_rule_names_no_command_that_the_skills_do_not_run() {
+    let readme =
+        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../README.md")).unwrap();
+    assert!(
+        !readme.contains("`curl` command"),
+        "README still names curl"
+    );
+}
+
+#[test]
+fn the_node_offer_brief_declines_when_agent_graph_is_too_old() {
+    let tmp = TempDir::new().unwrap();
+    for skill in ["graph-up", "graph-node-invite"] {
+        let body = rendered_skill(tmp.path(), skill);
+        let brief = body
+            .lines()
+            .find(|line| line.contains("--text \"Node offer."))
+            .unwrap_or_else(|| panic!("{skill}: no brief"));
+        let rule = brief
+            .find("decline with the reason: agent-graph too old, run agent-graph plug after an upgrade")
+            .unwrap_or_else(|| panic!("{skill}: no too-old rule"));
+        let first_step = brief.find("A1.").unwrap();
+
+        assert!(rule < first_step, "{skill}: the rule is not before A1");
+        let sentence = &brief[..rule];
+        assert!(
+            sentence
+                .ends_with("graph install is an unknown command, or --pid auto is not accepted, "),
+            "{skill}: {sentence}"
+        );
     }
 }
