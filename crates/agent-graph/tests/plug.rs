@@ -310,3 +310,259 @@ fn unplug_removes_the_manifest() {
 
     assert!(!dest.join(".agent-graph-plug").exists());
 }
+
+#[test]
+fn plug_installs_agy_as_a_plugin_with_a_manifest_and_skills() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+
+    let out = run(&home, &["plug", "--agent", "agy"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let plugin = home.join(".gemini/config/plugins/agent-graph");
+    assert!(plugin.join("plugin.json").is_file());
+    assert!(plugin.join("skills/graph-up/SKILL.md").is_file());
+    assert_eq!(
+        stdout(&out),
+        format!(
+            "installed\tantigravity\t{}\n",
+            plugin.join("skills").display()
+        )
+    );
+}
+
+#[test]
+fn plug_detects_agy_by_its_cli_folder() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+
+    let out = run(&home, &["plug"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        home.join(".gemini/config/plugins/agent-graph/skills/graph-up/SKILL.md")
+            .is_file()
+    );
+}
+
+#[test]
+fn plug_agent_skips_agy_when_it_is_not_on_the_machine() {
+    let (_tmp, home) = root();
+
+    let out = run(&home, &["plug", "--agent", "antigravity"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "skipped\tantigravity\tnot detected\n");
+    assert!(!home.join(".gemini").exists());
+}
+
+#[test]
+fn unplug_removes_the_whole_agy_plugin() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+    assert!(run(&home, &["plug"]).status.success());
+    assert!(
+        home.join(".gemini/config/plugins/agent-graph/plugin.json")
+            .is_file()
+    );
+
+    let out = run(&home, &["unplug"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(!home.join(".gemini/config/plugins/agent-graph").exists());
+    assert!(home.join(".gemini/antigravity-cli").is_dir());
+}
+
+#[test]
+fn unplug_keeps_the_files_of_a_user_plugin_that_plug_did_not_write() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+    let plugin = home.join(".gemini/config/plugins/agent-graph");
+    fs::create_dir_all(&plugin).unwrap();
+    let mine = "{\"name\":\"mine\",\"disabled\":true}";
+    fs::write(plugin.join("plugin.json"), mine).unwrap();
+    fs::write(plugin.join("hooks.json"), "{}").unwrap();
+
+    let out = run(&home, &["unplug", "--agent", "agy"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        fs::read_to_string(plugin.join("plugin.json")).unwrap(),
+        mine
+    );
+    assert!(plugin.join("hooks.json").is_file());
+}
+
+#[test]
+fn plug_does_not_overwrite_a_plugin_json_of_the_user_for_agy() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+    let plugin = home.join(".gemini/config/plugins/agent-graph");
+    fs::create_dir_all(&plugin).unwrap();
+    let mine = "{\"name\":\"mine\",\"disabled\":true}";
+    fs::write(plugin.join("plugin.json"), mine).unwrap();
+
+    let out = run(&home, &["plug", "--agent", "agy"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        fs::read_to_string(plugin.join("plugin.json")).unwrap(),
+        mine
+    );
+    assert!(plugin.join("skills/graph-up/SKILL.md").is_file());
+}
+
+#[test]
+fn unplug_removes_the_agy_plugin_when_only_its_manifests_remain() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+    assert!(run(&home, &["plug"]).status.success());
+    let plugin = home.join(".gemini/config/plugins/agent-graph");
+    for entry in fs::read_dir(plugin.join("skills")).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            fs::remove_dir_all(path).unwrap();
+        }
+    }
+
+    let out = run(&home, &["unplug"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(!plugin.exists());
+}
+
+fn agy_plugin_json(home: &Path) -> PathBuf {
+    home.join(".gemini/config/plugins/agent-graph/plugin.json")
+}
+
+#[test]
+fn plug_writes_a_version_in_the_agy_plugin_json() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+
+    let out = run(&home, &["plug", "--agent", "agy"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(agy_plugin_json(&home)).unwrap()).unwrap();
+    assert_eq!(manifest["name"], "agent-graph");
+    assert_eq!(manifest["version"], env!("CARGO_PKG_VERSION"));
+}
+
+#[test]
+fn plug_upgrades_and_unplug_removes_an_older_plugin_json_of_ours() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+    let plugin = agy_plugin_json(&home);
+    for older in [
+        "{\"name\": \"agent-graph\"}\n",
+        "{\"name\":\"agent-graph\",\"version\":\"0.0.1\"}",
+    ] {
+        fs::create_dir_all(plugin.parent().unwrap()).unwrap();
+        fs::write(&plugin, older).unwrap();
+        assert!(run(&home, &["plug", "--agent", "agy"]).status.success());
+        let manifest: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&plugin).unwrap()).unwrap();
+        assert_eq!(manifest["version"], env!("CARGO_PKG_VERSION"), "{older}");
+
+        fs::write(&plugin, older).unwrap();
+        assert!(run(&home, &["unplug", "--agent", "agy"]).status.success());
+        assert!(!plugin.exists(), "{older}");
+    }
+}
+
+#[test]
+fn a_plugin_json_with_an_extra_key_stays_for_plug_and_unplug() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+    let plugin = agy_plugin_json(&home);
+    fs::create_dir_all(plugin.parent().unwrap()).unwrap();
+    let mine = "{\"name\":\"agent-graph\",\"version\":\"0.0.1\",\"disabled\":true}";
+    fs::write(&plugin, mine).unwrap();
+
+    assert!(run(&home, &["plug", "--agent", "agy"]).status.success());
+    assert_eq!(fs::read_to_string(&plugin).unwrap(), mine);
+    assert!(run(&home, &["unplug", "--agent", "agy"]).status.success());
+    assert_eq!(fs::read_to_string(&plugin).unwrap(), mine);
+}
+
+#[cfg(unix)]
+#[test]
+fn plug_and_unplug_do_not_write_through_a_plugin_json_link() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+    let plugin = agy_plugin_json(&home);
+    fs::create_dir_all(plugin.parent().unwrap()).unwrap();
+    let target = home.join("shared-plugin.json");
+    let mine = "{\"name\": \"agent-graph\"}\n";
+    fs::write(&target, mine).unwrap();
+    std::os::unix::fs::symlink(&target, &plugin).unwrap();
+
+    assert!(run(&home, &["plug", "--agent", "agy"]).status.success());
+    assert_eq!(fs::read_to_string(&target).unwrap(), mine);
+    assert!(plugin.symlink_metadata().unwrap().file_type().is_symlink());
+
+    assert!(run(&home, &["unplug", "--agent", "agy"]).status.success());
+    assert_eq!(fs::read_to_string(&target).unwrap(), mine);
+    assert!(plugin.symlink_metadata().unwrap().file_type().is_symlink());
+}
+
+#[test]
+fn plug_says_that_it_left_a_plugin_json_of_the_user_untouched() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+    let plugin = agy_plugin_json(&home);
+    fs::create_dir_all(plugin.parent().unwrap()).unwrap();
+    fs::write(&plugin, "{\"name\":\"mine\"}").unwrap();
+
+    let out = run(&home, &["plug", "--agent", "agy"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    let line = text
+        .lines()
+        .find(|line| line.starts_with("kept\t"))
+        .unwrap_or_else(|| panic!("no kept line: {text}"));
+    assert_eq!(
+        line,
+        format!(
+            "kept\tantigravity\t{}\tplugin.json is a file of the user, left untouched",
+            plugin.display()
+        )
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn plug_says_that_it_left_a_plugin_json_link_untouched() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+    let plugin = agy_plugin_json(&home);
+    fs::create_dir_all(plugin.parent().unwrap()).unwrap();
+    let target = home.join("shared-plugin.json");
+    fs::write(&target, "{\"name\": \"agent-graph\"}\n").unwrap();
+    std::os::unix::fs::symlink(&target, &plugin).unwrap();
+
+    let out = run(&home, &["plug", "--agent", "agy"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stdout(&out).contains(&format!(
+            "kept\tantigravity\t{}\tplugin.json is a symbolic link, left untouched\n",
+            plugin.display()
+        )),
+        "{}",
+        stdout(&out)
+    );
+}
+
+#[test]
+fn plug_prints_no_kept_line_for_a_plugin_json_of_its_own() {
+    let (_tmp, home) = root();
+    fs::create_dir_all(home.join(".gemini/antigravity-cli")).unwrap();
+
+    for _ in 0..2 {
+        let out = run(&home, &["plug", "--agent", "agy"]);
+        assert!(!stdout(&out).contains("kept\t"), "{}", stdout(&out));
+    }
+}

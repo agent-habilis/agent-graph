@@ -904,3 +904,322 @@ fn default_graphs_send_user_questions_to_the_leader() {
         }
     }
 }
+
+/// Run the binary behind `sh -c`, so that a shell stands between this test and
+/// the command, as it does for an agent. The `exit` keeps the shell from
+/// replacing itself with the command.
+fn run_in_shell(cwd: &Path, args: &[&str]) -> Output {
+    fs::create_dir_all(cwd).unwrap();
+    Command::new("sh")
+        .args(["-c", "\"$0\" \"$@\"; exit $?"])
+        .arg(env!("CARGO_BIN_EXE_agent-graph"))
+        .args(args)
+        .current_dir(cwd)
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn pid_auto_names_the_agent_above_the_shell_for_up_and_down() {
+    let (_tmp, root) = root();
+    node(&root, "solo", &index("d", None, ""));
+    graph_node(&root, "graph", "worker", &index("w", None, ""));
+    // This test process is the agent, and `sh` is the shell below it.
+    let agent = std::process::id();
+    let path = PathBuf::from(format!("/tmp/agent-graph/{agent}.json"));
+    let _ = fs::remove_file(&path);
+
+    for (up, down, name) in [
+        (["node", "up"], ["node", "down"], "solo"),
+        (["graph", "node-up"], ["graph", "node-down"], "graph/worker"),
+    ] {
+        let out = run_in_shell(&root, &[up[0], up[1], name, "--pid", "auto"]);
+        assert!(out.status.success(), "{}", stderr(&out));
+        // One line says which process `auto` found, so a wrong one shows.
+        assert!(
+            stderr(&out).contains(&format!("--pid auto is process {agent} (")),
+            "{}",
+            stderr(&out)
+        );
+        let state: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(state["pid"], agent, "{state}");
+
+        let removed = run_in_shell(&root, &[down[0], down[1], "--pid", "auto"]);
+        assert!(removed.status.success(), "{}", stderr(&removed));
+        assert!(!path.exists(), "{name}: the state file stays");
+    }
+
+    // Only one test uses the pid of this process, so no other thread writes
+    // or removes the file while the checks run.
+    let plain = run_in_shell(&root, &["node", "up", "solo"]);
+    assert!(plain.status.success(), "{}", stderr(&plain));
+    assert!(!path.exists(), "a plain node up wrote a state file");
+}
+
+#[test]
+fn pid_accepts_a_number_or_auto_and_nothing_else() {
+    let (_tmp, root) = root();
+    node(&root, "solo", &index("d", None, ""));
+
+    let out = run(&root, &["node", "up", "solo", "--pid", "soon"]);
+
+    assert_eq!(out.status.code(), Some(2));
+    assert!(stderr(&out).contains("a pid or `auto`"), "{}", stderr(&out));
+}
+
+#[test]
+fn graph_node_hash_is_the_sha256_of_what_graph_node_up_prints() {
+    let (_tmp, root) = root();
+    graph_node(&root, "graph", "worker", &index("w", None, "worker body\n"));
+
+    let up = run(&root, &["graph", "node-up", "graph/worker"]);
+    let out = run(&root, &["graph", "node-hash", "graph/worker"]);
+
+    assert!(up.status.success(), "{}", stderr(&up));
+    assert!(out.status.success(), "{}", stderr(&out));
+    // The oracle is `shasum -a 256` on the same text, run by hand once.
+    assert_eq!(stdout(&up), "worker body\n");
+    assert_eq!(
+        stdout(&out),
+        "0b625c8918641b1c2414630cfba461ab4007c2f76bf05cfbcda268ad6fb07066\n"
+    );
+}
+
+#[test]
+fn graph_node_hash_writes_no_state_file_and_changes_with_the_node() {
+    let (_tmp, root) = root();
+    let worker = graph_node(&root, "graph", "worker", &index("w", None, "one\n"));
+    let first = run(&root, &["graph", "node-hash", "graph/worker"]);
+    write(&worker.join("index.md"), &index("w", None, "two\n"));
+    let second = run(&root, &["graph", "node-hash", "graph/worker"]);
+
+    assert!(first.status.success() && second.status.success());
+    assert_ne!(stdout(&first), stdout(&second));
+}
+
+#[test]
+fn graph_node_hash_rejects_the_names_that_graph_node_up_rejects() {
+    let (_tmp, root) = root();
+    graph_node(&root, "graph", "worker", &index("w", None, ""));
+
+    for name in ["worker", "graph/nope", "nope/worker", "graph/../x"] {
+        let up = run(&root, &["graph", "node-up", name]);
+        let hash = run(&root, &["graph", "node-hash", name]);
+
+        assert_eq!(hash.status.code(), up.status.code(), "{name}");
+        assert_eq!(stderr(&hash), stderr(&up), "{name}");
+    }
+}
+
+#[test]
+fn graph_node_up_output_writes_the_text_to_the_file_and_prints_nothing() {
+    let (_tmp, root) = root();
+    graph_node(&root, "graph", "worker", &index("w", None, "worker body\n"));
+    let file = root.join("context.md");
+
+    let plain = run(&root, &["graph", "node-up", "graph/worker"]);
+    let out = run(
+        &root,
+        &[
+            "graph",
+            "node-up",
+            "graph/worker",
+            "--output",
+            file.to_str().unwrap(),
+        ],
+    );
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "");
+    assert_eq!(fs::read(&file).unwrap(), plain.stdout);
+}
+
+#[test]
+fn graph_node_up_output_to_a_folder_that_is_missing_fails() {
+    let (_tmp, root) = root();
+    graph_node(&root, "graph", "worker", &index("w", None, ""));
+    let file = root.join("no-such-folder/context.md");
+
+    let out = run(
+        &root,
+        &[
+            "graph",
+            "node-up",
+            "graph/worker",
+            "--output",
+            file.to_str().unwrap(),
+        ],
+    );
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("context.md"), "{}", stderr(&out));
+}
+
+#[test]
+fn graph_node_up_writes_the_output_file_before_the_statusline_record() {
+    let (_tmp, root) = root();
+    graph_node(&root, "graph", "worker", &index("w", None, ""));
+    let missing = root.join("no-such-folder/context.md");
+    let state = PathBuf::from("/tmp/agent-graph/4000012.json");
+    let _ = fs::remove_file(&state);
+
+    let out = run(
+        &root,
+        &[
+            "graph",
+            "node-up",
+            "graph/worker",
+            "--pid",
+            "4000012",
+            "--output",
+            missing.to_str().unwrap(),
+        ],
+    );
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(!state.exists(), "the statusline record was written first");
+}
+
+#[cfg(unix)]
+#[test]
+fn graph_node_up_output_does_not_write_through_a_link() {
+    let (_tmp, root) = root();
+    graph_node(&root, "graph", "worker", &index("w", None, ""));
+    let target = root.join("precious.txt");
+    fs::write(&target, "keep\n").unwrap();
+    let link = root.join("context.md");
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+
+    let out = run(
+        &root,
+        &[
+            "graph",
+            "node-up",
+            "graph/worker",
+            "--output",
+            link.to_str().unwrap(),
+        ],
+    );
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("symbolic link"), "{}", stderr(&out));
+    assert_eq!(fs::read_to_string(&target).unwrap(), "keep\n");
+}
+
+#[test]
+fn dir_starts_discovery_in_that_folder_wherever_the_command_runs() {
+    let (_tmp, root) = root();
+    let dir = node(&root.join("a"), "n", &index("d", None, "body\n"));
+    let elsewhere = root.join("elsewhere");
+    let start = root.join("a/b");
+    fs::create_dir_all(&start).unwrap();
+
+    let none = run(&elsewhere, &["node", "list"]);
+    let after = run(
+        &elsewhere,
+        &["node", "list", "--dir", start.to_str().unwrap()],
+    );
+    let before = run(
+        &elsewhere,
+        &["--dir", start.to_str().unwrap(), "node", "list"],
+    );
+
+    assert_eq!(stdout(&none), "");
+    assert_eq!(
+        stdout(&after),
+        line("n", "d", "", &dir),
+        "{}",
+        stderr(&after)
+    );
+    assert_eq!(stdout(&before), stdout(&after));
+}
+
+#[test]
+fn dir_expands_a_leading_tilde_to_home() {
+    let (_tmp, root) = root();
+    let dir = node(&root.join("home"), "n", &index("d", None, "body\n"));
+    let elsewhere = root.join("elsewhere");
+    fs::create_dir_all(&elsewhere).unwrap();
+
+    for arg in ["~", "~/"] {
+        let out = Command::new(env!("CARGO_BIN_EXE_agent-graph"))
+            .args(["node", "list", "--dir", arg])
+            .env("HOME", root.join("home"))
+            .current_dir(&elsewhere)
+            .output()
+            .unwrap();
+        assert_eq!(
+            stdout(&out),
+            line("n", "d", "", &dir),
+            "{arg}: {}",
+            stderr(&out)
+        );
+    }
+}
+
+#[test]
+fn dir_that_is_not_a_folder_fails_and_names_it() {
+    let (_tmp, root) = root();
+    let missing = root.join("missing");
+
+    let out = run(&root, &["node", "list", "--dir", missing.to_str().unwrap()]);
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("--dir"), "{}", stderr(&out));
+    assert!(stderr(&out).contains("missing"), "{}", stderr(&out));
+}
+
+#[test]
+fn node_up_rejects_an_include_of_an_apple_double_file() {
+    let (_tmp, root) = root();
+    let dir = node(&root, "advisor", &index("d", None, "A\n@._note.md\n"));
+    write(&dir.join("._note.md"), "never printed\n");
+    write(&dir.join("sub/._dir/x.md"), "never printed\n");
+    node(&root, "deep", &index("d", None, "@sub/._dir/x.md\n"));
+    let sub = dir.join("sub");
+    fs::create_dir_all(&sub).unwrap();
+
+    for name in ["advisor", "deep"] {
+        let out = run(&root, &["node", "up", name]);
+
+        assert_eq!(out.status.code(), Some(1), "{name}");
+        assert!(stderr(&out).contains("._"), "{name}: {}", stderr(&out));
+        assert!(!stdout(&out).contains("never printed"), "{name}");
+    }
+}
+
+#[test]
+fn graph_init_takes_the_folder_as_dir_or_as_a_positional_argument() {
+    let (_tmp, root) = root();
+    let elsewhere = root.join("elsewhere");
+    let by_flag = root.join("by-flag");
+    let by_position = root.join("by-position");
+    fs::create_dir_all(&by_flag).unwrap();
+    fs::create_dir_all(&by_position).unwrap();
+
+    let flag = run(
+        &elsewhere,
+        &["graph", "init", "--dir", by_flag.to_str().unwrap()],
+    );
+    let before = run(
+        &elsewhere,
+        &["--dir", by_flag.to_str().unwrap(), "graph", "init"],
+    );
+    let position = run(
+        &elsewhere,
+        &["graph", "init", by_position.to_str().unwrap()],
+    );
+
+    assert!(flag.status.success(), "{}", stderr(&flag));
+    assert!(by_flag.join(".agent-graph/graphs").is_dir());
+    assert!(before.status.success(), "{}", stderr(&before));
+    assert!(
+        stderr(&before).contains("already exists"),
+        "{}",
+        stderr(&before)
+    );
+    assert!(position.status.success(), "{}", stderr(&position));
+    assert!(by_position.join(".agent-graph/graphs").is_dir());
+    assert!(!elsewhere.join(".agent-graph").exists());
+}

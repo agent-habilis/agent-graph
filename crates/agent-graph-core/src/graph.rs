@@ -1,13 +1,13 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::LazyLock;
 use std::{fs, io};
 
 use regex::Regex;
 use sha2::{Digest, Sha256};
 
-use crate::{frontmatter, markdown, node};
+use crate::{frontmatter, include, markdown, node};
 
 /// The class that marks the lead node of a graph. Any other class is only
 /// style.
@@ -211,11 +211,8 @@ fn parse_mermaid(content: &str, graph: &mut Graph) {
 ///
 /// Fails when a file in `dir` cannot be read.
 pub fn hash(dir: &Path) -> io::Result<String> {
-    let mut files = Vec::new();
-    collect_files(dir, &mut files)?;
-    files.sort();
     let mut hasher = Sha256::new();
-    for file in files {
+    for file in files(dir)? {
         let content = fs::read(&file)?;
         let relative = file.strip_prefix(dir).unwrap_or(&file);
         hasher.update(relative.to_string_lossy().as_bytes());
@@ -223,16 +220,56 @@ pub fn hash(dir: &Path) -> io::Result<String> {
         hasher.update((content.len() as u64).to_le_bytes());
         hasher.update(&content);
     }
-    let mut hex = String::with_capacity(64);
-    for byte in hasher.finalize() {
-        let _ = write!(hex, "{byte:02x}");
+    Ok(hex(&hasher.finalize()))
+}
+
+/// The SHA-256 of `bytes`, as hex.
+#[must_use]
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    hex(&Sha256::digest(bytes))
+}
+
+fn hex(digest: &[u8]) -> String {
+    let mut text = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        let _ = write!(text, "{byte:02x}");
     }
-    Ok(hex)
+    text
+}
+
+/// True when a part of `path` starts with `._`. macOS writes `._<name>` for a
+/// file with extended attributes on a volume that has none, and `tar` writes
+/// it without `COPYFILE_DISABLE`. It is not part of a graph: `files`, and so
+/// `hash` and `pack`, skip it, and `install` skips it in a tar.
+#[must_use]
+pub fn is_apple_double(path: &Path) -> bool {
+    path.components().any(
+        |part| matches!(part, Component::Normal(name) if name.to_string_lossy().starts_with("._")),
+    )
+}
+
+/// Each file under `dir`, in path order. These are the files that `hash`
+/// covers, without a `._` name. A link to a folder is followed.
+///
+/// # Errors
+///
+/// Fails when a folder in `dir` cannot be read.
+pub fn files(dir: &Path) -> io::Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    collect_files(dir, &mut files)?;
+    files.sort();
+    Ok(files)
 }
 
 fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> io::Result<()> {
     for entry in fs::read_dir(dir)? {
         let path = entry?.path();
+        if path
+            .file_name()
+            .is_some_and(|name| is_apple_double(Path::new(name)))
+        {
+            continue;
+        }
         if path.is_dir() {
             collect_files(&path, files)?;
         } else {
@@ -260,6 +297,9 @@ pub fn lint(dir: &Path, graph: &Graph) -> Vec<(usize, String)> {
         .collect();
 
     errors.extend(node_errors(dir, graph));
+    if let Err(reason) = include::expand(dir, &dir.join("index.md")) {
+        errors.push((1, format!("index.md has a bad include: {reason:#}")));
+    }
 
     let mut names: Vec<&str> = Vec::new();
     for edge in &graph.edges {
@@ -340,14 +380,23 @@ fn node_errors(dir: &Path, graph: &Graph) -> Vec<(usize, String)> {
                     node.line,
                     format!("node `{}` is not valid: {reason}", node.label),
                 )),
-                Ok(loaded) if node.lead && loaded.count != 1 => errors.push((
-                    node.line,
-                    format!(
-                        "lead node `{}` has count {}, must be 1: the lead is the one peer that talks to the user",
-                        node.label, loaded.count
-                    ),
-                )),
-                Ok(_) => {}
+                Ok(loaded) => {
+                    if node.lead && loaded.count != 1 {
+                        errors.push((
+                            node.line,
+                            format!(
+                                "lead node `{}` has count {}, must be 1: the lead is the one peer that talks to the user",
+                                node.label, loaded.count
+                            ),
+                        ));
+                    }
+                    if let Err(reason) = include::expand(dir, &folder.join("index.md")) {
+                        errors.push((
+                            node.line,
+                            format!("node `{}` has a bad include: {reason:#}", node.label),
+                        ));
+                    }
+                }
             }
         } else {
             errors.push((node.line, format!("node `{}` not found", node.label)));

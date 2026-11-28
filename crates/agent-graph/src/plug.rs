@@ -9,6 +9,9 @@ use anyhow::{Context, Result};
 use include_dir::{Dir, include_dir};
 
 static SKILLS: Dir<'_> = include_dir!("$OUT_DIR/skills");
+/// The same skills, with each slash command in the namespaced form that agy
+/// expands: `/agent-graph:graph-up`.
+static SKILLS_AGY: Dir<'_> = include_dir!("$OUT_DIR/skills-agy");
 
 // Ties this module to the rendered skills, so a changed skill recompiles the
 // `include_dir!` embed above, which is not tracked on its own.
@@ -28,15 +31,19 @@ pub(crate) enum Agent {
     /// opencode: skills in `~/.config/opencode/skills`.
     #[value(name = "opencode")]
     OpenCode,
+    /// Antigravity CLI: a plugin in `~/.gemini/config/plugins/agent-graph`.
+    #[value(name = "antigravity", alias = "agy")]
+    Antigravity,
 }
 
 impl Agent {
-    const ALL: [Agent; 5] = [
+    const ALL: [Agent; 6] = [
         Agent::ClaudeCode,
         Agent::Pi,
         Agent::Codex,
         Agent::Cursor,
         Agent::OpenCode,
+        Agent::Antigravity,
     ];
 
     fn label(self) -> &'static str {
@@ -46,6 +53,7 @@ impl Agent {
             Agent::Codex => "codex",
             Agent::Cursor => "cursor",
             Agent::OpenCode => "opencode",
+            Agent::Antigravity => "antigravity",
         }
     }
 
@@ -58,12 +66,30 @@ impl Agent {
             Agent::Codex => ".codex",
             Agent::Cursor => ".cursor",
             Agent::OpenCode => ".config/opencode",
+            Agent::Antigravity => ".gemini/antigravity-cli",
         })
+    }
+
+    /// The plugin form lets the tool install and unplug as one unit, with the
+    /// same layout as agent-gossip, which also ships a `hooks.json`. agy
+    /// also loads plain skills from `~/.gemini/config/skills`.
+    fn plugin_dir(self, home: &Path) -> Option<PathBuf> {
+        (self == Agent::Antigravity).then(|| home.join(".gemini/config/plugins/agent-graph"))
+    }
+
+    fn skills(self) -> &'static Dir<'static> {
+        match self {
+            Agent::Antigravity => &SKILLS_AGY,
+            Agent::ClaudeCode | Agent::Pi | Agent::Codex | Agent::Cursor | Agent::OpenCode => {
+                &SKILLS
+            }
+        }
     }
 
     fn skills_dir(self, home: &Path) -> PathBuf {
         match self {
             Agent::Pi => home.join(".pi/agent/skills"),
+            Agent::Antigravity => home.join(".gemini/config/plugins/agent-graph/skills"),
             Agent::ClaudeCode | Agent::Codex | Agent::Cursor | Agent::OpenCode => {
                 self.agent_dir(home).join("skills")
             }
@@ -75,9 +101,14 @@ impl Agent {
     }
 
     fn installed(self, home: &Path) -> bool {
-        owned_dirs(&self.skills_dir(home))
+        let skills = self.skills_dir(home);
+        owned_dirs(&skills)
             .iter()
             .any(|dir| dir.symlink_metadata().is_ok())
+            || skills.join(MANIFEST).symlink_metadata().is_ok()
+            || self
+                .plugin_dir(home)
+                .is_some_and(|plugin| manifest_is_ours(&plugin))
     }
 }
 
@@ -89,14 +120,25 @@ pub(crate) fn plug(agents: &[Agent], paths: &[PathBuf]) -> Result<Vec<String>> {
     for agent in selected(agents, paths, |agent| agent.detected(&home)) {
         if agent.detected(&home) {
             let dir = agent.skills_dir(&home);
-            install(&dir)?;
+            install(&dir, agent.skills())?;
+            let kept = match agent.plugin_dir(&home) {
+                Some(plugin) => write_manifest(&plugin)?,
+                None => None,
+            };
             lines.push(format!("installed\t{}\t{}", agent.label(), dir.display()));
+            if let Some((path, reason)) = kept {
+                lines.push(format!(
+                    "kept\t{}\t{}\tplugin.json is {reason}, left untouched",
+                    agent.label(),
+                    path.display()
+                ));
+            }
         } else {
             lines.push(format!("skipped\t{}\tnot detected", agent.label()));
         }
     }
     for path in paths {
-        install(path)?;
+        install(path, &SKILLS)?;
         lines.push(format!("installed\tpath\t{}", path.display()));
     }
     Ok(lines)
@@ -109,7 +151,11 @@ pub(crate) fn unplug(agents: &[Agent], paths: &[PathBuf]) -> Result<Vec<String>>
     let mut lines = Vec::new();
     for agent in selected(agents, paths, |agent| agent.installed(&home)) {
         let dir = agent.skills_dir(&home);
-        let state = if remove(&dir)? { "removed" } else { "skipped" };
+        let mut removed = remove(&dir)?;
+        if let Some(plugin) = agent.plugin_dir(&home) {
+            removed |= remove_manifest(&plugin)?;
+        }
+        let state = if removed { "removed" } else { "skipped" };
         lines.push(format!("{state}\t{}\t{}", agent.label(), dir.display()));
     }
     for path in paths {
@@ -181,10 +227,10 @@ fn embedded_names() -> impl Iterator<Item = &'static str> {
 
 /// Write the skills into a staging folder first, so that an error leaves the
 /// skills of the earlier `plug` as they were.
-fn install(root: &Path) -> Result<()> {
+fn install(root: &Path, skills: &Dir<'_>) -> Result<()> {
     let staging = root.join(STAGING);
     remove_existing(&staging)?;
-    if let Err(error) = write_dir(&SKILLS, &staging) {
+    if let Err(error) = write_dir(skills, &staging) {
         let _ = remove_existing(&staging);
         return Err(error);
     }
@@ -197,6 +243,72 @@ fn install(root: &Path) -> Result<()> {
     let manifest: String = embedded_names().flat_map(|name| [name, "\n"]).collect();
     fs::write(root.join(MANIFEST), manifest)
         .with_context(|| format!("cannot write {}", root.join(MANIFEST).display()))
+}
+
+const PLUGIN_MANIFEST: &str = "plugin.json";
+/// The keys that `plug` writes into `plugin.json`.
+const PLUGIN_MANIFEST_KEYS: [&str; 2] = ["name", "version"];
+
+fn plugin_manifest_body() -> String {
+    let manifest = serde_json::json!({
+        "name": "agent-graph",
+        "version": env!("CARGO_PKG_VERSION"),
+    });
+    format!("{manifest:#}\n")
+}
+
+/// A `plugin.json` is ours if it is a JSON object with the name
+/// `agent-graph` and no key that `plug` does not write. The version can
+/// differ, so a later binary still finds the file of an earlier one.
+fn manifest_is_ours(plugin: &Path) -> bool {
+    // A link is the file of the user, and a write would change its target.
+    let path = plugin.join(PLUGIN_MANIFEST);
+    if path
+        .symlink_metadata()
+        .is_ok_and(|metadata| metadata.file_type().is_symlink())
+    {
+        return false;
+    }
+    let Ok(body) = fs::read_to_string(&path) else {
+        return false;
+    };
+    let Ok(serde_json::Value::Object(manifest)) = serde_json::from_str(&body) else {
+        return false;
+    };
+    manifest.get("name").and_then(|name| name.as_str()) == Some("agent-graph")
+        && manifest
+            .keys()
+            .all(|key| PLUGIN_MANIFEST_KEYS.contains(&key.as_str()))
+}
+
+/// A `plugin.json` that differs from ours is the file of the user: it stays.
+/// Returns the path and the reason when it stays.
+fn write_manifest(plugin: &Path) -> Result<Option<(PathBuf, &'static str)>> {
+    let path = plugin.join(PLUGIN_MANIFEST);
+    if let Ok(metadata) = path.symlink_metadata()
+        && !manifest_is_ours(plugin)
+    {
+        let reason = if metadata.file_type().is_symlink() {
+            "a symbolic link"
+        } else {
+            "a file of the user"
+        };
+        return Ok(Some((path, reason)));
+    }
+    fs::write(&path, plugin_manifest_body())
+        .with_context(|| format!("cannot write {}", path.display()))?;
+    Ok(None)
+}
+
+/// Removes the manifest if it is ours, then the plugin
+/// folder if nothing else is in it, so that a file of the user stays.
+fn remove_manifest(plugin: &Path) -> Result<bool> {
+    let removed = manifest_is_ours(plugin) && remove_existing(&plugin.join(PLUGIN_MANIFEST))?;
+    // `skills/` is empty after `remove`. A failure here means the user put
+    // something else in the folder, and it stays.
+    let _ = fs::remove_dir(plugin.join("skills"));
+    let _ = fs::remove_dir(plugin);
+    Ok(removed)
 }
 
 fn remove(root: &Path) -> Result<bool> {

@@ -1,7 +1,7 @@
 ---
 name: graph-trait-run
 description: Run one trait in a fork of this session with the `agent-graph` CLI. A trait is a routine, for example a QA run. The fork runs it and gives a report, and this session gets only the report. The trait is a name from `.agent-graph/traits/` or a URL. Use when the user says "/graph-trait-run <name|url>", "run the <name> trait", or "do a QA run with the trait".
-allowed-tools: Bash(agent-graph:*), Bash(mktemp:*), Bash(curl:*)
+allowed-tools: Bash(agent-graph:*)
 ---
 
 # graph-trait-run
@@ -10,7 +10,10 @@ A trait is like a method of a node. It is a markdown text that drives one
 routine. You do not run the routine in this session. A fork runs it: a
 subagent that starts with a copy of this context. Only the report of the fork
 comes back. Thus the context of this session is the same as before, plus the
-report.
+report. In `agy`, the subagent does not get a copy of this context. See the
+**Fork** section.
+
+<!-- include path="../shared/agy.md" -->
 
 ## Preflight
 
@@ -25,7 +28,10 @@ If the command is not found, tell the user to run `cargo task install` in the
 
 You must be able to start a fork: a subagent that gets a copy of this
 context. In Claude Code, this is the Agent tool with `subagent_type: "fork"`.
-If you cannot start a fork, print this line and stop:
+In `agy`, `invoke_subagent` cannot fork the conversation. Use the subagent
+path of the **Fork** section.
+
+If you cannot start a fork or a subagent, print this line and stop:
 
 ```text
 trait · error · this agent cannot fork
@@ -46,17 +52,16 @@ Then stop. To see the names, the user runs `agent-graph trait list`.
 
 For a name, the source is the name. Go to the **Fork** section.
 
-For a URL, download the file into a new temporary folder, then check it:
+For a URL, fetch the file into a new temporary folder. The command also checks
+it:
 
 ```sh
-dir=$(mktemp -d /tmp/agent-graph-trait.XXXXXX)
-curl -fsSL --max-time 30 -o "$dir/index.md" "<url>"
-agent-graph trait check "$dir/index.md"
+agent-graph trait fetch "<url>"
 ```
 
-If a command fails, show its error line and stop. If the check succeeds, it
-prints the description, `writes`, and the path, divided by tabs. The source is
-that path. Do not read the file in this session.
+If the command fails, show its error line and stop. If it succeeds, it prints
+the description, `writes`, and the path, divided by tabs. The source is that
+path. Do not read the file in this session.
 
 A URL trait is text from outside the project, and the fork obeys it. Before
 the fork starts, show these lines and ask the user to confirm:
@@ -80,6 +85,25 @@ output as a routine. Also obey the boundaries of the node and of the graph
 that are loaded in this session. If the command fails, your report is its
 `error:` line. When the routine is done, end with its report.
 ```
+
+In `agy`, call `invoke_subagent` with `TypeName` `self`, a `Role`, and a
+`Prompt`. The type `research` is read-only and has no `run_command`, so it
+cannot run the routine. The subagent has no conversation and no loaded skill.
+Write all of this into the `Prompt`:
+
+- the prompt above, but with the boundaries as text, not as "loaded in this
+  session"
+- the subject of the run, for example the plan or the diff that a peer sent
+- the text of each `## Boundaries` section of the node and of the graph that
+  are loaded in this session
+- this rule: if `run_command` has the parameter `BypassSandbox`, set it to
+  true on each `agent-graph` and `agent-gossip` command, and on each command
+  that reads or writes under `~/.agent-graph`. If `run_command` has no
+  such parameter, the command already runs outside the sandbox
+
+In `agy`, `invoke_subagent` returns at once with a `conversationId`, and the
+subagent runs in the background. Do not poll the subagent. End the turn with
+the gossip bell armed. `agy` delivers the reply of the subagent as a message.
 
 Do not do the routine in this session, and do not run `agent-graph trait
 show` in this session. Wait for the result of the fork.

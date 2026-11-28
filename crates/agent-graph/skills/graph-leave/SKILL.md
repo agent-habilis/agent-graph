@@ -13,14 +13,16 @@ of its node. The other peers stay. To stop the whole graph, the user runs
 
 <!-- include path="../shared/gossip-session.md" -->
 
+<!-- include path="../shared/agy.md" -->
+
 ## Leave
 
 ```sh
 agent-graph graph node-down --pid "$PPID"
 ```
 
-`$PPID` is the agent process. The command removes the record for the
-statusline, and it also succeeds when this agent has no node. If the command
+The value of `--pid` is the agent process. The command removes the record for
+the statusline, and it also succeeds when this agent has no node. If the command
 fails, show its `error:` line and stop.
 
 Read your meta entry:

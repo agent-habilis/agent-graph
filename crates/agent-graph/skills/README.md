@@ -23,6 +23,9 @@ Rules:
   `include` (alone on its line) splices the file at `path`, relative to the
   file that holds the line, with exactly the other keys as its args. `slot`
   is the point that such an arg fills. `\"` and `\\` are the only escapes.
+- `<!-- bare -->` before a `/graph-<skill>` keeps that command bare in the
+  agy render. Use it in a text that a peer of any agent reads, for example
+  a gossip broadcast. The renderer drops the marker in each render.
 - The render is strict: a slot with no arg, an arg with no slot, and a
   malformed directive stop the build.
 - Partials use `##`/`###` headings. Refer to another part by its section

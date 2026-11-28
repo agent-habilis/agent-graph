@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 
 use crate::frontmatter;
+use crate::graph::is_apple_double;
 
 /// The body of `file` with each `@path` line replaced by the body of that
 /// file, recursively. Every included file must be inside `root`.
@@ -65,6 +66,16 @@ fn resolve(root: &Path, from: &Path, target: &str) -> Result<PathBuf> {
     if !path.starts_with(root) {
         bail!(
             "include `@{target}` in {} is outside the graph folder",
+            relative(root, from)
+        );
+    }
+    // `hash`, `pack` and `install` skip a `._` name, so a node must not print
+    // one: the node text would change while the hash of the graph does not.
+    if is_apple_double(Path::new(target))
+        || is_apple_double(path.strip_prefix(root).unwrap_or(&path))
+    {
+        bail!(
+            "include `@{target}` in {} names a `._` file, which is not part of a graph",
             relative(root, from)
         );
     }

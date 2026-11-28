@@ -17,6 +17,8 @@ This skill lists only standalone nodes. The nodes of a graph have the name
 `<graph>/<node>`. To see them, the user runs
 `agent-graph graph nodes <graph>`.
 
+<!-- include path="../shared/agy.md" -->
+
 ## Preflight
 
 Make sure that `agent-graph` is on `PATH`:
@@ -33,6 +35,8 @@ If the command is not found, tell the user to run `cargo task install` in the
 An optional tag regex. With no argument, list all standalone nodes.
 
 ## List
+
+Run each line as its own command:
 
 ```sh
 agent-graph node list                 # all standalone nodes

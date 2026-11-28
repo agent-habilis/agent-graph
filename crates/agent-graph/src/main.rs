@@ -1,4 +1,9 @@
+mod agent_pid;
+mod fetch;
 mod init;
+mod install;
+mod output;
+mod pack;
 mod plug;
 mod state;
 
@@ -10,8 +15,9 @@ use std::process::ExitCode;
 
 use agent_graph_core::{graph, include, name as short_name, node, traits};
 use agent_graph_topology as topology;
-use anyhow::{Result, anyhow, bail};
-use clap::{Parser, Subcommand};
+use agent_pid::PidArg;
+use anyhow::{Context, Result, anyhow, bail};
+use clap::{ArgGroup, Parser, Subcommand};
 use regex::Regex;
 
 /// Find and print agent graphs and standalone nodes: OKF bundles in
@@ -21,8 +27,33 @@ use regex::Regex;
 #[derive(Debug, Parser)]
 #[command(version)]
 struct Cli {
+    /// Start discovery in this folder, not in the working folder. A leading `~`
+    /// is the home folder. An agent that cannot set the working folder of a
+    /// command passes it. It changes discovery only, not how a relative path
+    /// argument resolves. Each command checks that it is a folder.
+    #[arg(long, global = true, value_name = "PATH")]
+    dir: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
+}
+
+/// The folder where discovery starts: `--dir`, else the working folder.
+fn start_dir(dir: Option<&Path>) -> Result<PathBuf> {
+    let Some(dir) = dir else {
+        return Ok(env::current_dir()?);
+    };
+    let home = || match env::var_os("HOME") {
+        Some(home) if !home.is_empty() => Ok(PathBuf::from(home)),
+        _ => bail!("--dir {}: `$HOME` is not set", dir.display()),
+    };
+    let start = match dir.strip_prefix("~") {
+        Ok(rest) => home()?.join(rest),
+        Err(_) => dir.to_path_buf(),
+    };
+    if !start.is_dir() {
+        bail!("--dir {}: not a folder", dir.display());
+    }
+    Ok(start.canonicalize()?)
 }
 
 #[derive(Debug, Subcommand)]
@@ -89,8 +120,35 @@ enum GraphCommand {
     /// Write the default graphs and nodes into `<dir>/.agent-graph/`. Does nothing if
     /// `.agent-graph` exists.
     Init {
-        /// The folder to write into. The default is the current directory.
+        /// The folder to write into. The default is the start folder, which
+        /// `--dir` sets. The id differs from the global `--dir`, which clap
+        /// would take for the same argument.
+        #[arg(id = "target", value_name = "DIR")]
         dir: Option<PathBuf>,
+    },
+    /// Put a graph at `~/.agent-graph/graphs/<hash>`, from a folder or from a
+    /// tar file of one, and print the hash. A tar file stays only if the hash
+    /// of what it holds is `--expect`.
+    #[command(group = ArgGroup::new("source").required(true).args(["folder", "tar"]))]
+    Install {
+        /// The graph folder to copy.
+        folder: Option<PathBuf>,
+        /// A tar file of a graph folder, made with `graph pack`.
+        #[arg(long, requires = "expect")]
+        tar: Option<PathBuf>,
+        /// The hash that the graph in the tar file must have.
+        #[arg(long, requires = "tar", value_parser = parse_hash)]
+        expect: Option<String>,
+    },
+    /// Write a graph as a tar file for `install --tar`. The tar holds only
+    /// the files that the hash covers, as regular files, so it has no
+    /// extended attributes and no `._` entries.
+    Pack {
+        /// The graph name.
+        name: String,
+        /// The tar file to write.
+        #[arg(long)]
+        output: PathBuf,
     },
     /// Print the graph's body, then the body of one of its nodes, with their
     /// `@file` includes expanded.
@@ -102,33 +160,55 @@ enum GraphCommand {
         /// the statusline shows the name of the graph template.
         #[arg(long = "name")]
         label: Option<String>,
-        /// The pid of the agent. Records the graph and the node in
-        /// `/tmp/agent-graph/<pid>.json` for the statusline.
+        /// The pid of the agent, or `auto` for the first ancestor of this
+        /// command that is not a shell. Records the graph and the node in
+        /// `/tmp/agent-graph/<pid>.json` for the statusline. Without it,
+        /// nothing is recorded.
         #[arg(long)]
-        pid: Option<u32>,
+        pid: Option<PidArg>,
+        /// Write the text to this file, and print nothing.
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
+    /// Print the SHA-256 of what `node-up` prints for `<graph>/<node>`: the
+    /// check of the node context that a peer without agent-graph gets.
+    #[command(name = "node-hash")]
+    NodeHash {
+        /// The node, as `<graph>/<node>`.
+        name: String,
     },
     /// Remove the graph and the node of an agent from the statusline:
     /// `/tmp/agent-graph/<pid>.json`.
     #[command(name = "node-down")]
     NodeDown {
-        /// The pid of the agent.
+        /// The pid of the agent, or `auto` for the first ancestor of this
+        /// command that is not a shell.
         #[arg(long)]
-        pid: u32,
+        pid: PidArg,
     },
     /// Draw the running graph: one box per peer in its node, and the
     /// edges between them. Prints one `warning:` line per problem to
     /// stderr.
+    #[command(group = ArgGroup::new("source").required(true).args(["meta", "gossip"]))]
     Topology {
         /// The graph instance name, for example `squad1@main`. The default
         /// is the graph of `--me`.
         #[arg(long = "name")]
         instance: Option<String>,
-        /// The output of `agent-gossip meta get`.
-        #[arg(long)]
-        meta: PathBuf,
-        /// The output of `agent-gossip peers`.
-        #[arg(long)]
-        peers: PathBuf,
+        /// The output of `agent-gossip meta get`, in a file.
+        #[arg(long, requires = "peers", conflicts_with = "gossip")]
+        meta: Option<PathBuf>,
+        /// The output of `agent-gossip peers`, in a file.
+        #[arg(long, requires = "meta", conflicts_with = "gossip")]
+        peers: Option<PathBuf>,
+        /// The gossip id. The command runs `agent-gossip meta get` and
+        /// `agent-gossip peers` for it, so a shell needs no process
+        /// substitution.
+        #[arg(long, requires = "nickname")]
+        gossip: Option<String>,
+        /// The nickname of this agent in the gossip.
+        #[arg(long, requires = "gossip")]
+        nickname: Option<String>,
         /// The session key of this agent, the `pubkey` of `agent-gossip session`.
         #[arg(long)]
         me: String,
@@ -156,17 +236,20 @@ enum NodeCommand {
         /// default is a new short hash.
         #[arg(long = "name")]
         label: Option<String>,
-        /// The pid of the agent. Records the node in
-        /// `/tmp/agent-graph/<pid>.json` for the statusline.
+        /// The pid of the agent, or `auto` for the first ancestor of this
+        /// command that is not a shell. Records the node in
+        /// `/tmp/agent-graph/<pid>.json` for the statusline. Without it,
+        /// nothing is recorded.
         #[arg(long)]
-        pid: Option<u32>,
+        pid: Option<PidArg>,
     },
     /// Remove the standalone node of an agent from the statusline:
     /// `/tmp/agent-graph/<pid>.json`.
     Down {
-        /// The pid of the agent.
+        /// The pid of the agent, or `auto` for the first ancestor of this
+        /// command that is not a shell.
         #[arg(long)]
-        pid: u32,
+        pid: PidArg,
     },
 }
 
@@ -178,6 +261,11 @@ enum TraitCommand {
     /// Check a trait file, or the `index.md` of a trait folder. Print its
     /// description, writes, and path (tab-separated).
     Check { path: PathBuf },
+    /// Download a trait from an `https://` URL into a new folder under the
+    /// temp folder, and check it. Print its description, writes, and path
+    /// (tab-separated), as `check` does. A page that is not a trait leaves no
+    /// folder.
+    Fetch { url: String },
     /// Print the trait's body, with its `@file` includes expanded. A read-only
     /// trait gets a `## Boundaries` section.
     Show {
@@ -205,7 +293,7 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: Cli) -> Result<()> {
-    let cwd = env::current_dir()?;
+    let cwd = start_dir(cli.dir.as_deref())?;
     let mut stdout = io::stdout().lock();
     match cli.command {
         Command::Graph { command } => run_graph(command, &cwd, &mut stdout),
@@ -255,7 +343,7 @@ fn run_node(command: NodeCommand, cwd: &Path, stdout: &mut impl Write) -> Result
             let text = include::expand(dir, &dir.join("index.md"))?;
             if let Some(pid) = pid {
                 state::write(
-                    pid,
+                    pid.resolve()?,
                     None,
                     (&name, &node),
                     Some(&label.unwrap_or_else(short_name::short)),
@@ -263,7 +351,7 @@ fn run_node(command: NodeCommand, cwd: &Path, stdout: &mut impl Write) -> Result
             }
             write!(stdout, "{text}")?;
         }
-        NodeCommand::Down { pid } => state::remove(pid)?,
+        NodeCommand::Down { pid } => state::remove(pid.resolve()?)?,
     }
     Ok(())
 }
@@ -293,6 +381,16 @@ fn run_trait(command: TraitCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
             };
             let item = traits::load(&file)
                 .map_err(|reason| anyhow!("{} is not a valid trait: {reason}", file.display()))?;
+            writeln!(
+                stdout,
+                "{}\t{}\t{}",
+                item.description,
+                item.writes,
+                file.display()
+            )?;
+        }
+        TraitCommand::Fetch { url } => {
+            let (item, file) = fetch::fetch(&url)?;
             writeln!(
                 stdout,
                 "{}\t{}\t{}",
@@ -339,6 +437,99 @@ fn run_trait(command: TraitCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
     Ok(())
 }
 
+/// A hash is 64 lowercase hex digits. It becomes a folder name, so nothing
+/// else can pass.
+fn parse_hash(text: &str) -> Result<String, String> {
+    if text.len() == 64
+        && text
+            .bytes()
+            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+    {
+        Ok(text.to_string())
+    } else {
+        Err("a hash is 64 lowercase hex digits".to_string())
+    }
+}
+
+/// The gossip documents, from two files, or from `agent-gossip` itself.
+fn read_gossip(
+    meta: Option<PathBuf>,
+    peers: Option<PathBuf>,
+    gossip: Option<String>,
+    nickname: Option<String>,
+) -> Result<topology::Gossip> {
+    if let (Some(meta), Some(peers)) = (meta, peers) {
+        return topology::Gossip::read(&meta, &peers);
+    }
+    let (Some(gossip), Some(nickname)) = (gossip, nickname) else {
+        unreachable!("clap requires the two files, or --gossip with --nickname");
+    };
+    let ask = |args: &[&str]| -> Result<String> {
+        let out = std::process::Command::new("agent-gossip")
+            .args(args)
+            .args(["--gossip", &gossip, "--nickname", &nickname])
+            .output()
+            .context("cannot run agent-gossip")?;
+        if !out.status.success() {
+            bail!(
+                "agent-gossip {} failed: {}",
+                args.join(" "),
+                String::from_utf8_lossy(&out.stderr).trim()
+            );
+        }
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    };
+    topology::Gossip::parse(
+        &ask(&["meta", "get"])?,
+        "agent-gossip meta get",
+        &ask(&["peers"])?,
+        "agent-gossip peers",
+    )
+}
+
+fn graph_list(graphs: &BTreeMap<String, PathBuf>, stdout: &mut impl Write) -> Result<()> {
+    for (name, dir) in graphs {
+        match graph::load(dir) {
+            Ok(graph) => writeln!(
+                stdout,
+                "{name}\t{}\t{}\t{}",
+                graph.description,
+                graph.scope,
+                dir.display()
+            )?,
+            Err(reason) => eprintln!("warning: {}: {reason}", dir.display()),
+        }
+    }
+    Ok(())
+}
+
+fn graph_install(
+    folder: Option<PathBuf>,
+    tar: Option<PathBuf>,
+    expect: Option<String>,
+    stdout: &mut impl Write,
+) -> Result<()> {
+    let hash = match (folder, tar, expect) {
+        (Some(folder), _, _) => install::from_folder(&folder)?,
+        (None, Some(tar), Some(expect)) => install::from_tar(&tar, &expect)?,
+        _ => unreachable!("clap requires a folder, or a tar file with its hash"),
+    };
+    writeln!(stdout, "{hash}")?;
+    Ok(())
+}
+
+fn graph_init(dir: &Path, stdout: &mut impl Write) -> Result<()> {
+    match init::init(dir)? {
+        Some(written) => {
+            for path in written {
+                writeln!(stdout, "{}", path.display())?;
+            }
+        }
+        None => eprintln!("{} already exists", dir.join(".agent-graph").display()),
+    }
+    Ok(())
+}
+
 fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Result<()> {
     let graphs = node::discover_graphs(cwd);
     let find = |name: &str| {
@@ -347,31 +538,8 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
             .ok_or_else(|| anyhow!("graph `{name}` not found"))
     };
     match command {
-        GraphCommand::Init { dir } => {
-            let dir = dir.unwrap_or_else(|| cwd.to_path_buf());
-            match init::init(&dir)? {
-                Some(written) => {
-                    for path in written {
-                        writeln!(stdout, "{}", path.display())?;
-                    }
-                }
-                None => eprintln!("{} already exists", dir.join(".agent-graph").display()),
-            }
-        }
-        GraphCommand::List => {
-            for (name, dir) in &graphs {
-                match graph::load(dir) {
-                    Ok(graph) => writeln!(
-                        stdout,
-                        "{name}\t{}\t{}\t{}",
-                        graph.description,
-                        graph.scope,
-                        dir.display()
-                    )?,
-                    Err(reason) => eprintln!("warning: {}: {reason}", dir.display()),
-                }
-            }
-        }
+        GraphCommand::Init { dir } => graph_init(dir.as_deref().unwrap_or(cwd), stdout)?,
+        GraphCommand::List => graph_list(&graphs, stdout)?,
         GraphCommand::Get { name } => {
             let dir = find(&name)?;
             graph::load(dir).map_err(|reason| anyhow!("graph `{name}` is not valid: {reason}"))?;
@@ -425,16 +593,35 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
             instance,
             meta,
             peers,
+            gossip,
+            nickname,
             me,
             mermaid,
         } => {
-            let gossip = topology::Gossip::read(&meta, &peers)?;
+            let gossip = read_gossip(meta, peers, gossip, nickname)?;
             draw_topology(&graphs, &gossip, instance.as_deref(), &me, mermaid, stdout)?;
         }
-        GraphCommand::NodeUp { name, label, pid } => {
-            graph_node_up(&graphs, &name, label.as_deref(), pid, stdout)?;
-        }
-        GraphCommand::NodeDown { pid } => state::remove(pid)?,
+        GraphCommand::NodeUp {
+            name,
+            label,
+            pid,
+            output,
+        } => graph_node_up(
+            &graphs,
+            &name,
+            label.as_deref(),
+            pid,
+            output.as_deref(),
+            stdout,
+        )?,
+        GraphCommand::Install {
+            folder,
+            tar,
+            expect,
+        } => graph_install(folder, tar, expect, stdout)?,
+        GraphCommand::Pack { name, output } => pack::pack(find(&name)?, &output)?,
+        GraphCommand::NodeHash { name } => graph_node_hash(&graphs, &name, stdout)?,
+        GraphCommand::NodeDown { pid } => state::remove(pid.resolve()?)?,
     }
     Ok(())
 }
@@ -461,13 +648,19 @@ fn find_graph_node<'a>(
     Ok((graph_name, node_name, graph_dir, dir))
 }
 
-fn graph_node_up(
-    graphs: &BTreeMap<String, PathBuf>,
-    name: &str,
-    label: Option<&str>,
-    pid: Option<u32>,
-    stdout: &mut impl Write,
-) -> Result<()> {
+/// What `node-up` prints for a node, and what it records for the statusline.
+struct NodeContext<'a> {
+    text: String,
+    graph_name: &'a str,
+    node_name: &'a str,
+    graph: graph::Graph,
+    node: node::Node,
+}
+
+fn graph_node_context<'a>(
+    graphs: &'a BTreeMap<String, PathBuf>,
+    name: &'a str,
+) -> Result<NodeContext<'a>> {
     let (graph_name, node_name, graph_dir, dir) = find_graph_node(graphs, name)?;
     let node =
         node::load(&dir).map_err(|reason| anyhow!("node `{name}` is not valid: {reason}"))?;
@@ -475,10 +668,54 @@ fn graph_node_up(
         .map_err(|reason| anyhow!("graph `{graph_name}` is not valid: {reason}"))?;
     let mut text = include::expand(graph_dir, &graph_dir.join("index.md"))?;
     text += &include::expand(graph_dir, &dir.join("index.md"))?;
-    if let Some(pid) = pid {
-        state::write(pid, Some((graph_name, &graph)), (node_name, &node), label)?;
+    Ok(NodeContext {
+        text,
+        graph_name,
+        node_name,
+        graph,
+        node,
+    })
+}
+
+fn graph_node_hash(
+    graphs: &BTreeMap<String, PathBuf>,
+    name: &str,
+    stdout: &mut impl Write,
+) -> Result<()> {
+    let context = graph_node_context(graphs, name)?;
+    writeln!(stdout, "{}", graph::sha256_hex(context.text.as_bytes()))?;
+    Ok(())
+}
+
+fn graph_node_up(
+    graphs: &BTreeMap<String, PathBuf>,
+    name: &str,
+    label: Option<&str>,
+    pid: Option<PidArg>,
+    output: Option<&Path>,
+    stdout: &mut impl Write,
+) -> Result<()> {
+    let context = graph_node_context(graphs, name)?;
+    let record = || -> Result<()> {
+        if let Some(pid) = pid {
+            state::write(
+                pid.resolve()?,
+                Some((context.graph_name, &context.graph)),
+                (context.node_name, &context.node),
+                label,
+            )?;
+        }
+        Ok(())
+    };
+    // The file comes first: a file that cannot be written must not leave a
+    // statusline record behind.
+    if let Some(file) = output {
+        output::write_new(file, context.text.as_bytes())?;
+        record()?;
+    } else {
+        record()?;
+        write!(stdout, "{}", context.text)?;
     }
-    write!(stdout, "{text}")?;
     Ok(())
 }
 

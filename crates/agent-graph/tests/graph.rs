@@ -553,3 +553,78 @@ fn graph_nodes_prints_model_preference() {
         "worker\tcoding/worker\tlead\t1\t\nadvisor\tcoding/advisor\t-\t1\tfable\n"
     );
 }
+
+#[test]
+fn lint_rejects_a_node_that_includes_an_apple_double_file() {
+    let (_tmp, root) = root();
+    let dir = graph(&root, "coding", CODING);
+    write(
+        &dir.join("nodes/worker/index.md"),
+        &format!("{NODE_INDEX}@._note.md\n"),
+    );
+    write(
+        &dir.join("nodes/worker/._note.md"),
+        "a file that macOS wrote\n",
+    );
+
+    let out = run(&root, &["graph", "lint"]);
+
+    assert_eq!(out.status.code(), Some(1), "{}", stdout(&out));
+    assert!(
+        stdout(&out).contains("._note.md"),
+        "{}{}",
+        stdout(&out),
+        stderr(&out)
+    );
+    assert!(stdout(&out).contains("worker"), "{}", stdout(&out));
+}
+
+#[test]
+fn lint_accepts_a_node_with_a_valid_include() {
+    let (_tmp, root) = root();
+    let dir = graph(&root, "coding", CODING);
+    write(
+        &dir.join("nodes/worker/index.md"),
+        &format!("{NODE_INDEX}@note.md\n"),
+    );
+    write(&dir.join("nodes/worker/note.md"), "a note\n");
+
+    let out = run(&root, &["graph", "lint"]);
+
+    assert!(out.status.success(), "{}{}", stdout(&out), stderr(&out));
+}
+
+#[test]
+fn lint_rejects_a_graph_index_with_a_bad_include() {
+    for (include, needle) in [("@._g.md", "._g.md"), ("@missing.md", "missing.md")] {
+        let (_tmp, root) = root();
+        let dir = graph(&root, "coding", &format!("{CODING}\n{include}\n"));
+        write(&dir.join("._g.md"), "a file that macOS wrote\n");
+
+        let out = run(&root, &["graph", "lint"]);
+
+        assert_eq!(out.status.code(), Some(1), "{include}: {}", stdout(&out));
+        assert!(
+            stdout(&out).contains(needle),
+            "{include}: {}{}",
+            stdout(&out),
+            stderr(&out)
+        );
+        assert!(
+            stdout(&out).contains("index.md"),
+            "{include}: {}",
+            stdout(&out)
+        );
+    }
+}
+
+#[test]
+fn lint_accepts_a_graph_index_with_a_valid_include() {
+    let (_tmp, root) = root();
+    let dir = graph(&root, "coding", &format!("{CODING}\n@part.md\n"));
+    write(&dir.join("part.md"), "more text\n");
+
+    let out = run(&root, &["graph", "lint"]);
+
+    assert!(out.status.success(), "{}{}", stdout(&out), stderr(&out));
+}

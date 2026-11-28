@@ -99,7 +99,7 @@ writes: false               # optional (default false); true lets the trait chan
 
 `trait show` adds a `## Boundaries` section to a trait with `writes: false`: no changes to files that git tracks, and no commits.
 When a node is loaded, `/graph-trait-run <name>` runs only a trait that the node lists in `traits`.
-`/graph-trait-run <url>` downloads the trait into a folder in `/tmp`, checks it with `trait check`, and shows its description and `writes`.
+`/graph-trait-run <url>` runs `trait fetch`: it downloads the trait into a new folder under the temp folder, checks it, and shows its description and `writes`.
 The user must confirm before the fork runs it. A URL trait skips the node check. It is one file, so it cannot include other files.
 
 ## Discovery
@@ -118,8 +118,15 @@ agent-graph graph hash squad1              # SHA-256 of the graph folder: the gr
 agent-graph graph init [<dir>]             # write the default graphs, nodes, and traits into <dir>/.agent-graph/
 agent-graph graph node-up squad1/worker    # the body of the graph, then the body of the node
 agent-graph graph node-up squad1/worker --pid N  # also write /tmp/agent-graph/N.json for the statusline
+agent-graph graph node-up squad1/worker --pid auto  # the same, for the first ancestor that is not a shell
+agent-graph graph node-up squad1/worker --output F  # write the text to F and print nothing
+agent-graph graph node-hash squad1/worker  # SHA-256 of what node-up prints: the check of a node context
+agent-graph graph pack squad1 --output F    # write the graph as a tar file for install --tar: regular files only, no ._ entries
+agent-graph graph install <folder>         # copy a graph to ~/.agent-graph/graphs/<hash>, print the hash
+agent-graph graph install --tar F --expect HASH  # extract a tar file of a graph; keep it only if its hash is HASH
 agent-graph graph node-down --pid N        # remove /tmp/agent-graph/N.json
 agent-graph graph topology [--name N] --meta F --peers F --me KEY   # draw the running graph from gossip meta JSON; --mermaid for the source
+agent-graph graph topology [--name N] --gossip G --nickname N --me KEY   # the same; the command runs agent-gossip itself
 agent-graph node list                      # standalone nodes: name<TAB>description<TAB>tags<TAB>path
 agent-graph node list --tag '^go$'         # only nodes with a tag that matches the regex
 agent-graph node up worker                 # the body of the standalone node
@@ -129,6 +136,7 @@ agent-graph node down --pid N              # remove /tmp/agent-graph/N.json
 agent-graph name                           # a new short hash, the default name of a running graph or node
 agent-graph trait list                     # name<TAB>description<TAB>writes<TAB>path
 agent-graph trait check <path>             # description<TAB>writes<TAB>path of a trait file or folder, or an error
+agent-graph trait fetch <url>              # download an https trait to a new temp folder, check it, print the same line
 agent-graph trait show qa                  # the body of the trait, with includes expanded
 agent-graph trait show qa --node pair/worker   # fail if the node does not list the trait
 agent-graph trait show /tmp/x/index.md     # a trait file by path: no node check
@@ -169,14 +177,20 @@ In `index.md`, a line that contains only `@<path>` is replaced with the body of 
 {"name":"a3f9c1d","node":"worker","node_icon":"󱌢","pid":123}
 ```
 
-`pid` is the Claude Code process. A statusline script gets the same pid as its parent process.
+`pid` is the process of the agent (Claude Code, Antigravity CLI, and others). A statusline script gets the same pid as its parent process.
+`--pid auto` finds that process without `$PPID`: it is the first ancestor of the command whose name is not a shell. It prints one line to stderr that names the process, so a wrong one shows. The `agy` skills use `--pid auto`. A call without `--pid` writes no file.
+`--dir <path>` (on any command) starts discovery in that folder, not in the working folder. A leading `~` is the home folder. An agent that cannot set the working folder of a command, such as `agy`, passes it. It changes discovery only: a relative path argument, such as the folder of `graph install` or the output of `graph pack`, still resolves against the working folder. Each command checks that the folder exists.
 The `graph` key is the `title` of the graph, or its folder name when it has no title.
 A graph or node without an `icon` has no icon key.
 
 ## Skills
 
 The agent skills (`/graph-up --squad-template <graph> [--name <name>]`, `/graph-node-up --node-template <node> [--name <name>]`, `/graph-up`, `/graph-down`, `/graph-leave`, `/graph-node-invite`, `/graph-topology` for graphs; `/graph-node-up`, `/graph-node-down`, `/graph-node-list` for standalone nodes; `/graph-trait-run` for traits; and more) are in the binary.
-`agent-graph plug` writes them into each agent on this machine: Claude Code, pi, Codex, Cursor, and opencode.
+`agent-graph plug` writes them into each agent on this machine: Claude Code, pi, Codex, Cursor, opencode, and the Antigravity CLI (`agy`).
+For `agy`, `plug` writes a plugin, `~/.gemini/config/plugins/agent-graph/`, with a `plugin.json` and the skills in `skills/`. `unplug` removes it. Restart `agy` after `plug`.
+In `agy`, if `run_command` has the parameter `BypassSandbox`, set it to true on each `agent-graph` command, each `agent-gossip` command, and each command that reads or writes under `~/.agent-graph`. The Standard Sandbox Mode blocks that folder with `EPERM`, and it blocks all network access. If `run_command` has no such parameter, the command already runs outside the sandbox. Each graph skill says so.
+`plug` writes a `plugin.json` with a `name` and a `version`, and `agy plugin validate --strict` passes on it. If you edit `plugin.json` by hand, for example to add the `logo` key that the validator suggests, it becomes a file of the user. `plug` and `unplug` then leave it alone, and `plug` prints a `kept` line that says why. A symbolic link at that path also stays as it is.
+In `agy`, the slash command of a plugin skill has the namespace of the plugin: `/agent-graph:graph-up`. The bare `/graph-up` is not expanded. For `agy`, `plug` writes skills that name each other in the namespaced form. The other agents get the bare form.
 An agent that is not on the machine is skipped.
 Run `plug` again after each install of a new binary. It also removes the `template-*`, `role-*`, and `team-*` skills of a binary from before the rename back to graph and node.
 `plug` replaces a symbolic link to an old skill folder, and it does not change the target of the link.

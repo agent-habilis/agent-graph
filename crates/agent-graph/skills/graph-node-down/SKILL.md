@@ -14,6 +14,8 @@ acting on it.
 This skill is for a standalone node. To leave a node of a running graph, the
 user runs `/graph-leave`.
 
+<!-- include path="../shared/agy.md" -->
+
 ## Preflight
 
 Make sure that `agent-graph` is on `PATH`:
@@ -31,8 +33,8 @@ If the command is not found, tell the user to run `cargo task install` in the
 agent-graph node down --pid "$PPID"
 ```
 
-`$PPID` is the agent process. The command also succeeds when this agent has
-no node. If the command fails, show its `error:` line and stop.
+The value of `--pid` is the agent process. The command also succeeds when this
+agent has no node. If the command fails, show its `error:` line and stop.
 
 When the command succeeds:
 

@@ -11,6 +11,8 @@ directory and in each parent directory, up to `/`. If two directories have a
 graph with the same name, the graph nearer to the current directory
 wins.
 
+<!-- include path="../shared/agy.md" -->
+
 ## Preflight
 
 Make sure that `agent-graph` is on `PATH`:

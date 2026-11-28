@@ -15,6 +15,8 @@ includes expanded.
 This skill loads only standalone nodes. A node of a graph, `<graph>/<node>`,
 joins a running graph through `/graph-up` or `/graph-node-invite`.
 
+<!-- include path="../shared/agy.md" -->
+
 ## Preflight
 
 Make sure that `agent-graph` is on `PATH`:
@@ -57,9 +59,9 @@ agent-graph node up <node> --name "$NAME" --pid "$PPID"
 ```
 
 Run it in the foreground. The tool result puts the body of the node into
-this session. `$PPID` is the agent process. The CLI records the node for the
-statusline under this pid. If the command fails, show its `error:` line and
-stop.
+this session. The value of `--pid` is the agent process. The CLI records the
+node for the statusline under this pid. If the command fails, show its
+`error:` line and stop.
 
 When the command succeeds:
 

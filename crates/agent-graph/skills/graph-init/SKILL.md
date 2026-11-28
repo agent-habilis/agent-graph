@@ -32,16 +32,18 @@ The defaults are:
   - `perf`: measures the change against the base commit (workers).
   - `review`: reviews a plan or a diff (advisors).
 
+<!-- include path="../shared/agy.md" -->
+
 ## Target
 
-The target is the root of the git repository. If the cwd is not in a git
-repository, the target is the cwd:
+The target is the root of the git repository. Run:
 
 ```sh
-git rev-parse --show-toplevel 2>/dev/null || pwd
+git rev-parse --show-toplevel
 ```
 
-Hold the output as `$TARGET`.
+If it prints a path, hold the path as `$TARGET`. If it fails, the cwd is not in
+a git repository: the target is the cwd, and you hold it as `$TARGET`.
 
 ## Preflight
 
@@ -72,8 +74,15 @@ graph · exists · $TARGET/.agent-graph
 
 Else show the new graphs and standalone nodes:
 
+Run each of these commands with `--dir` and the target folder. The working
+folder does not matter then:
+
 ```sh
-cd "$TARGET" && agent-graph graph list && agent-graph node list
+agent-graph graph list --dir "$TARGET"
+```
+
+```sh
+agent-graph node list --dir "$TARGET"
 ```
 
 Show the nodes as a Markdown table with the columns name and description.

@@ -16,6 +16,8 @@ This skill runs in a session that is already in a gossip. It uses the
 **Receive loop** and **Event handling** sections of the gossip skill that
 joined the gossip. Obey them here too: keep the bell armed.
 
+<!-- include path="../shared/agy.md" -->
+
 ## Arguments
 
 `--name <name>`: optional. The instance name of the graph, for example
@@ -54,10 +56,12 @@ graph · no graph · $INSTANCE
 2. If `$PEERS` is not empty, tell them. One broadcast reaches each peer:
 
    ```bash
-   agent-gossip a2a broadcast --gossip "$GOSSIP" --nickname "$NICKNAME" --text "graph $INSTANCE is down · each peer of $INSTANCE: run /graph-leave. Without the /graph-leave skill, run agent-graph graph node-down --pid \"\$PPID\" if agent-graph is on your PATH, then clear your meta entry: agent-gossip meta merge --gossip \"\$GOSSIP\" --nickname \"\$NICKNAME\" --merge '{\"instance\":null,\"leader\":null,\"joined_at\":null,\"graph\":null,\"hash\":null,\"node\":null,\"invited_by\":null,\"verified\":null,\"status\":\"idle\"}'. Then stop acting as your node."
+   agent-gossip a2a broadcast --gossip "$GOSSIP" --nickname "$NICKNAME" --text "graph $INSTANCE is down · each peer of $INSTANCE: run your graph-leave skill (<!-- bare -->/graph-leave, or /agent-graph:graph-leave in agy). Without that skill, run agent-graph graph node-down --pid \"\$PPID\" if agent-graph is on your PATH. In agy, write --pid auto in place of --pid \"\$PPID\". Then clear your meta entry: agent-gossip meta merge --gossip \"\$GOSSIP\" --nickname \"\$NICKNAME\" --merge '{\"instance\":null,\"leader\":null,\"joined_at\":null,\"graph\":null,\"hash\":null,\"node\":null,\"invited_by\":null,\"verified\":null,\"status\":\"idle\"}'. Then stop acting as your node."
    ```
 
-3. If your own entry has `instance` `$INSTANCE`, leave your node:
+3. If your own entry has `instance` `$INSTANCE`, leave your node.
+
+   Run each line as its own command:
 
    ```bash
    agent-graph graph node-down --pid "$PPID"
