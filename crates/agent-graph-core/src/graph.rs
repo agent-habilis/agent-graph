@@ -223,11 +223,21 @@ pub fn hash(dir: &Path) -> io::Result<String> {
         hasher.update((content.len() as u64).to_le_bytes());
         hasher.update(&content);
     }
-    let mut hex = String::with_capacity(64);
-    for byte in hasher.finalize() {
-        let _ = write!(hex, "{byte:02x}");
+    Ok(hex(&hasher.finalize()))
+}
+
+/// The SHA-256 of `bytes`, as hex.
+#[must_use]
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    hex(&Sha256::digest(bytes))
+}
+
+fn hex(digest: &[u8]) -> String {
+    let mut text = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        let _ = write!(text, "{byte:02x}");
     }
-    Ok(hex)
+    text
 }
 
 fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> io::Result<()> {

@@ -969,3 +969,47 @@ fn a_plain_node_up_still_writes_no_state_file() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(!path.exists());
 }
+
+#[test]
+fn graph_node_hash_is_the_sha256_of_what_graph_node_up_prints() {
+    let (_tmp, root) = root();
+    graph_node(&root, "graph", "worker", &index("w", None, "worker body\n"));
+
+    let up = run(&root, &["graph", "node-up", "graph/worker"]);
+    let out = run(&root, &["graph", "node-hash", "graph/worker"]);
+
+    assert!(up.status.success(), "{}", stderr(&up));
+    assert!(out.status.success(), "{}", stderr(&out));
+    // The oracle is `shasum -a 256` on the same text, run by hand once.
+    assert_eq!(stdout(&up), "worker body\n");
+    assert_eq!(
+        stdout(&out),
+        "0b625c8918641b1c2414630cfba461ab4007c2f76bf05cfbcda268ad6fb07066\n"
+    );
+}
+
+#[test]
+fn graph_node_hash_writes_no_state_file_and_changes_with_the_node() {
+    let (_tmp, root) = root();
+    let worker = graph_node(&root, "graph", "worker", &index("w", None, "one\n"));
+    let first = run(&root, &["graph", "node-hash", "graph/worker"]);
+    write(&worker.join("index.md"), &index("w", None, "two\n"));
+    let second = run(&root, &["graph", "node-hash", "graph/worker"]);
+
+    assert!(first.status.success() && second.status.success());
+    assert_ne!(stdout(&first), stdout(&second));
+}
+
+#[test]
+fn graph_node_hash_rejects_the_names_that_graph_node_up_rejects() {
+    let (_tmp, root) = root();
+    graph_node(&root, "graph", "worker", &index("w", None, ""));
+
+    for name in ["worker", "graph/nope", "nope/worker", "graph/../x"] {
+        let up = run(&root, &["graph", "node-up", name]);
+        let hash = run(&root, &["graph", "node-hash", name]);
+
+        assert_eq!(hash.status.code(), up.status.code(), "{name}");
+        assert_eq!(stderr(&hash), stderr(&up), "{name}");
+    }
+}

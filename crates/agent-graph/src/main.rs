@@ -111,6 +111,13 @@ enum GraphCommand {
         #[arg(long)]
         pid: Option<PidArg>,
     },
+    /// Print the SHA-256 of what `node-up` prints for `<graph>/<node>`: the
+    /// check of the node context that a peer without agent-graph gets.
+    #[command(name = "node-hash")]
+    NodeHash {
+        /// The node, as `<graph>/<node>`.
+        name: String,
+    },
     /// Remove the graph and the node of an agent from the statusline:
     /// `/tmp/agent-graph/<pid>.json`.
     #[command(name = "node-down")]
@@ -442,6 +449,7 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
         GraphCommand::NodeUp { name, label, pid } => {
             graph_node_up(&graphs, &name, label.as_deref(), pid, stdout)?;
         }
+        GraphCommand::NodeHash { name } => graph_node_hash(&graphs, &name, stdout)?,
         GraphCommand::NodeDown { pid } => state::remove(pid.resolve()?)?,
     }
     Ok(())
@@ -469,13 +477,19 @@ fn find_graph_node<'a>(
     Ok((graph_name, node_name, graph_dir, dir))
 }
 
-fn graph_node_up(
-    graphs: &BTreeMap<String, PathBuf>,
-    name: &str,
-    label: Option<&str>,
-    pid: Option<PidArg>,
-    stdout: &mut impl Write,
-) -> Result<()> {
+/// What `node-up` prints for a node, and what it records for the statusline.
+struct NodeContext<'a> {
+    text: String,
+    graph_name: &'a str,
+    node_name: &'a str,
+    graph: graph::Graph,
+    node: node::Node,
+}
+
+fn graph_node_context<'a>(
+    graphs: &'a BTreeMap<String, PathBuf>,
+    name: &'a str,
+) -> Result<NodeContext<'a>> {
     let (graph_name, node_name, graph_dir, dir) = find_graph_node(graphs, name)?;
     let node =
         node::load(&dir).map_err(|reason| anyhow!("node `{name}` is not valid: {reason}"))?;
@@ -483,15 +497,42 @@ fn graph_node_up(
         .map_err(|reason| anyhow!("graph `{graph_name}` is not valid: {reason}"))?;
     let mut text = include::expand(graph_dir, &graph_dir.join("index.md"))?;
     text += &include::expand(graph_dir, &dir.join("index.md"))?;
+    Ok(NodeContext {
+        text,
+        graph_name,
+        node_name,
+        graph,
+        node,
+    })
+}
+
+fn graph_node_hash(
+    graphs: &BTreeMap<String, PathBuf>,
+    name: &str,
+    stdout: &mut impl Write,
+) -> Result<()> {
+    let context = graph_node_context(graphs, name)?;
+    writeln!(stdout, "{}", graph::sha256_hex(context.text.as_bytes()))?;
+    Ok(())
+}
+
+fn graph_node_up(
+    graphs: &BTreeMap<String, PathBuf>,
+    name: &str,
+    label: Option<&str>,
+    pid: Option<PidArg>,
+    stdout: &mut impl Write,
+) -> Result<()> {
+    let context = graph_node_context(graphs, name)?;
     if let Some(pid) = pid {
         state::write(
             pid.resolve()?,
-            Some((graph_name, &graph)),
-            (node_name, &node),
+            Some((context.graph_name, &context.graph)),
+            (context.node_name, &context.node),
             label,
         )?;
     }
-    write!(stdout, "{text}")?;
+    write!(stdout, "{}", context.text)?;
     Ok(())
 }
 
