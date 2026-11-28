@@ -1,4 +1,5 @@
 mod agent_pid;
+mod fetch;
 mod init;
 mod install;
 mod plug;
@@ -208,6 +209,11 @@ enum TraitCommand {
     /// Check a trait file, or the `index.md` of a trait folder. Print its
     /// description, writes, and path (tab-separated).
     Check { path: PathBuf },
+    /// Download a trait from an `https://` URL into a new folder under the
+    /// temp folder, and check it. Print its description, writes, and path
+    /// (tab-separated), as `check` does. A page that is not a trait leaves no
+    /// folder.
+    Fetch { url: String },
     /// Print the trait's body, with its `@file` includes expanded. A read-only
     /// trait gets a `## Boundaries` section.
     Show {
@@ -323,6 +329,16 @@ fn run_trait(command: TraitCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
             };
             let item = traits::load(&file)
                 .map_err(|reason| anyhow!("{} is not a valid trait: {reason}", file.display()))?;
+            writeln!(
+                stdout,
+                "{}\t{}\t{}",
+                item.description,
+                item.writes,
+                file.display()
+            )?;
+        }
+        TraitCommand::Fetch { url } => {
+            let (item, file) = fetch::fetch(&url)?;
             writeln!(
                 stdout,
                 "{}\t{}\t{}",
