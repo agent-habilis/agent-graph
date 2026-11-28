@@ -1106,3 +1106,66 @@ fn graph_node_up_output_does_not_write_through_a_link() {
     assert!(stderr(&out).contains("symbolic link"), "{}", stderr(&out));
     assert_eq!(fs::read_to_string(&target).unwrap(), "keep\n");
 }
+
+#[test]
+fn dir_starts_discovery_in_that_folder_wherever_the_command_runs() {
+    let (_tmp, root) = root();
+    let dir = node(&root.join("a"), "n", &index("d", None, "body\n"));
+    let elsewhere = root.join("elsewhere");
+    let start = root.join("a/b");
+    fs::create_dir_all(&start).unwrap();
+
+    let none = run(&elsewhere, &["node", "list"]);
+    let after = run(
+        &elsewhere,
+        &["node", "list", "--dir", start.to_str().unwrap()],
+    );
+    let before = run(
+        &elsewhere,
+        &["--dir", start.to_str().unwrap(), "node", "list"],
+    );
+
+    assert_eq!(stdout(&none), "");
+    assert_eq!(
+        stdout(&after),
+        line("n", "d", "", &dir),
+        "{}",
+        stderr(&after)
+    );
+    assert_eq!(stdout(&before), stdout(&after));
+}
+
+#[test]
+fn dir_expands_a_leading_tilde_to_home() {
+    let (_tmp, root) = root();
+    let dir = node(&root.join("home"), "n", &index("d", None, "body\n"));
+    let elsewhere = root.join("elsewhere");
+    fs::create_dir_all(&elsewhere).unwrap();
+
+    for arg in ["~", "~/"] {
+        let out = Command::new(env!("CARGO_BIN_EXE_agent-graph"))
+            .args(["node", "list", "--dir", arg])
+            .env("HOME", root.join("home"))
+            .current_dir(&elsewhere)
+            .output()
+            .unwrap();
+        assert_eq!(
+            stdout(&out),
+            line("n", "d", "", &dir),
+            "{arg}: {}",
+            stderr(&out)
+        );
+    }
+}
+
+#[test]
+fn dir_that_is_not_a_folder_fails_and_names_it() {
+    let (_tmp, root) = root();
+    let missing = root.join("missing");
+
+    let out = run(&root, &["node", "list", "--dir", missing.to_str().unwrap()]);
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("--dir"), "{}", stderr(&out));
+    assert!(stderr(&out).contains("missing"), "{}", stderr(&out));
+}

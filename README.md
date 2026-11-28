@@ -179,6 +179,7 @@ In `index.md`, a line that contains only `@<path>` is replaced with the body of 
 
 `pid` is the process of the agent (Claude Code, Antigravity CLI, and others). A statusline script gets the same pid as its parent process.
 `--pid auto` finds that process without `$PPID`: it is the first ancestor of the command whose name is not a shell. It prints one line to stderr that names the process, so a wrong one shows. The `agy` skills use `--pid auto`. A call without `--pid` writes no file.
+`--dir <path>` (on any command) starts discovery in that folder, not in the working folder. A leading `~` is the home folder. An agent that cannot set the working folder of a command, such as `agy`, passes it.
 The `graph` key is the `title` of the graph, or its folder name when it has no title.
 A graph or node without an `icon` has no icon key.
 

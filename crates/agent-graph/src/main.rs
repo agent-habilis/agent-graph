@@ -27,8 +27,32 @@ use regex::Regex;
 #[derive(Debug, Parser)]
 #[command(version)]
 struct Cli {
+    /// Start discovery in this folder, not in the working folder. A leading `~`
+    /// is the home folder. An agent that cannot set the working folder of a
+    /// command passes it.
+    #[arg(long, global = true, value_name = "PATH")]
+    dir: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
+}
+
+/// The folder where discovery starts: `--dir`, else the working folder.
+fn start_dir(dir: Option<&Path>) -> Result<PathBuf> {
+    let Some(dir) = dir else {
+        return Ok(env::current_dir()?);
+    };
+    let home = || match env::var_os("HOME") {
+        Some(home) if !home.is_empty() => Ok(PathBuf::from(home)),
+        _ => bail!("--dir {}: `$HOME` is not set", dir.display()),
+    };
+    let start = match dir.strip_prefix("~") {
+        Ok(rest) => home()?.join(rest),
+        Err(_) => dir.to_path_buf(),
+    };
+    if !start.is_dir() {
+        bail!("--dir {}: not a folder", dir.display());
+    }
+    Ok(start.canonicalize()?)
 }
 
 #[derive(Debug, Subcommand)]
@@ -265,7 +289,7 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: Cli) -> Result<()> {
-    let cwd = env::current_dir()?;
+    let cwd = start_dir(cli.dir.as_deref())?;
     let mut stdout = io::stdout().lock();
     match cli.command {
         Command::Graph { command } => run_graph(command, &cwd, &mut stdout),

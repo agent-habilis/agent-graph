@@ -74,16 +74,15 @@ graph · exists · $TARGET/.agent-graph
 
 Else show the new graphs and standalone nodes:
 
-Run each of these commands in `$TARGET`. Use the working-directory parameter
-of the tool call if it has one. Else run `cd "$TARGET"` as its own command
-first:
+Run each of these commands with `--dir` and the target folder. The working
+folder does not matter then:
 
 ```sh
-agent-graph graph list
+agent-graph graph list --dir "$TARGET"
 ```
 
 ```sh
-agent-graph node list
+agent-graph node list --dir "$TARGET"
 ```
 
 Show the nodes as a Markdown table with the columns name and description.

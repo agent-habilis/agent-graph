@@ -956,6 +956,46 @@ fn the_node_offer_brief_declines_when_agent_graph_is_too_old() {
     }
 }
 
+/// `run_command` in agy has no working-folder parameter, and each call is a
+/// fresh shell, so no skill can say `cd`. A command that needs a start folder
+/// passes `--dir`.
+#[test]
+fn no_skill_depends_on_the_working_folder_of_a_command() {
+    let tmp = TempDir::new().unwrap();
+    let init = rendered_skill(tmp.path(), "graph-init");
+    assert!(!init.contains("cd \"$TARGET\""), "graph-init still says cd");
+    assert!(
+        !init.contains("working-directory"),
+        "graph-init: no such parameter"
+    );
+    for command in [
+        "agent-graph graph list --dir \"$TARGET\"",
+        "agent-graph node list --dir \"$TARGET\"",
+    ] {
+        assert!(init.contains(command), "graph-init: no `{command}`");
+    }
+    for skill in ["graph-up", "graph-node-invite"] {
+        let body = rendered_skill(tmp.path(), skill);
+        assert!(
+            !body.contains("from your home folder"),
+            "{skill}: names the home folder"
+        );
+        assert!(
+            !body.contains("From your home folder"),
+            "{skill}: names the home folder"
+        );
+        assert!(body.contains("--dir ~"), "{skill}: no --dir ~");
+        let brief = body
+            .lines()
+            .find(|line| line.contains("--text \"Node offer."))
+            .unwrap_or_else(|| panic!("{skill}: no brief"));
+        assert!(
+            brief.contains("A2. Run agent-graph graph node-up $HASH/<node> --dir ~ --name"),
+            "{skill}"
+        );
+    }
+}
+
 #[test]
 fn the_graph_down_broadcast_tells_agy_to_write_pid_auto() {
     let tmp = TempDir::new().unwrap();
@@ -964,7 +1004,9 @@ fn the_graph_down_broadcast_tells_agy_to_write_pid_auto() {
         .lines()
         .find(|line| line.contains("--text \"graph $INSTANCE is down"))
         .expect("the broadcast");
-    let ppid = broadcast.find("node-down --pid \\\"\\$PPID\\\"").expect("--pid");
+    let ppid = broadcast
+        .find("node-down --pid \\\"\\$PPID\\\"")
+        .expect("--pid");
     let advice = broadcast
         .find("In agy, write --pid auto in place of --pid \\\"\\$PPID\\\".")
         .expect("no agy advice");

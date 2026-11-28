@@ -57,8 +57,9 @@ graph · usage · /graph-node-invite <node> [<peer>]
    ```
 
    If it prints `$HASH`, use `$GRAPH` as the graph name below. Else use
-   `$HASH` as the graph name, and run the commands from your home folder,
-   where `~/.agent-graph/graphs/$HASH` is.
+   `$HASH` as the graph name, and add `--dir ~` to each `agent-graph` command,
+   so that discovery starts in your home folder, where
+   `~/.agent-graph/graphs/$HASH` is.
 
    ```bash
    agent-graph graph nodes <graph name>
