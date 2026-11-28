@@ -509,14 +509,15 @@ fn every_skill_tells_agy_to_run_its_commands_outside_the_sandbox() {
     for (name, _) in source_skills() {
         let body = rendered_skill(tmp.path(), &name);
         assert!(body.contains("BypassSandbox"), "{name}: no sandbox note");
-        // The commands that the skills run now: no `curl`, `mkdir`, or `cp`.
-        for command in ["`agent-graph`", "`agent-gossip`", "`tar`", "`ls`"] {
+        // The commands that the skills run now: no `tar`, `ls`, `curl`,
+        // `mkdir`, or `cp`.
+        for command in ["`agent-graph`", "`agent-gossip`"] {
             assert!(
                 body.contains(command),
                 "{name}: the sandbox note omits {command}"
             );
         }
-        for command in ["`curl`", "`mkdir`", "`cp`"] {
+        for command in ["`tar`", "`ls`", "`curl`", "`mkdir`", "`cp`"] {
             assert!(
                 !body.contains(command),
                 "{name}: the sandbox note names {command}, which no skill runs"

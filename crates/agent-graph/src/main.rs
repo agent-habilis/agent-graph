@@ -105,7 +105,7 @@ enum GraphCommand {
     Install {
         /// The graph folder to copy.
         folder: Option<PathBuf>,
-        /// A tar file of a graph folder, made with `tar -cf <file> -C <folder> .`.
+        /// A tar file of a graph folder, made with `graph pack`.
         #[arg(long, requires = "expect")]
         tar: Option<PathBuf>,
         /// The hash that the graph in the tar file must have.

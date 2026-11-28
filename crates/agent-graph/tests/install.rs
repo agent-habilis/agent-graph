@@ -62,7 +62,7 @@ fn entries(home: &Path) -> Vec<String> {
     names
 }
 
-/// A tar file of `folder`, made by the system `tar`, as the skills make it.
+/// A tar file of `folder`, made by the system `tar`, as an older peer made it.
 fn system_tar(folder: &Path, file: &Path) {
     let status = Command::new("tar")
         .env("COPYFILE_DISABLE", "1")
