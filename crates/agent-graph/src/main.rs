@@ -29,7 +29,8 @@ use regex::Regex;
 struct Cli {
     /// Start discovery in this folder, not in the working folder. A leading `~`
     /// is the home folder. An agent that cannot set the working folder of a
-    /// command passes it.
+    /// command passes it. It changes discovery only, not how a relative path
+    /// argument resolves. Each command checks that it is a folder.
     #[arg(long, global = true, value_name = "PATH")]
     dir: Option<PathBuf>,
     #[command(subcommand)]

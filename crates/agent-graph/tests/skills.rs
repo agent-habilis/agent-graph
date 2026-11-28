@@ -949,8 +949,9 @@ fn the_node_offer_brief_declines_when_agent_graph_is_too_old() {
         assert!(rule < first_step, "{skill}: the rule is not before A1");
         let sentence = &brief[..rule];
         assert!(
-            sentence
-                .ends_with("graph install is an unknown command, or --pid auto is not accepted, "),
+            sentence.ends_with(
+                "graph install is an unknown command, or --pid auto or --dir is not accepted, "
+            ),
             "{skill}: {sentence}"
         );
     }
