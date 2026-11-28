@@ -334,13 +334,23 @@ fn node_errors(dir: &Path, graph: &Graph) -> Vec<(usize, String)> {
             entry.push(node);
         }
         let folder = node_dir(dir, node);
-        if !folder.is_dir() {
+        if folder.is_dir() {
+            match node::load(&folder) {
+                Err(reason) => errors.push((
+                    node.line,
+                    format!("node `{}` is not valid: {reason}", node.label),
+                )),
+                Ok(loaded) if node.lead && loaded.count != 1 => errors.push((
+                    node.line,
+                    format!(
+                        "lead node `{}` has count {}, must be 1: the lead is the one peer that talks to the user",
+                        node.label, loaded.count
+                    ),
+                )),
+                Ok(_) => {}
+            }
+        } else {
             errors.push((node.line, format!("node `{}` not found", node.label)));
-        } else if let Err(reason) = node::load(&folder) {
-            errors.push((
-                node.line,
-                format!("node `{}` is not valid: {reason}", node.label),
-            ));
         }
     }
     for (subgraph, nodes) in &leads {

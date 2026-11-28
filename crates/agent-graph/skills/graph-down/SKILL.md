@@ -1,6 +1,6 @@
 ---
 name: graph-down
-description: Stop the running graph of this agent. Any peer of the graph can do it. It tells every peer of the graph to leave its node, through one gossip broadcast, then leaves its own node. Use when the user says "/graph-down [<instance>]", "graph down", "stop the graph", or "tear down the graph".
+description: Stop the running graph of this agent. Any peer of the graph can do it. It tells every peer of the graph to leave its node, through one gossip broadcast, then leaves its own node. Use when the user says "/graph-down [--name <name>]", "graph down", "stop the graph", or "tear down the graph".
 allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*)
 ---
 
@@ -20,8 +20,8 @@ joined the gossip. Obey them here too: keep the bell armed.
 
 ## Arguments
 
-`<instance>`: optional. The instance name of the graph, for example
-`squad1@main`. With no argument, take down the graph of this agent.
+`--name <name>`: optional. The instance name of the graph, for example
+`a3f9c1d`. With no argument, take down the graph of this agent.
 
 <!-- include path="../shared/gossip-session.md" -->
 
@@ -31,17 +31,18 @@ joined the gossip. Obey them here too: keep the bell armed.
 
 Read the meta document. Hold `$INSTANCE`:
 
-- With `<instance>`: `<instance>`. Check it per the **Graph meta** section.
+- With `--name <name>`: `<name>`. Check it per the **Graph meta** section.
 - Without it: the `instance` of your own entry. If your entry has no
   `instance`, print this line, then stop:
 
   ```text
-  graph · not in a graph · give the <instance>
+  graph · not in a graph · give the --name <name>
   ```
 
-Hold as `$PEERS` the nicknames of the live entries (not in `absent`) that
-have `instance` `$INSTANCE`, other than yours. If `$PEERS` is empty and your
-entry does not have `instance` `$INSTANCE`, print this line, then stop:
+Hold as `$PEERS` the nicknames (`.nickname`) of the live entries (keys not in
+`absent`) that have `instance` `$INSTANCE`. Leave out your own entry,
+`document[$PUBKEY]`. If `$PEERS` is empty and your entry does not have
+`instance` `$INSTANCE`, print this line, then stop:
 
 ```text
 graph · no graph · $INSTANCE
@@ -55,14 +56,14 @@ graph · no graph · $INSTANCE
 2. If `$PEERS` is not empty, tell them. One broadcast reaches each peer:
 
    ```bash
-   agent-gossip a2a broadcast --gossip "$GOSSIP" --nickname "$NICKNAME" --text "graph $INSTANCE is down · each peer of $INSTANCE: run your graph-leave skill (<!-- bare -->/graph-leave, or /agent-graph:graph-leave in agy). Without that skill, run agent-graph graph node-down --pid \"\$PPID\" if agent-graph is on your PATH, then clear your meta entry: agent-gossip meta merge --gossip \"\$GOSSIP\" --nickname \"\$NICKNAME\" --merge '{\"peers\":{\"<your nickname>\":{\"instance\":null,\"graph\":null,\"hash\":null,\"node\":null,\"invited_by\":null,\"verified\":null,\"status\":\"idle\"}}}'. Then stop acting as your node."
+   agent-gossip a2a broadcast --gossip "$GOSSIP" --nickname "$NICKNAME" --text "graph $INSTANCE is down · each peer of $INSTANCE: run your graph-leave skill (<!-- bare -->/graph-leave, or /agent-graph:graph-leave in agy). Without that skill, run agent-graph graph node-down --pid \"\$PPID\" if agent-graph is on your PATH, then clear your meta entry: agent-gossip meta merge --gossip \"\$GOSSIP\" --nickname \"\$NICKNAME\" --merge '{\"instance\":null,\"leader\":null,\"joined_at\":null,\"graph\":null,\"hash\":null,\"node\":null,\"invited_by\":null,\"verified\":null,\"status\":\"idle\"}'. Then stop acting as your node."
    ```
 
 3. If your own entry has `instance` `$INSTANCE`, leave your node:
 
    ```bash
    agent-graph graph node-down --pid "$PPID"
-   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":null,"graph":null,"hash":null,"node":null,"joined_at":null,"invited_by":null,"verified":null,"status":"idle"}}}'
+   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"instance":null,"leader":null,"graph":null,"hash":null,"node":null,"joined_at":null,"invited_by":null,"verified":null,"status":"idle"}'
    ```
 
    Then stop acting as the node and as a peer of its graph. The boundaries

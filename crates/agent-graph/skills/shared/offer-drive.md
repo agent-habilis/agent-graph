@@ -19,9 +19,9 @@ the gossip skill, with these rules for node offers:
   When the peer approves, close that task with `--state completed`.
 - **A task brief `send node <hash>/<node>`:** a peer without agent-graph asks
   for the context of the graph and of its node. If `<hash>` is `$HASH` and the
-  peer has an open offer of yours for `<node>`, accept it without the accept
-  or decline question. Else decline it with the reason: no offer for this
-  node. Send the text that `agent-graph graph node-up` prints. Its SHA-256 is the
+  peer has an open offer of yours for `<node>`, accept it without the accept or
+  decline question. Else decline it with the reason: no offer for this node.
+  Send the text that `agent-graph graph node-up` prints. Its SHA-256 is the
   `$CONTEXT_HASH` of your offer:
 
   ```bash

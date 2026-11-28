@@ -7,8 +7,8 @@ allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*)
 # graph-leave
 
 A running graph is an instance of a graph in a gossip. `/graph-up` and
-`/graph-node-invite` add a peer to a node of it. This skill takes this agent out of
-its node. The other peers stay. To stop the whole graph, the user runs
+`/graph-node-invite` add a peer to a node of it. This skill takes this agent out
+of its node. The other peers stay. To stop the whole graph, the user runs
 `/graph-down`.
 
 <!-- include path="../shared/gossip-session.md" -->
@@ -31,12 +31,12 @@ Read your meta entry:
 agent-gossip meta get --gossip "$GOSSIP" --nickname "$NICKNAME"
 ```
 
-If your entry `/peers/$NICKNAME` has an `instance`, remove your place. Then
+If your entry `document[$PUBKEY]` has an `instance`, remove your place. Then
 the graph does not count you, and you are a free peer again. If it has no
 `instance`, write nothing:
 
 ```bash
-agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":null,"graph":null,"hash":null,"node":null,"joined_at":null,"invited_by":null,"verified":null,"status":"idle"}}}'
+agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"instance":null,"leader":null,"graph":null,"hash":null,"node":null,"joined_at":null,"invited_by":null,"verified":null,"status":"idle"}'
 ```
 
 Then:

@@ -20,7 +20,8 @@ The defaults are:
   - `squad2/worker`: writes the code for one part (count 2, model haiku).
   - `squad2/advisor`: reviews the plan and the diff (model opus).
 - `pair`: 1 worker (lead) and 1 advisor, per git branch.
-  - `pair/worker`: writes the code, gets a review, and talks to the user (model sonnet).
+  - `pair/worker`: writes the code, gets a review, and talks to the user (model
+    sonnet).
   - `pair/advisor`: reviews the plan and the diff (model opus).
 - Standalone nodes, outside of any graph:
   - `worker`: writes the code for a task and reports the result (model sonnet).

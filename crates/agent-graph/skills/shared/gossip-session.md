@@ -6,9 +6,24 @@ Find the gossip of this session:
 agent-gossip session --session-pid "$PPID"
 ```
 
-Hold `$GOSSIP` and `$NICKNAME` from the output. If there is no session, print
+If the `sessions` list of the output is empty, there is no session. Print
 this line, then stop:
 
 ```text
 graph · no gossip · create or join a gossip first
+```
+
+If `sessions` has more than 1 entry, this agent is in more than one gossip.
+Print this line, then stop. Do not pick an entry:
+
+```text
+graph · many gossips · leave all but one gossip, then run this skill again
+```
+
+Else hold `$GOSSIP`, `$NICKNAME`, and `$PUBKEY` (`pubkey`) from the one entry
+of `sessions`. If it has no `pubkey`, print this line, then stop. An empty
+`$PUBKEY` finds no own entry:
+
+```text
+graph · no session key · update agent-gossip, then start the session again
 ```

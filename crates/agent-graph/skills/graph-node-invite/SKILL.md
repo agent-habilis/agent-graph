@@ -6,10 +6,10 @@ allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*), Bash(hostname:*), Bash
 
 # graph-node-invite
 
-A running graph is an instance of a graph in a gossip. `/graph-up` fills each node
-to its `count`. After that, any peer can add a peer to a node with this
-skill. A node can have more peers than its `count`. The new peer is a
-free peer of the gossip. It joins the graph that this agent is a peer of.
+A running graph is an instance of a graph in a gossip. `/graph-up` fills each
+node to its `count`. After that, any peer can add a peer to a node with this
+skill. A node can have more peers than its `count`. The new peer is a free peer
+of the gossip. It joins the graph that this agent is a peer of.
 
 This skill runs in a session that is already in a gossip. It uses the
 **Receive loop**, **Decisions**, **Event handling**, and **Task tracking**
@@ -24,7 +24,8 @@ that has no `external` edge.
 ## Arguments
 
 - `<node>`: the mermaid id of the node, from `agent-graph graph nodes`.
-- `<peer>`: optional. The nickname of the peer to invite.
+- `<peer>`: optional. The nickname of the peer to invite. If two peers have
+  that nickname, print `graph · <peer> is not unique`, then stop.
 
 If there is no `<node>`, print this line, then stop:
 
@@ -38,11 +39,11 @@ graph · usage · /graph-node-invite <node> [<peer>]
 
 ## Gate
 
-1. Read the meta document. Your own entry must make you a peer of its
-   graph. If it does not, print this line, then stop:
+1. Read the meta document. Your own entry, `document[$PUBKEY]`, must make
+   you a peer of its graph. If it does not, print this line, then stop:
 
    ```text
-   graph · not in a graph · start one with /graph-up <graph>
+   graph · not in a graph · start one with /graph-up --squad-template <graph>
    ```
 
    From your entry, hold `instance` as `$INSTANCE`, `graph` as `$GRAPH`,

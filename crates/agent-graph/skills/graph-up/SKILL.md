@@ -1,18 +1,18 @@
 ---
 name: graph-up
-description: Start a graph in the current gossip. This agent is the founder. It takes one node of the graph, then offers each open place to one free peer of the gossip, through gossip tasks. A node with `count` n needs n peers at the start. The graph lives in the gossip meta. Done when every node has its count. Use when the user says "/graph-up <graph> [<node>] [--instance <name>]", "graph up", or "start the <graph> graph".
-allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(basename:*), Bash(hostname:*), Bash(mkdir:*), Bash(cp:*), Bash(tar:*)
+description: Start a graph in the current gossip. This agent is the founder. It takes one node of the graph, then offers each open place to one free peer of the gossip, through gossip tasks. A node with `count` n needs n peers at the start. The graph lives in the gossip meta. Done when every node has its count. Use when the user says "/graph-up --squad-template <graph> [--node <node>] [--name <name>]", "graph up", or "start the <graph> graph".
+allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*), Bash(hostname:*), Bash(mkdir:*), Bash(cp:*), Bash(tar:*)
 ---
 
 # graph-up
 
-A graph is a team of agents. The same graph is a folder on disk and, once
-it runs in a gossip, an instance with a name. Each node of the graph needs `count` peers (1 by default)
-at the start. Later, a peer can add more with `/graph-node-invite`. All peers
-of one node have the same node name. Their gossip nicknames tell them apart.
-This agent is the **founder**. It is a peer of the graph too. It takes its
-own node first, then offers each open place to one free peer of the gossip.
-`up` is done when every node has `count` filled places.
+A graph is a team of agents. The same graph is a folder on disk and, once it
+runs in a gossip, an instance with a name. Each node of the graph needs `count`
+peers (1 by default) at the start. Later, a peer can add more with
+`/graph-node-invite`. All peers of one node have the same node name. Their
+gossip nicknames tell them apart. This agent is the **founder**. It is a peer of
+the graph too. It takes its own node first, then offers each open place to one
+free peer of the gossip. `up` is done when every node has `count` filled places.
 
 This skill runs in a session that is already in a gossip. It uses the
 **Receive loop**, **Decisions**, **Event handling**, and **Task tracking**
@@ -23,16 +23,18 @@ the bell armed, and track each task in the todo widget.
 
 ## Arguments
 
-- `<graph>`: the graph name, from `agent-graph graph list`.
-- `<node>`: optional. The mermaid id of the node that this agent takes. With
-  no `<node>`, take the first node that `agent-graph graph nodes
+- `--squad-template <graph>`: the graph template, from `agent-graph graph
+  list`.
+- `--node <node>`: optional. The mermaid id of the node that this agent
+  takes. With no `--node`, take the first node that `agent-graph graph nodes
   <graph>` prints.
-- `--instance <name>`: optional. The instance name of the graph.
+- `--name <name>`: optional. The instance name of the graph. The default is
+  a short hash, like a git short hash.
 
-If there is no `<graph>`, print this line, then stop:
+If there is no `--squad-template`, print this line, then stop:
 
 ```text
-graph · usage · /graph-up <graph> [<node>] [--instance <name>]
+graph · usage · /graph-up --squad-template <graph> [--node <node>] [--name <name>]
 ```
 
 <!-- include path="../shared/gossip-session.md" -->
@@ -50,22 +52,20 @@ graph · usage · /graph-up <graph> [<node>] [--instance <name>]
    agent-graph graph hash <graph>
    ```
 
-   If `lint` fails, show its lines, then stop. From `graph list`, hold the
-   `scope` of the graph. Hold the lines of `graph nodes` as `$NODES`.
+   If `lint` fails, show its lines, then stop. Hold the lines of
+   `graph nodes` as `$NODES`.
    `model` is the model that the node prefers, or empty. Hold `<graph>` as
    `$GRAPH` and the hash as `$HASH`. The hash is the id of the graph
    between peers.
 
 2. Hold the instance name as `$INSTANCE`:
-   - `--instance <name>` → `<name>`.
-   - `scope: branch` → `<graph>@<branch>`, with `git branch --show-current`.
-   - `scope: project` → `<graph>@<repo>`, with
-     `basename "$(git rev-parse --show-toplevel)"`.
+   - `--name <name>` → `<name>`.
+   - Else a new short hash: `agent-graph name`.
 
    Check `$INSTANCE`, `$GRAPH`, and each node id per the **Graph meta**
    section.
 
-3. Read the meta document, and look at your own entry:
+3. Read the meta document, and look at your own entry, `document[$PUBKEY]`:
    - It has another `instance`: print this line, then stop.
 
      ```text
@@ -76,7 +76,7 @@ graph · usage · /graph-up <graph> [<node>] [--instance <name>]
      `$HASH` from your entry, not from the local graph, so that new offers
      carry the hash of the running graph. Go to **Offer the open places**.
 
-4. If any live entry (not in `absent`) other than yours has `instance`
+4. If any live entry (key not in `absent`) other than yours has `instance`
    `$INSTANCE`, with any hash and with or without a `node`, print this line,
    then stop:
 
@@ -90,14 +90,18 @@ graph · usage · /graph-up <graph> [<node>] [--instance <name>]
    and records them for the statusline:
 
    ```bash
-   agent-graph graph node-up <graph>/<node> --pid "$PPID"
+   agent-graph graph node-up <graph>/<node> --name "$INSTANCE" --pid "$PPID"
    ```
 
 2. Record your place in your meta entry:
 
    ```bash
-   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":"'"$INSTANCE"'","graph":"'"$GRAPH"'","hash":"'"$HASH"'","node":"<id>","joined_at":'"$(date +%s)"',"status":"busy"}}}'
+   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"instance":"'"$INSTANCE"'","graph":"'"$GRAPH"'","hash":"'"$HASH"'","node":"<id>","joined_at":'"$(date +%s)"',"status":"busy"}'
    ```
+
+   If the third column of your node in `$NODES` is `lead`, add
+   `"leader":true` to the entry, so that the other peers find the peer that
+   talks to the user.
 
 3. Do the **Second founder check**.
 
@@ -111,13 +115,14 @@ a delay. Do this check after your own merge, and again on each later batch,
 before each new offer.
 
 Read the meta document. If another live entry has `instance` `$INSTANCE` and no
-`invited_by`, the smaller nickname keeps the graph. If that is the other peer:
+`invited_by`, the smaller nickname (`.nickname`) keeps the graph. If the
+nicknames are equal, the smaller key keeps it. If that is the other peer:
 
 1. Cancel each open offer of yours with `--method CancelTask`.
 2. Remove your place:
 
    ```bash
-   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"peers":{"'"$NICKNAME"'":{"instance":null,"graph":null,"hash":null,"node":null,"joined_at":null,"verified":null,"status":"idle"}}}'
+   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"instance":null,"leader":null,"graph":null,"hash":null,"node":null,"joined_at":null,"verified":null,"status":"idle"}'
    agent-graph graph node-down --pid "$PPID"
    ```
 

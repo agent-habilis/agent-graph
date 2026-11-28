@@ -6,12 +6,11 @@ allowed-tools: Bash(agent-graph:*), Bash(agent-gossip:*)
 
 # graph-topology
 
-A running graph is an instance of a graph in a gossip. The gossip meta
-document holds the running graph: each peer writes its instance, graph,
-graph hash, and node into its own entry. `agent-graph graph topology` reads
-the meta document, the roster, and the graph file, and draws the graph: one box per peer, and
-the edges of the graph between the peers. The output is the same for
-the same input.
+A running graph is an instance of a graph in a gossip. The gossip meta document
+holds the running graph: each peer writes its instance, graph, graph hash, and
+node into its own entry. `agent-graph graph topology` reads the meta document,
+the roster, and the graph file, and draws the graph: one box per peer, and the
+edges of the graph between the peers. The output is the same for the same input.
 
 <!-- include path="../shared/agy.md" -->
 
@@ -28,8 +27,8 @@ If the command is not found, tell the user to run `cargo task install` in the
 
 ## Arguments
 
-`<instance>`: optional. The instance name of the graph, for example
-`squad1@main`. With no argument, the command draws the graph of this agent.
+`--name <name>`: optional. The instance name of the graph, for example
+`a3f9c1d`. With no argument, the command draws the graph of this agent.
 
 <!-- include path="../shared/gossip-session.md" -->
 
@@ -38,7 +37,7 @@ If the command is not found, tell the user to run `cargo task install` in the
 Give the two gossip documents to the command in one call:
 
 ```bash
-agent-graph graph topology [<instance>] --me "$NICKNAME" \
+agent-graph graph topology [--name <name>] --me "$PUBKEY" \
   --meta <(agent-gossip meta get --gossip "$GOSSIP" --nickname "$NICKNAME") \
   --peers <(agent-gossip peers --gossip "$GOSSIP" --nickname "$NICKNAME")
 ```
@@ -47,7 +46,7 @@ Show stdout in a `text` fence, without changes: it is a box drawing, and it
 needs a monospace font. Then show each `warning:` line from stderr, below the
 fence.
 
-If the command fails, show its `error:` line, then stop. For
-`is not in a graph`, tell the user to start a graph with `/graph-up <graph>`,
-or to give the `<instance>`. To add a peer to the graph, a peer runs
-`/graph-node-invite <node>`.
+If the command fails, show its `error:` line, then stop. For `is not in a
+graph`, tell the user to start a graph with `/graph-up --squad-template
+<graph>`, or to give the `--name <name>`. To add a peer to the graph, a peer
+runs `/graph-node-invite <node>`.

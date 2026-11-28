@@ -83,22 +83,25 @@ fn graph() -> Graph {
     graph_with(GRAPH)
 }
 
-const ANN: &str = r#""ann":{"model":"claude-opus-5-5","harness":"Claude Code","status":"busy","instance":"squad@main","graph":"squad","hash":"HASH","node":"lead"}"#;
-const BOB: &str = r#""bob":{"model":"claude-sonnet-5","status":"busy","instance":"squad@main","graph":"squad","hash":"HASH","node":"worker","invited_by":"ann"}"#;
-const CY: &str = r#""cy":{"model":"GPT-6","status":"idle","instance":"squad@main","graph":"squad","hash":"HASH","node":"worker","invited_by":"ann"}"#;
-const DEE: &str = r#""dee":{"model":"claude-opus-5-5","status":"idle"}"#;
+const ANN_KEY: &str = "aa01";
+const DEE_KEY: &str = "dd04";
+
+const ANN: &str = r#""aa01":{"nickname":"ann","model":"claude-opus-5-5","harness":"Claude Code","status":"busy","instance":"squad@main","graph":"squad","hash":"HASH","node":"lead"}"#;
+const BOB: &str = r#""bb02":{"nickname":"bob","model":"claude-sonnet-5","status":"busy","instance":"squad@main","graph":"squad","hash":"HASH","node":"worker","invited_by":"ann"}"#;
+const CY: &str = r#""cc03":{"nickname":"cy","model":"GPT-6","status":"idle","instance":"squad@main","graph":"squad","hash":"HASH","node":"worker","invited_by":"ann"}"#;
+const DEE: &str = r#""dd04":{"nickname":"dee","model":"claude-opus-5-5","status":"idle"}"#;
 
 const ROSTER: &str = r#"{"ok":true,"peer_count":4,"peers":[
-  {"nickname":"bob","quiet":false,"last_seen_secs_ago":3},
-  {"nickname":"cy","quiet":true,"last_seen_secs_ago":90},
-  {"nickname":"dee","quiet":false,"last_seen_secs_ago":1}
+  {"nickname":"bob","pubkey":"bb02","quiet":false,"last_seen_secs_ago":3},
+  {"nickname":"cy","pubkey":"cc03","quiet":true,"last_seen_secs_ago":90},
+  {"nickname":"dee","pubkey":"dd04","quiet":false,"last_seen_secs_ago":1}
 ]}"#;
 
 /// The output of `agent-gossip meta get` with these entries, and the hash of
 /// the squad graph for `HASH`.
 fn meta_of(graph: &Graph, entries: &[&str]) -> String {
     format!(
-        r#"{{"ok":true,"document":{{"peers":{{{}}}}},"absent":[]}}"#,
+        r#"{{"ok":true,"document":{{{}}},"absent":[]}}"#,
         entries.join(",")
     )
     .replace("HASH", &graph.hash)
@@ -110,7 +113,15 @@ fn meta(graph: &Graph) -> String {
 
 /// `meta` with the entry of `dee` replaced by `entry`.
 fn meta_with_dee(graph: &Graph, entry: &str) -> String {
-    meta_of(graph, &[ANN, BOB, CY, &format!(r#""dee":{entry}"#)])
+    meta_of(
+        graph,
+        &[
+            ANN,
+            BOB,
+            CY,
+            &format!(r#""dd04":{{"nickname":"dee",{}"#, &entry[1..]),
+        ],
+    )
 }
 
 /// Write the gossip files and run `graph topology` with them, and with `args` after
@@ -143,7 +154,7 @@ fn topology(graph: &Graph, meta: &str, roster: &str, args: &[&str]) -> Output {
 fn graph_topology_draws_each_peer_in_a_graph_box_with_its_edges() {
     let graph = graph();
 
-    let out = topology(&graph, &meta(&graph), ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta(&graph), ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     let short = &graph.hash[..6];
@@ -153,15 +164,15 @@ fn graph_topology_draws_each_peer_in_a_graph_box_with_its_edges() {
             "flowchart TD\n\
              \x20 outside[user or other graph]\n\
              \x20 subgraph \"squad@main · 3 peers · {short}\"\n\
-             \x20   squad_main__lead__ann(lead · ann ← you · claude-opus-5-5 · busy)\n\
-             \x20   squad_main__worker__bob[worker · bob · claude-sonnet-5 · busy]\n\
-             \x20   squad_main__worker__cy[worker · cy · GPT-6 · idle ⚠]\n\
+             \x20   squad_main__lead__aa01(lead · ann ← you · claude-opus-5-5 · busy)\n\
+             \x20   squad_main__worker__bb02[worker · bob · claude-sonnet-5 · busy]\n\
+             \x20   squad_main__worker__cc03[worker · cy · GPT-6 · idle ⚠]\n\
              \x20 end\n\
-             \x20 squad_main__lead__ann -->|assign a part| squad_main__worker__bob\n\
-             \x20 squad_main__lead__ann -->|assign a part| squad_main__worker__cy\n\
-             \x20 squad_main__worker__bob -->|part result| squad_main__lead__ann\n\
-             \x20 squad_main__worker__cy -->|part result| squad_main__lead__ann\n\
-             \x20 outside ---|external| squad_main__lead__ann\n"
+             \x20 squad_main__lead__aa01 -->|assign a part| squad_main__worker__bb02\n\
+             \x20 squad_main__lead__aa01 -->|assign a part| squad_main__worker__cc03\n\
+             \x20 squad_main__worker__bb02 -->|part result| squad_main__lead__aa01\n\
+             \x20 squad_main__worker__cc03 -->|part result| squad_main__lead__aa01\n\
+             \x20 outside ---|external| squad_main__lead__aa01\n"
         )
     );
     assert_eq!(
@@ -174,21 +185,21 @@ fn graph_topology_draws_each_peer_in_a_graph_box_with_its_edges() {
 #[test]
 fn graph_topology_output_does_not_depend_on_the_key_order_of_the_input() {
     let graph = graph();
-    let reordered = r#"{"absent":[],"document":{"peers":{
-      "dee":{"status":"idle","model":"claude-opus-5-5"},
-      "cy":{"invited_by":"ann","node":"worker","hash":"HASH","graph":"squad","instance":"squad@main","status":"idle","model":"GPT-6"},
-      "bob":{"invited_by":"ann","node":"worker","hash":"HASH","graph":"squad","instance":"squad@main","status":"busy","model":"claude-sonnet-5"},
-      "ann":{"node":"lead","hash":"HASH","graph":"squad","instance":"squad@main","status":"busy","harness":"Claude Code","model":"claude-opus-5-5"}
-    }},"ok":true}"#
+    let reordered = r#"{"absent":[],"document":{
+      "dd04":{"nickname":"dee","status":"idle","model":"claude-opus-5-5"},
+      "cc03":{"nickname":"cy","invited_by":"ann","node":"worker","hash":"HASH","graph":"squad","instance":"squad@main","status":"idle","model":"GPT-6"},
+      "bb02":{"nickname":"bob","invited_by":"ann","node":"worker","hash":"HASH","graph":"squad","instance":"squad@main","status":"busy","model":"claude-sonnet-5"},
+      "aa01":{"nickname":"ann","node":"lead","hash":"HASH","graph":"squad","instance":"squad@main","status":"busy","harness":"Claude Code","model":"claude-opus-5-5"}
+    },"ok":true}"#
         .replace("HASH", &graph.hash);
     let roster = r#"{"peers":[
-      {"last_seen_secs_ago":1,"quiet":false,"nickname":"dee"},
-      {"last_seen_secs_ago":90,"quiet":true,"nickname":"cy"},
-      {"last_seen_secs_ago":3,"quiet":false,"nickname":"bob"}
+      {"last_seen_secs_ago":1,"quiet":false,"nickname":"dee","pubkey":"dd04"},
+      {"last_seen_secs_ago":90,"quiet":true,"nickname":"cy","pubkey":"cc03"},
+      {"last_seen_secs_ago":3,"quiet":false,"nickname":"bob","pubkey":"bb02"}
     ],"peer_count":4,"ok":true}"#;
 
-    let first = topology(&graph, &meta(&graph), ROSTER, &["--me", "ann"]);
-    let second = topology(&graph, &reordered, roster, &["--me", "ann"]);
+    let first = topology(&graph, &meta(&graph), ROSTER, &["--me", ANN_KEY]);
+    let second = topology(&graph, &reordered, roster, &["--me", ANN_KEY]);
 
     assert_eq!(stdout(&first), stdout(&second));
     assert_eq!(stderr(&first), stderr(&second));
@@ -202,12 +213,12 @@ fn graph_topology_does_not_draw_open_places_and_warns() {
         &[ANN, BOB, r#""cy":{"model":"GPT-6","status":"idle"}"#, DEE],
     );
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     let text = stdout(&out);
     assert!(text.contains("squad@main · 2 peers ·"), "{text}");
-    assert!(!text.contains("__cy"), "{text}");
+    assert!(!text.contains("__cc03"), "{text}");
     assert_eq!(stderr(&out), "warning: worker · 1 open place\n");
 }
 
@@ -222,13 +233,13 @@ fn graph_topology_does_not_warn_on_more_peers_than_count() {
         ),
     );
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     let text = stdout(&out);
     assert!(text.contains("squad@main · 4 peers ·"), "{text}");
     assert!(
-        text.contains("squad_main__worker__dee[worker · dee ·"),
+        text.contains("squad_main__worker__dd04[worker · dee ·"),
         "{text}"
     );
     assert_eq!(
@@ -241,14 +252,14 @@ fn graph_topology_does_not_warn_on_more_peers_than_count() {
 #[test]
 fn graph_topology_does_not_count_an_absent_peer() {
     let graph = graph();
-    let meta = meta(&graph).replace(r#""absent":[]"#, r#""absent":["cy"]"#);
-    assert!(meta.contains(r#""absent":["cy"]"#));
+    let meta = meta(&graph).replace(r#""absent":[]"#, r#""absent":["cc03"]"#);
+    assert!(meta.contains(r#""absent":["cc03"]"#));
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     let text = stdout(&out);
-    assert!(!text.contains("__cy"), "{text}");
+    assert!(!text.contains("__cc03"), "{text}");
     assert!(text.contains("squad@main · 2 peers ·"), "{text}");
     assert_eq!(stderr(&out), "warning: worker · 1 open place\n");
 }
@@ -257,15 +268,15 @@ fn graph_topology_does_not_count_an_absent_peer() {
 fn graph_topology_warns_on_a_gone_peer() {
     let graph = graph();
     let roster = ROSTER.replace(
-        r#"{"nickname":"bob","quiet":false,"last_seen_secs_ago":3},"#,
+        r#"{"nickname":"bob","pubkey":"bb02","quiet":false,"last_seen_secs_ago":3},"#,
         "",
     );
 
-    let out = topology(&graph, &meta(&graph), &roster, &["--me", "ann"]);
+    let out = topology(&graph, &meta(&graph), &roster, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
-        stdout(&out).contains("squad_main__worker__bob[worker · bob · claude-sonnet-5 · busy ⚠]")
+        stdout(&out).contains("squad_main__worker__bb02[worker · bob · claude-sonnet-5 · busy ⚠]")
     );
     assert_eq!(
         stderr(&out),
@@ -286,10 +297,10 @@ fn graph_topology_warns_on_a_partial_entry_and_does_not_draw_it() {
         ),
     );
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert!(!stdout(&out).contains("__dee"), "{}", stdout(&out));
+    assert!(!stdout(&out).contains("__dd04"), "{}", stdout(&out));
     assert!(
         stderr(&out).contains("warning: squad@main · dee · meta has no node\n"),
         "{}",
@@ -308,7 +319,7 @@ fn graph_topology_warns_on_a_peer_in_a_node_that_the_graph_does_not_have() {
         ),
     );
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
@@ -329,7 +340,7 @@ fn graph_topology_warns_on_two_peers_of_the_lead_node() {
         ),
     );
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
@@ -347,7 +358,7 @@ fn graph_topology_warns_on_two_founders() {
         &[ANN, &BOB.replace(r#","invited_by":"ann""#, ""), CY, DEE],
     );
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
@@ -365,10 +376,10 @@ fn graph_topology_uses_the_hash_of_me_and_warns_on_another_hash() {
         r#"{"model":"claude-sonnet-5","status":"busy","instance":"squad@main","graph":"squad","hash":"0000","node":"worker","invited_by":"cy"}"#,
     );
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert!(!stdout(&out).contains("__dee"), "{}", stdout(&out));
+    assert!(!stdout(&out).contains("__dd04"), "{}", stdout(&out));
     assert!(
         stderr(&out).contains("warning: squad@main · 1 peer with another hash · dee\n"),
         "{}",
@@ -381,7 +392,12 @@ fn graph_topology_fails_and_lists_hashes_when_not_a_peer_and_hashes_differ() {
     let graph = graph();
     let meta = meta_of(&graph, &[ANN, &BOB.replace("HASH", "000000ff"), CY, DEE]);
 
-    let out = topology(&graph, &meta, ROSTER, &["squad@main", "--me", "dee"]);
+    let out = topology(
+        &graph,
+        &meta,
+        ROSTER,
+        &["--name", "squad@main", "--me", DEE_KEY],
+    );
 
     assert!(!out.status.success());
     let err = stderr(&out);
@@ -398,10 +414,10 @@ fn graph_topology_ignores_an_old_entry_without_graph() {
         r#"{"model":"claude-sonnet-5","status":"busy","graph":"squad@main","node":"worker"}"#,
     );
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert!(!stdout(&out).contains("__dee"), "{}", stdout(&out));
+    assert!(!stdout(&out).contains("__dd04"), "{}", stdout(&out));
     assert!(!stderr(&out).contains("dee"), "{}", stderr(&out));
 }
 
@@ -410,11 +426,11 @@ fn graph_topology_finds_the_graph_by_hash_for_a_custom_instance_name() {
     let graph = graph();
     let meta = meta(&graph).replace("squad@main", "demo");
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
-        stdout(&out).contains("demo__lead__ann -->|assign a part| demo__worker__bob"),
+        stdout(&out).contains("demo__lead__aa01 -->|assign a part| demo__worker__bb02"),
         "{}",
         stdout(&out)
     );
@@ -430,7 +446,7 @@ fn graph_topology_removes_line_breaks_and_brackets_from_gossip_values() {
         )
         .replace("squad@main", "squad@feat/a\\\"b");
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     let text = stdout(&out);
@@ -450,11 +466,11 @@ fn graph_topology_removes_line_breaks_and_brackets_from_gossip_values() {
 fn graph_topology_uses_the_edge_name_for_an_empty_label() {
     let graph = graph_with(&GRAPH.replace(r#"|"part result"|"#, "||"));
 
-    let out = topology(&graph, &meta(&graph), ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta(&graph), ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
-        stdout(&out).contains("squad_main__worker__bob -->|result| squad_main__lead__ann"),
+        stdout(&out).contains("squad_main__worker__bb02 -->|result| squad_main__lead__aa01"),
         "{}",
         stdout(&out)
     );
@@ -465,11 +481,16 @@ fn graph_topology_takes_the_instance_argument() {
     let graph = graph();
     let meta = meta(&graph).replace("squad@main", "squad@my-repo");
 
-    let out = topology(&graph, &meta, ROSTER, &["squad@my-repo", "--me", "dee"]);
+    let out = topology(
+        &graph,
+        &meta,
+        ROSTER,
+        &["--name", "squad@my-repo", "--me", DEE_KEY],
+    );
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
-        stdout(&out).contains("squad_my_repo__lead__ann(lead · ann · claude-opus-5-5 · busy"),
+        stdout(&out).contains("squad_my_repo__lead__aa01(lead · ann · claude-opus-5-5 · busy"),
         "{}",
         stdout(&out)
     );
@@ -479,7 +500,12 @@ fn graph_topology_takes_the_instance_argument() {
 fn graph_topology_fails_when_the_graph_has_no_peers() {
     let graph = graph();
 
-    let out = topology(&graph, &meta(&graph), ROSTER, &["nope", "--me", "ann"]);
+    let out = topology(
+        &graph,
+        &meta(&graph),
+        ROSTER,
+        &["--name", "nope", "--me", ANN_KEY],
+    );
 
     assert!(!out.status.success());
     assert!(
@@ -493,11 +519,11 @@ fn graph_topology_fails_when_the_graph_has_no_peers() {
 fn graph_topology_fails_when_me_is_not_in_a_graph() {
     let graph = graph();
 
-    let out = topology(&graph, &meta(&graph), ROSTER, &["--me", "dee"]);
+    let out = topology(&graph, &meta(&graph), ROSTER, &["--me", DEE_KEY]);
 
     assert!(!out.status.success());
     assert!(
-        stderr(&out).contains("`dee` is not in a graph"),
+        stderr(&out).contains("`dd04` is not in a graph"),
         "{}",
         stderr(&out)
     );
@@ -507,11 +533,11 @@ fn graph_topology_fails_when_me_is_not_in_a_graph() {
 fn graph_topology_fails_when_me_is_not_in_the_meta() {
     let graph = graph();
 
-    let out = topology(&graph, &meta(&graph), ROSTER, &["--me", "typo"]);
+    let out = topology(&graph, &meta(&graph), ROSTER, &["--me", "ff99"]);
 
     assert!(!out.status.success());
     assert!(
-        stderr(&out).contains("`typo` is not in the gossip meta"),
+        stderr(&out).contains("`ff99` is not in the gossip meta"),
         "{}",
         stderr(&out)
     );
@@ -525,7 +551,7 @@ fn graph_topology_fails_when_a_gossip_command_failed() {
         &graph,
         r#"{"ok":false,"error":"no session"}"#,
         ROSTER,
-        &["--me", "ann"],
+        &["--me", ANN_KEY],
     );
 
     assert!(!out.status.success());
@@ -541,11 +567,11 @@ fn graph_topology_finds_a_received_graph_by_hash_in_home() {
     fs::create_dir_all(received.parent().unwrap()).unwrap();
     fs::rename(graph.root.join(".agent-graph/graphs/squad"), &received).unwrap();
 
-    let out = topology(&graph, &meta(&graph), ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta(&graph), ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
-        stdout(&out).contains("squad_main__lead__ann -->|assign a part| squad_main__worker__bob")
+        stdout(&out).contains("squad_main__lead__aa01 -->|assign a part| squad_main__worker__bb02")
     );
 }
 
@@ -557,7 +583,7 @@ fn graph_topology_prefers_a_received_graph_with_the_hash_over_a_changed_local_gr
     write_graph(&received, GRAPH);
     write(&local.join("nodes/worker/index.md"), &format!("{WORKER}\n"));
 
-    let out = topology(&graph, &meta(&graph), ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta(&graph), ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
 }
@@ -572,7 +598,7 @@ fn graph_topology_says_when_the_local_graph_has_another_hash() {
         &format!("{WORKER}\n"),
     );
 
-    let out = topology(&graph, &meta(&graph), ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta(&graph), ROSTER, &["--me", ANN_KEY]);
 
     assert!(!out.status.success());
     let err = stderr(&out);
@@ -586,7 +612,7 @@ fn graph_topology_fails_when_no_graph_has_the_hash() {
     fs::remove_dir_all(graph.root.join(".agent-graph")).unwrap();
     let meta = meta(&graph).replace(&graph.hash, "0000");
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(!out.status.success());
     assert!(
@@ -600,7 +626,7 @@ fn graph_topology_fails_when_no_graph_has_the_hash() {
 fn graph_topology_draws_the_graph_as_terminal_text_by_default() {
     let graph = graph();
 
-    let out = run_topology(&graph, &meta(&graph), ROSTER, &["--me", "ann"]);
+    let out = run_topology(&graph, &meta(&graph), ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     let text = stdout(&out);
@@ -623,7 +649,7 @@ fn graph_topology_warns_on_an_invited_by_that_is_not_a_peer() {
         ),
     );
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
@@ -641,7 +667,7 @@ fn graph_topology_draws_the_graph_when_me_has_a_partial_entry() {
         r#"{"model":"claude-sonnet-5","status":"busy","instance":"squad@main","graph":"squad","node":"worker","invited_by":"ann"}"#,
     );
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "dee"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", DEE_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
@@ -662,7 +688,7 @@ fn graph_topology_fails_when_no_entry_of_the_graph_has_a_hash() {
     let meta =
         meta_of(&graph, &[ANN, BOB, CY, DEE]).replace(&format!(r#""hash":"{}","#, graph.hash), "");
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(!out.status.success());
     assert!(
@@ -679,9 +705,9 @@ fn graph_topology_does_not_count_an_absent_second_founder() {
         &graph,
         &[ANN, &BOB.replace(r#","invited_by":"ann""#, ""), CY, DEE],
     )
-    .replace(r#""absent":[]"#, r#""absent":["bob"]"#);
+    .replace(r#""absent":[]"#, r#""absent":["bb02"]"#);
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(!stderr(&out).contains("founders"), "{}", stderr(&out));
@@ -692,11 +718,11 @@ fn graph_topology_finds_a_local_graph_by_hash_under_another_folder_name() {
     let graph = graph();
     let meta = meta(&graph).replace(r#""graph":"squad""#, r#""graph":"renamed""#);
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
-        stdout(&out).contains("squad_main__lead__ann -->|assign a part| squad_main__worker__bob")
+        stdout(&out).contains("squad_main__lead__aa01 -->|assign a part| squad_main__worker__bb02")
     );
 }
 
@@ -711,11 +737,11 @@ fn graph_topology_warns_on_a_peer_that_did_not_verify_the_graph() {
         ),
     );
 
-    let out = topology(&graph, &meta, ROSTER, &["--me", "ann"]);
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
-        stdout(&out).contains("squad_main__worker__dee[worker · dee · claude-sonnet-5 · busy ⚠]"),
+        stdout(&out).contains("squad_main__worker__dd04[worker · dee · claude-sonnet-5 · busy ⚠]"),
         "{}",
         stdout(&out)
     );
@@ -724,4 +750,52 @@ fn graph_topology_warns_on_a_peer_that_did_not_verify_the_graph() {
         "{}",
         stderr(&out)
     );
+}
+
+#[test]
+fn graph_topology_matches_the_roster_by_key_when_two_peers_share_a_nickname() {
+    let graph = graph();
+    let meta = meta_with_dee(
+        &graph,
+        &format!(
+            r#"{{"nickname":"cy","model":"claude-sonnet-5","status":"busy","instance":"squad@main","graph":"squad","hash":"{}","node":"worker","invited_by":"ann"}}"#,
+            graph.hash
+        ),
+    )
+    .replace(r#""nickname":"dee","nickname":"cy""#, r#""nickname":"cy""#);
+
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        stderr(&out),
+        "warning: worker · cy · model GPT-6 does not match sonnet\n\
+         warning: worker · cy · quiet\n"
+    );
+}
+
+#[test]
+fn graph_topology_draws_two_peers_with_one_nickname_as_two_boxes() {
+    let graph = graph();
+    let meta = meta_with_dee(
+        &graph,
+        &format!(
+            r#"{{"nickname":"cy","model":"claude-sonnet-5","status":"busy","instance":"squad@main","graph":"squad","hash":"{}","node":"worker","invited_by":"ann"}}"#,
+            graph.hash
+        ),
+    )
+    .replace(r#""nickname":"dee","nickname":"cy""#, r#""nickname":"cy""#);
+
+    let out = topology(&graph, &meta, ROSTER, &["--me", ANN_KEY]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    let mut ids: Vec<&str> = text
+        .lines()
+        .filter(|line| line.contains("worker · cy"))
+        .filter_map(|line| line.split(['(', '[']).next())
+        .map(str::trim)
+        .collect();
+    ids.dedup();
+    assert_eq!(ids.len(), 2, "{text}");
 }

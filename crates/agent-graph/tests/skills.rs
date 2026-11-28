@@ -90,11 +90,15 @@ fn node_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
         .nth(1)
         .and_then(|rest| rest.split('\'').next())
         .unwrap_or_else(|| panic!("no merge in the brief: {text}"))
-        .replace("<your nickname>", "bob")
+        .replace("<leader>", "")
         .replace("<epoch seconds>", "1700000000");
     let json: Value =
         serde_json::from_str(&merge).unwrap_or_else(|error| panic!("{error}: {merge}"));
-    let entry = &json["peers"]["bob"];
+    assert!(
+        json.get("peers").is_none(),
+        "the merge is the own slice: {merge}"
+    );
+    let entry = &json;
     assert_eq!(entry["instance"], "demo");
     assert_eq!(entry["graph"], "squad1");
     assert_eq!(entry["hash"], "abc123");
@@ -114,11 +118,11 @@ fn node_offer_brief_runs_in_bash_and_gives_the_invitee_valid_meta_json() {
         .filter_map(|rest| rest.split('\'').next())
         .find(|candidate| candidate.contains("verified"))
         .unwrap_or_else(|| panic!("no merge with verified in the brief: {text}"))
-        .replace("<your nickname>", "bob")
+        .replace("<leader>", "")
         .replace("<epoch seconds>", "1700000000");
     let unverified_json: Value =
         serde_json::from_str(&unverified).unwrap_or_else(|error| panic!("{error}: {unverified}"));
-    let unverified_entry = &unverified_json["peers"]["bob"];
+    let unverified_entry = &unverified_json;
     assert_eq!(unverified_entry["verified"], false);
     assert_eq!(unverified_entry["instance"], "demo");
     assert_eq!(unverified_entry["node"], "worker");
@@ -208,6 +212,276 @@ fn send_node_gives_the_node_context_that_matches_the_context_hash_of_the_offer()
     assert!(args.contains(&sent.display().to_string()), "{args}");
 }
 
+#[test]
+fn the_lead_peer_marks_its_meta_entry_with_leader_true() {
+    let tmp = TempDir::new().unwrap();
+    let graph_up = rendered_skill(tmp.path(), "graph-up");
+    let invite = rendered_skill(tmp.path(), "graph-node-invite");
+
+    assert!(graph_up.contains("\"leader\":true"), "graph-up");
+    assert!(invite.contains("Lead: <yes|no>"), "the offer brief");
+    assert!(invite.contains(r#"\"leader\":true"#), "the offer brief");
+}
+
+#[test]
+fn every_meta_clear_of_a_graph_entry_also_clears_leader() {
+    let tmp = TempDir::new().unwrap();
+    for skill in ["graph-up", "graph-leave", "graph-down"] {
+        let text = rendered_skill(tmp.path(), skill).replace('\\', "");
+        let clears = text.matches(r#""instance":null"#).count();
+
+        assert!(clears > 0, "{skill} has no meta clear");
+        assert_eq!(
+            text.matches(r#""leader":null"#).count(),
+            clears,
+            "{skill}: a clear leaves leader:true behind"
+        );
+    }
+}
+
+#[test]
+fn the_offer_brief_puts_leader_in_the_merge_json_for_a_lead_offer() {
+    let tmp = TempDir::new().unwrap();
+    let skill = rendered_skill(tmp.path(), "graph-node-invite");
+    let brief = bash_block(&skill, "## Node offer", "a2a call");
+
+    assert!(brief.contains("<leader>"), "no leader slot in the merge");
+    assert!(
+        brief.contains(r#"replace <leader> with \"leader\":true, if Lead is yes"#),
+        "the brief does not say how to fill the slot"
+    );
+}
+
+#[test]
+fn no_graph_skill_writes_or_reads_the_peers_shape_of_the_meta() {
+    let tmp = TempDir::new().unwrap();
+    for skill in [
+        "graph-up",
+        "graph-leave",
+        "graph-down",
+        "graph-node-invite",
+        "graph-topology",
+    ] {
+        let text = rendered_skill(tmp.path(), skill).replace('\\', "");
+
+        for old in [r#"{"peers":"#, "document.peers", "/peers/"] {
+            assert!(!text.contains(old), "{skill} still has `{old}`");
+        }
+    }
+}
+
+#[test]
+fn the_graph_skills_find_their_own_entry_by_the_session_key() {
+    let tmp = TempDir::new().unwrap();
+    let topology = rendered_skill(tmp.path(), "graph-topology");
+
+    assert!(topology.contains(r#"--me "$PUBKEY""#), "{topology}");
+    for skill in ["graph-up", "graph-leave", "graph-down", "graph-node-invite"] {
+        let text = rendered_skill(tmp.path(), skill);
+
+        assert!(text.contains("document[$PUBKEY]"), "{skill}");
+    }
+}
+
+#[test]
+fn the_graph_meta_reference_reads_the_nickname_from_the_entry() {
+    let tmp = TempDir::new().unwrap();
+    for skill in ["graph-up", "graph-down", "graph-node-invite"] {
+        let text = rendered_skill(tmp.path(), skill);
+
+        assert!(text.contains("`.nickname`"), "{skill}");
+        assert!(
+            text.contains("Never join an entry to a roster row"),
+            "{skill}"
+        );
+    }
+}
+
+#[test]
+fn the_graph_skills_stop_without_a_session_key_and_break_a_nickname_tie_by_key() {
+    let tmp = TempDir::new().unwrap();
+    let up = rendered_skill(tmp.path(), "graph-up").replace('\n', " ");
+
+    assert!(up.contains("If it has no `pubkey`"), "no stop");
+    assert!(up.contains("nicknames are equal, the smaller key"), "tie");
+}
+
+#[test]
+fn the_graph_meta_reference_says_a_restart_gives_a_new_key() {
+    let tmp = TempDir::new().unwrap();
+    let text = rendered_skill(tmp.path(), "graph-down");
+
+    assert!(
+        text.contains("A restart of the daemon gives a new key"),
+        "{text}"
+    );
+    assert!(text.contains("The new entry is empty"), "{text}");
+}
+
+#[test]
+fn the_default_graphs_find_the_leader_by_key_and_address_it_by_nickname() {
+    for graph in ["squad1", "squad2", "pair"] {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("defaults/graphs")
+            .join(graph)
+            .join("index.md");
+        let text = fs::read_to_string(&path).unwrap();
+
+        assert!(text.contains("whose key is not in `absent`"), "{graph}");
+        assert!(text.contains("`.nickname` of the leader entry"), "{graph}");
+    }
+}
+
+#[test]
+fn the_no_gossip_stop_comes_before_the_no_session_key_stop() {
+    let tmp = TempDir::new().unwrap();
+    for skill in ["graph-up", "graph-down", "graph-leave", "graph-topology"] {
+        let text = rendered_skill(tmp.path(), skill);
+        let no_gossip = text.find("graph · no gossip").unwrap();
+        let no_key = text.find("graph · no session key").unwrap();
+
+        assert!(
+            no_gossip < no_key,
+            "{skill}: a session with no gossip says no key"
+        );
+    }
+}
+
+#[test]
+fn the_restart_list_names_every_field_of_the_entry_block() {
+    let tmp = TempDir::new().unwrap();
+    let text = rendered_skill(tmp.path(), "graph-down");
+    let block = text
+        .split("```json\n")
+        .nth(1)
+        .and_then(|rest| rest.split("```").next())
+        .unwrap();
+    let fields: Vec<&str> = block
+        .lines()
+        .filter_map(|line| line.trim_start().strip_prefix('"'))
+        .filter_map(|rest| rest.split('"').next())
+        .collect();
+    let flat = text.replace('\n', " ");
+    let start = flat.find("merges the whole entry again").unwrap();
+    let end = flat[start..].find("The nickname").unwrap();
+    let list = &flat[start..start + end];
+
+    assert!(
+        fields.len() >= 9,
+        "the block lists too few fields: {fields:?}"
+    );
+    for field in fields {
+        assert!(
+            list.contains(&format!("`{field}`")),
+            "the restart list lacks {field}: {list}"
+        );
+    }
+}
+
+#[test]
+fn the_entry_block_holds_each_field_that_a_bullet_documents() {
+    let tmp = TempDir::new().unwrap();
+    let text = rendered_skill(tmp.path(), "graph-down");
+    let block = text
+        .split("```json\n")
+        .nth(1)
+        .and_then(|rest| rest.split("```").next())
+        .unwrap();
+
+    for line in text.lines() {
+        let Some(field) = line
+            .strip_prefix("- `")
+            .and_then(|rest| rest.split_once("` is"))
+            .map(|(field, _)| field)
+        else {
+            continue;
+        };
+        assert!(block.contains(&format!("\"{field}\"")), "{field}: {block}");
+    }
+    assert!(block.contains("\"verified\""), "{block}");
+    assert!(block.contains("\"leader\""), "{block}");
+}
+
+#[test]
+fn the_session_check_stops_on_more_than_one_session_after_no_gossip() {
+    let tmp = TempDir::new().unwrap();
+    for skill in ["graph-up", "graph-down", "graph-leave", "graph-topology"] {
+        let text = rendered_skill(tmp.path(), skill).replace('\n', " ");
+        let none = text.find("graph · no gossip").unwrap();
+        let many = text
+            .find("If `sessions` has more than 1 entry")
+            .unwrap_or_else(|| panic!("{skill}: no stop on many sessions"));
+        let no_key = text.find("graph · no session key").unwrap();
+
+        assert!(none < many && many < no_key, "{skill}: order of the stops");
+    }
+}
+
+#[test]
+fn every_skill_and_shared_file_keeps_prose_lines_within_80_characters() {
+    let skills = Path::new(env!("CARGO_MANIFEST_DIR")).join("skills");
+    let mut files = Vec::new();
+    for entry in fs::read_dir(&skills).unwrap() {
+        let path = entry.unwrap().path();
+        if !path.is_dir() {
+            continue;
+        }
+        if path.ends_with("shared") {
+            for file in fs::read_dir(&path).unwrap() {
+                files.push(file.unwrap().path());
+            }
+        } else {
+            files.push(path.join("SKILL.md"));
+        }
+    }
+    for file in files
+        .iter()
+        .filter(|file| file.extension().is_some_and(|ext| ext == "md"))
+    {
+        let text = fs::read_to_string(file).unwrap();
+        let body = if text.starts_with("---\n") {
+            text.splitn(3, "---\n").nth(2).unwrap()
+        } else {
+            &text
+        };
+        let mut fenced = false;
+        for line in body.lines() {
+            if line.trim_start().starts_with("```") {
+                fenced = !fenced;
+                continue;
+            }
+
+            assert!(
+                fenced || line.chars().count() <= 80,
+                "{}: {line}",
+                file.display()
+            );
+        }
+    }
+}
+
+#[test]
+fn the_entry_block_says_that_it_shows_every_field() {
+    let tmp = TempDir::new().unwrap();
+    let text = rendered_skill(tmp.path(), "graph-down");
+
+    assert!(
+        text.contains("The block shows every field of an entry:\n\n```json"),
+        "{text}"
+    );
+}
+
+#[test]
+fn the_session_check_looks_for_an_empty_sessions_list() {
+    let tmp = TempDir::new().unwrap();
+    let text = rendered_skill(tmp.path(), "graph-up").replace('\n', " ");
+
+    assert!(
+        text.contains("If the `sessions` list of the output is empty"),
+        "{text}"
+    );
+}
+
 /// The skill folders in the source tree: every `graph-*` folder with a `SKILL.md`.
 fn source_skills() -> Vec<(String, String)> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("skills");
@@ -223,32 +497,6 @@ fn source_skills() -> Vec<(String, String)> {
     skills.sort();
     assert!(!skills.is_empty());
     skills
-}
-
-#[test]
-fn skills_that_read_the_meta_document_name_the_pubkey_level() {
-    let tmp = TempDir::new().unwrap();
-    let readers: Vec<String> = source_skills()
-        .into_iter()
-        .filter(|(_, source)| source.contains("../shared/graph-meta.md"))
-        .map(|(name, _)| name)
-        .collect();
-    assert!(readers.len() >= 3, "{readers:?}");
-    for skill in readers {
-        let body = rendered_skill(tmp.path(), &skill);
-        assert!(
-            !body.contains("`document.peers`"),
-            "{skill}: the document is keyed by pubkey, so `document.peers` does not exist"
-        );
-        assert!(
-            body.contains("`document.<pubkey>.peers.<nickname>`"),
-            "{skill}: no path to a peer entry"
-        );
-        assert!(
-            body.contains("`absent` lists keys of `document`"),
-            "{skill}: no key for `absent`"
-        );
-    }
 }
 
 #[test]
