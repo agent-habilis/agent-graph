@@ -1021,20 +1021,20 @@ fn no_skill_allows_a_tool_that_it_does_not_run() {
 }
 
 #[test]
-fn the_agy_render_has_ppid_only_after_session_pid_and_in_escaped_brief_text() {
+fn the_agy_render_has_ppid_only_in_escaped_brief_text() {
     let tmp = TempDir::new().unwrap();
     let mut seen = 0;
     for (name, _) in source_skills() {
         for (number, line) in agy_rendered_skill(tmp.path(), &name).lines().enumerate() {
             for (at, _) in line.match_indices("$PPID") {
                 let before = &line[..at];
-                let after_session_pid = before.ends_with("--session-pid \"");
                 let escaped = before.ends_with('\\');
-                // `--pid "$PPID"` is `--pid auto` in this render, and prose
-                // can name `$PPID` only in code that these two cases cover.
+                // `--pid "$PPID"` is `--pid auto` and `--session-pid "$PPID"`
+                // is `--session $CONVERSATION` in this render. A brief that
+                // goes to a peer of any agent can still name `$PPID`, escaped.
                 assert!(
-                    after_session_pid || escaped,
-                    "{name}:{}: `$PPID` outside `--session-pid` and escaped text: {line:.100}",
+                    escaped,
+                    "{name}:{}: `$PPID` outside escaped brief text: {line:.100}",
                     number + 1
                 );
                 seen += 1;
@@ -1042,4 +1042,19 @@ fn the_agy_render_has_ppid_only_after_session_pid_and_in_escaped_brief_text() {
         }
     }
     assert!(seen > 0, "the check found no `$PPID` at all");
+}
+
+#[test]
+fn the_session_command_is_by_conversation_in_agy_and_by_pid_elsewhere() {
+    let tmp = TempDir::new().unwrap();
+    let agy = agy_rendered_skill(tmp.path(), "graph-down");
+    assert!(agy.contains("agent-gossip session --session $CONVERSATION\n"));
+    assert!(!agy.contains("agent-gossip session --session-pid \"$PPID\"\n"));
+    assert!(
+        agy.contains("agent-gossip session` with no flag"),
+        "no id fallback"
+    );
+    let other = rendered_skill(tmp.path(), "graph-down");
+    assert!(other.contains("agent-gossip session --session-pid \"$PPID\"\n"));
+    assert!(!other.contains("--session $CONVERSATION"));
 }

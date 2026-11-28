@@ -6,6 +6,10 @@ Find the gossip of this session:
 agent-gossip session --session-pid "$PPID"
 ```
 
+In `agy`, `$CONVERSATION` is the conversation id in your `<user_information>`.
+If you have no conversation id, run `agent-gossip session` with no flag. It
+finds the agent process itself.
+
 If the `sessions` list of the output is empty, there is no session. Print
 this line, then stop:
 

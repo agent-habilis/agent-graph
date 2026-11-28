@@ -11,8 +11,14 @@ const BARE: &str = "<!-- bare -->";
 const PID_PPID: &str = "--pid \"$PPID\"";
 const PID_AUTO: &str = "--pid auto";
 
+/// The `--session-pid` argument of the other agents, and its `agy` form. `agy`
+/// holds a conversation id, which `agent-gossip session --session` finds
+/// without `$PPID`.
+const SESSION_PPID: &str = "--session-pid \"$PPID\"";
+const SESSION_CONVERSATION: &str = "--session $CONVERSATION";
+
 /// Drops each `BARE` marker. With a `namespace`, it also writes `--pid "$PPID"` as
-/// `--pid auto`, and writes `/<skill>` as
+/// `--pid auto`, `--session-pid "$PPID"` as `--session $CONVERSATION`, and writes `/<skill>` as
 /// `/<namespace>:<skill>` for each skill in `names`. A slash command stands
 /// after a space, a quote (double or single), a backtick, a bracket, or at the start of a line. A
 /// path such as `../shared/graph-meta.md` is not one.
@@ -22,7 +28,9 @@ pub(crate) fn namespace_commands(text: &str, names: &[String], namespace: Option
     };
     // `agy` reads a shell-free command line: `--pid auto` finds the agent
     // without `$PPID`.
-    let text = text.replace(PID_PPID, PID_AUTO);
+    let text = text
+        .replace(PID_PPID, PID_AUTO)
+        .replace(SESSION_PPID, SESSION_CONVERSATION);
     let text = text.as_str();
     let is_name_char = |ch: char| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_';
     let mut out = String::with_capacity(text.len());
