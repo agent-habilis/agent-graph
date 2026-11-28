@@ -97,9 +97,10 @@ Write all of this into the `Prompt`:
 - the subject of the run, for example the plan or the diff that a peer sent
 - the text of each `## Boundaries` section of the node and of the graph that
   are loaded in this session
-- this rule: set `BypassSandbox` to true on each `agent-graph`,
-  `agent-gossip`, and `curl` command, and on each command that reads or
-  writes under `~/.agent-graph`
+- this rule: if `run_command` has the parameter `BypassSandbox`, set it to
+  true on each `agent-graph`, `agent-gossip`, and `curl` command, and on each
+  command that reads or writes under `~/.agent-graph`. If `run_command` has no
+  such parameter, the command already runs outside the sandbox
 
 Do not do the routine in this session, and do not run `agent-graph trait
 show` in this session. Wait for the result of the fork.

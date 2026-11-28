@@ -674,3 +674,40 @@ fn the_agy_sandbox_rule_of_the_offer_brief_follows_the_a_or_b_choice() {
         );
     }
 }
+
+#[test]
+fn the_agy_sandbox_rule_applies_only_when_run_command_has_the_parameter() {
+    let tmp = TempDir::new().unwrap();
+    for (name, _) in source_skills() {
+        let body = rendered_skill(tmp.path(), &name).replace('\n', " ");
+        assert!(
+            body.contains("has the parameter `BypassSandbox`")
+                || body.contains("has the `BypassSandbox` parameter"),
+            "{name}: the rule does not depend on the parameter"
+        );
+        assert!(
+            body.contains("already runs outside the sandbox"),
+            "{name}: no word on a run_command without the parameter"
+        );
+    }
+    for skill in ["graph-up", "graph-node-invite"] {
+        let body = rendered_skill(tmp.path(), skill);
+        let brief = body
+            .lines()
+            .find(|line| line.contains("--text \"Node offer."))
+            .unwrap_or_else(|| panic!("{skill}: no brief"));
+        assert!(
+            brief.contains("if run_command has that parameter")
+                && brief.contains("Without it the command already runs outside the sandbox"),
+            "{skill}: the brief rule does not depend on the parameter"
+        );
+    }
+    let readme = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../README.md"))
+        .unwrap()
+        .replace('\n', " ");
+    assert!(
+        readme.contains("has the parameter `BypassSandbox`")
+            && readme.contains("already runs outside the sandbox"),
+        "README: the rule does not depend on the parameter"
+    );
+}
