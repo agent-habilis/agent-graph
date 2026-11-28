@@ -75,13 +75,25 @@ fn agent(loopback: bool) -> ureq::Agent {
         .into()
 }
 
+/// On Linux the system can have no certificate store, for example in a
+/// minimal container. The error alone does not say how to fix that.
+fn with_hint(message: String) -> String {
+    if message.contains("No CA certificates were loaded") {
+        format!(
+            "{message} (install the ca-certificates package, or set SSL_CERT_FILE or SSL_CERT_DIR)"
+        )
+    } else {
+        message
+    }
+}
+
 fn download(url: &str, loopback: bool) -> Result<Vec<u8>> {
     let agent = agent(loopback);
     let mut response = agent.get(url).call().map_err(|error| {
         if let ureq::Error::StatusCode(code) = error {
             anyhow!("{url}: the server answered HTTP {code}")
         } else {
-            anyhow!("{url}: {error}")
+            anyhow!("{url}: {}", with_hint(error.to_string()))
         }
     })?;
     if response.status().is_redirection() {
@@ -116,7 +128,19 @@ fn is_loopback_http(url: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{agent, is_loopback_http};
+    use super::{agent, is_loopback_http, with_hint};
+
+    #[test]
+    fn an_empty_certificate_store_gets_a_hint_and_another_error_stays_as_it_is() {
+        let empty = "rustls: unexpected error: No CA certificates were loaded from the system";
+        let hinted = with_hint(empty.to_string());
+        assert!(hinted.starts_with(empty), "{hinted}");
+        assert!(hinted.contains("SSL_CERT_FILE"), "{hinted}");
+        assert!(!hinted.contains('\n'), "{hinted}");
+        for other in ["connection refused", "the server answered HTTP 404"] {
+            assert_eq!(with_hint(other.to_string()), other);
+        }
+    }
 
     #[test]
     fn the_client_trusts_the_certificate_store_of_the_operating_system() {
