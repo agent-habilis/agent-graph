@@ -870,3 +870,64 @@ fn graph_pack_does_not_write_through_a_link() {
     assert!(stderr(&out).contains("symbolic link"), "{}", stderr(&out));
     assert_eq!(fs::read_to_string(&target).unwrap(), "keep\n");
 }
+
+#[test]
+fn install_of_a_folder_with_apple_double_names_makes_the_same_folder_as_install_of_its_tar() {
+    let (_tmp, root) = root();
+    let src = root.join(".agent-graph/graphs/g");
+    let plain = graph_folder(&src);
+    write(&src.join("._index.md"), "a file that macOS wrote");
+    write(
+        &src.join("nodes/._hidden/index.md"),
+        "a folder with that name",
+    );
+    let file = root.join("g.tar");
+    let home_folder = root.join("home-folder");
+    let home_tar = root.join("home-tar");
+
+    let packed = run_in(
+        &root,
+        &root,
+        &["graph", "pack", "g", "--output", file.to_str().unwrap()],
+    );
+    let by_folder = run_in(
+        &root,
+        &home_folder,
+        &["graph", "install", src.to_str().unwrap()],
+    );
+    let by_tar = run_in(
+        &root,
+        &home_tar,
+        &[
+            "graph",
+            "install",
+            "--tar",
+            file.to_str().unwrap(),
+            "--expect",
+            &plain,
+        ],
+    );
+
+    assert!(packed.status.success(), "{}", stderr(&packed));
+    assert!(by_folder.status.success(), "{}", stderr(&by_folder));
+    assert!(by_tar.status.success(), "{}", stderr(&by_tar));
+    assert_eq!(stdout(&by_folder).trim(), plain);
+    let list = |home: &Path| -> Vec<String> {
+        let copy = installed(home).join(&plain);
+        let mut names = Vec::new();
+        let mut stack = vec![copy.clone()];
+        while let Some(dir) = stack.pop() {
+            for entry in fs::read_dir(dir).unwrap() {
+                let path = entry.unwrap().path();
+                names.push(path.strip_prefix(&copy).unwrap().display().to_string());
+                if path.is_dir() {
+                    stack.push(path);
+                }
+            }
+        }
+        names.sort();
+        names
+    };
+    assert_eq!(list(&home_folder), list(&home_tar));
+    assert!(list(&home_folder).iter().all(|name| !name.contains("._")));
+}

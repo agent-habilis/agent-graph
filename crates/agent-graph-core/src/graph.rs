@@ -7,7 +7,7 @@ use std::{fs, io};
 use regex::Regex;
 use sha2::{Digest, Sha256};
 
-use crate::{frontmatter, markdown, node};
+use crate::{frontmatter, include, markdown, node};
 
 /// The class that marks the lead node of a graph. Any other class is only
 /// style.
@@ -377,14 +377,23 @@ fn node_errors(dir: &Path, graph: &Graph) -> Vec<(usize, String)> {
                     node.line,
                     format!("node `{}` is not valid: {reason}", node.label),
                 )),
-                Ok(loaded) if node.lead && loaded.count != 1 => errors.push((
-                    node.line,
-                    format!(
-                        "lead node `{}` has count {}, must be 1: the lead is the one peer that talks to the user",
-                        node.label, loaded.count
-                    ),
-                )),
-                Ok(_) => {}
+                Ok(loaded) => {
+                    if node.lead && loaded.count != 1 {
+                        errors.push((
+                            node.line,
+                            format!(
+                                "lead node `{}` has count {}, must be 1: the lead is the one peer that talks to the user",
+                                node.label, loaded.count
+                            ),
+                        ));
+                    }
+                    if let Err(reason) = include::expand(dir, &folder.join("index.md")) {
+                        errors.push((
+                            node.line,
+                            format!("node `{}` has a bad include: {reason:#}", node.label),
+                        ));
+                    }
+                }
             }
         } else {
             errors.push((node.line, format!("node `{}` not found", node.label)));

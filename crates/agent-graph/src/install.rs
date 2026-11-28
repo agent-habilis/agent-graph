@@ -142,7 +142,11 @@ pub(crate) fn from_folder(folder: &Path) -> Result<String> {
 fn copy_dir(from: &Path, to: &Path) -> Result<()> {
     for entry in fs::read_dir(from).with_context(|| format!("cannot read {}", from.display()))? {
         let path = entry?.path();
-        let target = to.join(path.file_name().expect("a folder entry has a name"));
+        let name = path.file_name().expect("a folder entry has a name");
+        if graph::is_apple_double(Path::new(name)) {
+            continue;
+        }
+        let target = to.join(name);
         if path.is_dir() {
             fs::create_dir_all(&target)?;
             copy_dir(&path, &target)?;

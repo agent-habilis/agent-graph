@@ -1169,3 +1169,22 @@ fn dir_that_is_not_a_folder_fails_and_names_it() {
     assert!(stderr(&out).contains("--dir"), "{}", stderr(&out));
     assert!(stderr(&out).contains("missing"), "{}", stderr(&out));
 }
+
+#[test]
+fn node_up_rejects_an_include_of_an_apple_double_file() {
+    let (_tmp, root) = root();
+    let dir = node(&root, "advisor", &index("d", None, "A\n@._note.md\n"));
+    write(&dir.join("._note.md"), "never printed\n");
+    write(&dir.join("sub/._dir/x.md"), "never printed\n");
+    node(&root, "deep", &index("d", None, "@sub/._dir/x.md\n"));
+    let sub = dir.join("sub");
+    fs::create_dir_all(&sub).unwrap();
+
+    for name in ["advisor", "deep"] {
+        let out = run(&root, &["node", "up", name]);
+
+        assert_eq!(out.status.code(), Some(1), "{name}");
+        assert!(stderr(&out).contains("._"), "{name}: {}", stderr(&out));
+        assert!(!stdout(&out).contains("never printed"), "{name}");
+    }
+}
