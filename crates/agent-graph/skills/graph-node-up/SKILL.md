@@ -59,9 +59,9 @@ agent-graph node up <node> --name "$NAME" --pid "$PPID"
 ```
 
 Run it in the foreground. The tool result puts the body of the node into
-this session. `$PPID` is the agent process. The CLI records the node for the
-statusline under this pid. If the command fails, show its `error:` line and
-stop.
+this session. The value of `--pid` is the agent process. The CLI records the
+node for the statusline under this pid. If the command fails, show its
+`error:` line and stop.
 
 When the command succeeds:
 

@@ -7,6 +7,7 @@ mod state;
 
 use std::collections::BTreeMap;
 use std::env;
+use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -14,7 +15,7 @@ use std::process::ExitCode;
 use agent_graph_core::{graph, include, name as short_name, node, traits};
 use agent_graph_topology as topology;
 use agent_pid::PidArg;
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use clap::{ArgGroup, Parser, Subcommand};
 use regex::Regex;
 
@@ -126,6 +127,9 @@ enum GraphCommand {
         /// nothing is recorded.
         #[arg(long)]
         pid: Option<PidArg>,
+        /// Write the text to this file, and print nothing.
+        #[arg(long)]
+        output: Option<PathBuf>,
     },
     /// Print the SHA-256 of what `node-up` prints for `<graph>/<node>`: the
     /// check of the node context that a peer without agent-graph gets.
@@ -399,6 +403,37 @@ fn parse_hash(text: &str) -> Result<String, String> {
     }
 }
 
+fn graph_list(graphs: &BTreeMap<String, PathBuf>, stdout: &mut impl Write) -> Result<()> {
+    for (name, dir) in graphs {
+        match graph::load(dir) {
+            Ok(graph) => writeln!(
+                stdout,
+                "{name}\t{}\t{}\t{}",
+                graph.description,
+                graph.scope,
+                dir.display()
+            )?,
+            Err(reason) => eprintln!("warning: {}: {reason}", dir.display()),
+        }
+    }
+    Ok(())
+}
+
+fn graph_install(
+    folder: Option<PathBuf>,
+    tar: Option<PathBuf>,
+    expect: Option<String>,
+    stdout: &mut impl Write,
+) -> Result<()> {
+    let hash = match (folder, tar, expect) {
+        (Some(folder), _, _) => install::from_folder(&folder)?,
+        (None, Some(tar), Some(expect)) => install::from_tar(&tar, &expect)?,
+        _ => unreachable!("clap requires a folder, or a tar file with its hash"),
+    };
+    writeln!(stdout, "{hash}")?;
+    Ok(())
+}
+
 fn graph_init(dir: &Path, stdout: &mut impl Write) -> Result<()> {
     match init::init(dir)? {
         Some(written) => {
@@ -420,20 +455,7 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
     };
     match command {
         GraphCommand::Init { dir } => graph_init(dir.as_deref().unwrap_or(cwd), stdout)?,
-        GraphCommand::List => {
-            for (name, dir) in &graphs {
-                match graph::load(dir) {
-                    Ok(graph) => writeln!(
-                        stdout,
-                        "{name}\t{}\t{}\t{}",
-                        graph.description,
-                        graph.scope,
-                        dir.display()
-                    )?,
-                    Err(reason) => eprintln!("warning: {}: {reason}", dir.display()),
-                }
-            }
-        }
+        GraphCommand::List => graph_list(&graphs, stdout)?,
         GraphCommand::Get { name } => {
             let dir = find(&name)?;
             graph::load(dir).map_err(|reason| anyhow!("graph `{name}` is not valid: {reason}"))?;
@@ -493,21 +515,24 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
             let gossip = topology::Gossip::read(&meta, &peers)?;
             draw_topology(&graphs, &gossip, instance.as_deref(), &me, mermaid, stdout)?;
         }
-        GraphCommand::NodeUp { name, label, pid } => {
-            graph_node_up(&graphs, &name, label.as_deref(), pid, stdout)?;
-        }
+        GraphCommand::NodeUp {
+            name,
+            label,
+            pid,
+            output,
+        } => graph_node_up(
+            &graphs,
+            &name,
+            label.as_deref(),
+            pid,
+            output.as_deref(),
+            stdout,
+        )?,
         GraphCommand::Install {
             folder,
             tar,
             expect,
-        } => {
-            let hash = match (folder, tar, expect) {
-                (Some(folder), _, _) => install::from_folder(&folder)?,
-                (None, Some(tar), Some(expect)) => install::from_tar(&tar, &expect)?,
-                _ => unreachable!("clap requires a folder, or a tar file with its hash"),
-            };
-            writeln!(stdout, "{hash}")?;
-        }
+        } => graph_install(folder, tar, expect, stdout)?,
         GraphCommand::NodeHash { name } => graph_node_hash(&graphs, &name, stdout)?,
         GraphCommand::NodeDown { pid } => state::remove(pid.resolve()?)?,
     }
@@ -580,6 +605,7 @@ fn graph_node_up(
     name: &str,
     label: Option<&str>,
     pid: Option<PidArg>,
+    output: Option<&Path>,
     stdout: &mut impl Write,
 ) -> Result<()> {
     let context = graph_node_context(graphs, name)?;
@@ -591,7 +617,11 @@ fn graph_node_up(
             label,
         )?;
     }
-    write!(stdout, "{}", context.text)?;
+    match output {
+        Some(file) => fs::write(file, &context.text)
+            .with_context(|| format!("cannot write {}", file.display()))?,
+        None => write!(stdout, "{}", context.text)?,
+    }
     Ok(())
 }
 

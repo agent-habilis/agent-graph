@@ -93,10 +93,16 @@ graph · usage · /graph-up --squad-template <graph> [--node <node>] [--name <na
    agent-graph graph node-up <graph>/<node> --name "$INSTANCE" --pid "$PPID"
    ```
 
-2. Record your place in your meta entry:
+2. Read the time. The command prints a number. Hold it as `$JOINED_AT`:
 
    ```bash
-   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"instance":"'"$INSTANCE"'","graph":"'"$GRAPH"'","hash":"'"$HASH"'","node":"<id>","joined_at":'"$(date +%s)"',"status":"busy"}'
+   date +%s
+   ```
+
+   Record your place in your meta entry:
+
+   ```bash
+   agent-gossip meta merge --gossip "$GOSSIP" --nickname "$NICKNAME" --merge '{"instance":"'"$INSTANCE"'","graph":"'"$GRAPH"'","hash":"'"$HASH"'","node":"<id>","joined_at":'"$JOINED_AT"',"status":"busy"}'
    ```
 
    If the third column of your node in `$NODES` is `lead`, add

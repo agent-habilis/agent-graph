@@ -99,7 +99,7 @@ writes: false               # optional (default false); true lets the trait chan
 
 `trait show` adds a `## Boundaries` section to a trait with `writes: false`: no changes to files that git tracks, and no commits.
 When a node is loaded, `/graph-trait-run <name>` runs only a trait that the node lists in `traits`.
-`/graph-trait-run <url>` downloads the trait into a folder in `/tmp`, checks it with `trait check`, and shows its description and `writes`.
+`/graph-trait-run <url>` runs `trait fetch`: it downloads the trait into a new folder under the temp folder, checks it, and shows its description and `writes`.
 The user must confirm before the fork runs it. A URL trait skips the node check. It is one file, so it cannot include other files.
 
 ## Discovery
@@ -118,6 +118,11 @@ agent-graph graph hash squad1              # SHA-256 of the graph folder: the gr
 agent-graph graph init [<dir>]             # write the default graphs, nodes, and traits into <dir>/.agent-graph/
 agent-graph graph node-up squad1/worker    # the body of the graph, then the body of the node
 agent-graph graph node-up squad1/worker --pid N  # also write /tmp/agent-graph/N.json for the statusline
+agent-graph graph node-up squad1/worker --pid auto  # the same, for the first ancestor that is not a shell
+agent-graph graph node-up squad1/worker --output F  # write the text to F and print nothing
+agent-graph graph node-hash squad1/worker  # SHA-256 of what node-up prints: the check of a node context
+agent-graph graph install <folder>         # copy a graph to ~/.agent-graph/graphs/<hash>, print the hash
+agent-graph graph install --tar F --expect HASH  # extract a tar file of a graph; keep it only if its hash is HASH
 agent-graph graph node-down --pid N        # remove /tmp/agent-graph/N.json
 agent-graph graph topology [--name N] --meta F --peers F --me KEY   # draw the running graph from gossip meta JSON; --mermaid for the source
 agent-graph node list                      # standalone nodes: name<TAB>description<TAB>tags<TAB>path
@@ -129,6 +134,7 @@ agent-graph node down --pid N              # remove /tmp/agent-graph/N.json
 agent-graph name                           # a new short hash, the default name of a running graph or node
 agent-graph trait list                     # name<TAB>description<TAB>writes<TAB>path
 agent-graph trait check <path>             # description<TAB>writes<TAB>path of a trait file or folder, or an error
+agent-graph trait fetch <url>              # download an https trait to a new temp folder, check it, print the same line
 agent-graph trait show qa                  # the body of the trait, with includes expanded
 agent-graph trait show qa --node pair/worker   # fail if the node does not list the trait
 agent-graph trait show /tmp/x/index.md     # a trait file by path: no node check
@@ -170,6 +176,7 @@ In `index.md`, a line that contains only `@<path>` is replaced with the body of 
 ```
 
 `pid` is the process of the agent (Claude Code, Antigravity CLI, and others). A statusline script gets the same pid as its parent process.
+`--pid auto` finds that process without `$PPID`: it is the first ancestor of the command whose name is not a shell. It prints one line to stderr that names the process, so a wrong one shows. The `agy` skills use `--pid auto`. A call without `--pid` writes no file.
 The `graph` key is the `title` of the graph, or its folder name when it has no title.
 A graph or node without an `icon` has no icon key.
 

@@ -1011,3 +1011,47 @@ fn graph_node_hash_rejects_the_names_that_graph_node_up_rejects() {
         assert_eq!(stderr(&hash), stderr(&up), "{name}");
     }
 }
+
+#[test]
+fn graph_node_up_output_writes_the_text_to_the_file_and_prints_nothing() {
+    let (_tmp, root) = root();
+    graph_node(&root, "graph", "worker", &index("w", None, "worker body\n"));
+    let file = root.join("context.md");
+
+    let plain = run(&root, &["graph", "node-up", "graph/worker"]);
+    let out = run(
+        &root,
+        &[
+            "graph",
+            "node-up",
+            "graph/worker",
+            "--output",
+            file.to_str().unwrap(),
+        ],
+    );
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "");
+    assert_eq!(fs::read(&file).unwrap(), plain.stdout);
+}
+
+#[test]
+fn graph_node_up_output_to_a_folder_that_is_missing_fails() {
+    let (_tmp, root) = root();
+    graph_node(&root, "graph", "worker", &index("w", None, ""));
+    let file = root.join("no-such-folder/context.md");
+
+    let out = run(
+        &root,
+        &[
+            "graph",
+            "node-up",
+            "graph/worker",
+            "--output",
+            file.to_str().unwrap(),
+        ],
+    );
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("context.md"), "{}", stderr(&out));
+}

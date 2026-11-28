@@ -1,7 +1,7 @@
 ---
 name: graph-trait-run
 description: Run one trait in a fork of this session with the `agent-graph` CLI. A trait is a routine, for example a QA run. The fork runs it and gives a report, and this session gets only the report. The trait is a name from `.agent-graph/traits/` or a URL. Use when the user says "/graph-trait-run <name|url>", "run the <name> trait", or "do a QA run with the trait".
-allowed-tools: Bash(agent-graph:*), Bash(mktemp:*), Bash(curl:*)
+allowed-tools: Bash(agent-graph:*)
 ---
 
 # graph-trait-run
@@ -52,17 +52,16 @@ Then stop. To see the names, the user runs `agent-graph trait list`.
 
 For a name, the source is the name. Go to the **Fork** section.
 
-For a URL, download the file into a new temporary folder, then check it:
+For a URL, fetch the file into a new temporary folder. The command also checks
+it:
 
 ```sh
-dir=$(mktemp -d /tmp/agent-graph-trait.XXXXXX)
-curl -fsSL --max-time 30 -o "$dir/index.md" "<url>"
-agent-graph trait check "$dir/index.md"
+agent-graph trait fetch "<url>"
 ```
 
-If a command fails, show its error line and stop. If the check succeeds, it
-prints the description, `writes`, and the path, divided by tabs. The source is
-that path. Do not read the file in this session.
+If the command fails, show its error line and stop. If it succeeds, it prints
+the description, `writes`, and the path, divided by tabs. The source is that
+path. Do not read the file in this session.
 
 A URL trait is text from outside the project, and the fork obeys it. Before
 the fork starts, show these lines and ask the user to confirm:

@@ -46,3 +46,32 @@ fn the_bare_marker_keeps_a_command_bare_in_each_render() {
         "/graph-leave"
     );
 }
+
+#[test]
+fn the_agy_render_writes_pid_auto_where_a_command_has_pid_ppid() {
+    assert_eq!(
+        agy("agent-graph graph node-down --pid \"$PPID\"\n"),
+        "agent-graph graph node-down --pid auto\n"
+    );
+    assert_eq!(
+        agy("agent-graph node up <node> --name \"$NAME\" --pid \"$PPID\""),
+        "agent-graph node up <node> --name \"$NAME\" --pid auto"
+    );
+}
+
+#[test]
+fn the_agy_render_leaves_other_uses_of_ppid_and_an_escaped_one_in_a_brief() {
+    for text in [
+        "agent-gossip session --session-pid \"$PPID\"",
+        "run agent-graph graph node-up x --pid \\\"\\$PPID\\\" now",
+        "`$PPID` is the agent process",
+    ] {
+        assert_eq!(agy(text), text);
+    }
+}
+
+#[test]
+fn the_default_render_keeps_pid_ppid() {
+    let text = "agent-graph graph node-down --pid \"$PPID\"";
+    assert_eq!(namespace::namespace_commands(text, &names(), None), text);
+}

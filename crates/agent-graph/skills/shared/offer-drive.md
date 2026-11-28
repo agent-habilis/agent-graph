@@ -21,12 +21,12 @@ the gossip skill, with these rules for node offers:
   for the context of the graph and of its node. If `<hash>` is `$HASH` and the
   peer has an open offer of yours for `<node>`, accept it without the accept or
   decline question. Else decline it with the reason: no offer for this node.
-  Send the text that `agent-graph graph node-up` prints. Its SHA-256 is the
-  `$CONTEXT_HASH` of your offer:
+  Send the text that `agent-graph graph node-up` writes to a file. Its SHA-256
+  is the `$CONTEXT_HASH` of your offer:
 
   ```bash
   agent-gossip a2a status --gossip "$GOSSIP" --nickname "$NICKNAME" --task-id "<task id>" --state working
-  agent-graph graph node-up "$SOURCE/<node>" > /tmp/$HASH-<node>.md
+  agent-graph graph node-up "$SOURCE/<node>" --output /tmp/$HASH-<node>.md
   agent-gossip a2a artifact --gossip "$GOSSIP" --nickname "$NICKNAME" --task-id "<task id>" --file /tmp/$HASH-<node>.md --text "node $HASH/<node>"
   ```
 

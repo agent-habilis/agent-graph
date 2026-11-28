@@ -177,9 +177,8 @@ fn send_node_gives_the_node_context_that_matches_the_context_hash_of_the_offer()
         ("HASH", hash.as_str()),
     ];
 
-    let hash_block = bash_block(&skill, "## Node offer", "CONTEXT_HASH=")
-        .replace("<node>", "worker")
-        + "\necho \"$CONTEXT_HASH\"\n";
+    let hash_block =
+        bash_block(&skill, "## Node offer", "graph node-hash").replace("<node>", "worker");
     let context_hash = run_block(&hash_block, &project, &bin, &env);
     let send_block = bash_block(&skill, "## Drive", "graph node-up")
         .replace("<node>", "worker")
@@ -724,5 +723,131 @@ fn graph_trait_run_tells_agy_not_to_poll_the_subagent() {
         "`agy` delivers the reply of the subagent as a message",
     ] {
         assert!(body.contains(needle), "no `{needle}`");
+    }
+}
+
+/// What is wrong with one shell command text, or none. The text can span lines.
+/// `$(` and `${` expand in double quotes too, but not in single quotes or after
+/// a backslash. `&&`, `||`, and `>` are shell syntax only outside quotes. A
+/// `#` that starts a word outside quotes begins a comment.
+fn shell_constructs(command: &str) -> Vec<String> {
+    let chars: Vec<char> = command.chars().collect();
+    let mut found = Vec::new();
+    let (mut single, mut double) = (false, false);
+    // A `<` outside quotes opens a placeholder such as `<graph name>`, and the
+    // next `>` closes it. A `>` with no `<` before it is a redirect.
+    let mut placeholder = false;
+    let mut at = 0;
+    while at < chars.len() {
+        let here = chars[at];
+        let next = chars.get(at + 1).copied();
+        if single {
+            single = here != '\'';
+        } else if here == '\\' {
+            at += 1;
+        } else if double {
+            match (here, next) {
+                ('"', _) => double = false,
+                ('$', Some('(' | '{')) => found.push(format!("`${}`", next.unwrap())),
+                _ => {}
+            }
+        } else {
+            match (here, next) {
+                ('\'', _) => single = true,
+                ('"', _) => double = true,
+                ('#', _) if at == 0 || chars[at - 1].is_whitespace() => {
+                    while at < chars.len() && chars[at] != '\n' {
+                        at += 1;
+                    }
+                }
+                ('$', Some('(' | '{')) => found.push(format!("`${}`", next.unwrap())),
+                ('&', Some('&')) => found.push("`&&`".to_string()),
+                ('|', Some('|')) => found.push("`||`".to_string()),
+                ('<', _) => placeholder = true,
+                ('>', _) if placeholder => placeholder = false,
+                ('>', _) => found.push("`>`".to_string()),
+                _ => {}
+            }
+        }
+        at += 1;
+    }
+    found
+}
+
+/// The commands of the `bash` and `sh` blocks of a skill, each with the line
+/// where it starts.
+fn commands_of(body: &str) -> Vec<(usize, String)> {
+    let mut commands = Vec::new();
+    let mut block: Option<Vec<&str>> = None;
+    let mut start = 0;
+    for (number, line) in body.lines().enumerate() {
+        let trimmed = line.trim_start();
+        if let Some(fence) = trimmed.strip_prefix("```") {
+            if let Some(lines) = block.take() {
+                commands.push((start, lines.join("\n")));
+            } else if matches!(fence, "bash" | "sh") {
+                block = Some(Vec::new());
+                start = number + 2;
+            }
+        } else if let Some(lines) = block.as_mut() {
+            lines.push(trimmed);
+        }
+    }
+    commands
+}
+
+#[test]
+fn the_shell_construct_scanner_knows_quotes_comments_and_escapes() {
+    for clean in [
+        "agent-gossip a2a call --text \"run <id> or <node>\"",
+        "agent-graph node list --tag '<regex>' # only nodes with a tag > 1",
+        "agent-gossip a2a call --text \"mkdir && tar, a || b, a > b\"",
+        "echo '$(date) ${HOME} && ||'",
+        "echo \"\\$(date) \\${HOME}\"",
+        "agent-gossip meta merge --merge '{\"a\":\"'\"$INSTANCE\"'\"}'",
+        "agent-graph graph topology \\\n  --me \"$PUBKEY\"",
+        "agent-graph graph nodes <graph name> --x [--name <name>]",
+    ] {
+        assert_eq!(shell_constructs(clean), Vec::<String>::new(), "{clean}");
+    }
+    for (dirty, construct) in [
+        ("a $(date +%s)", "`$(`"),
+        ("a \"$(date +%s)\"", "`$(`"),
+        ("a ${HOME}", "`${`"),
+        ("a && b", "`&&`"),
+        ("a || b", "`||`"),
+        ("a > b", "`>`"),
+        ("a 2>/dev/null", "`>`"),
+    ] {
+        assert_eq!(shell_constructs(dirty), [construct], "{dirty}");
+    }
+}
+
+#[test]
+fn the_agy_render_has_no_shell_construct_in_a_command_line() {
+    let tmp = TempDir::new().unwrap();
+    let mut problems = Vec::new();
+    for (name, _) in source_skills() {
+        for (line, command) in commands_of(&agy_rendered_skill(tmp.path(), &name)) {
+            for construct in shell_constructs(&command) {
+                problems.push(format!("{name}:{line} {construct}: {command:.70}"));
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+#[test]
+fn the_node_offer_brief_asks_no_peer_for_a_shell_construct() {
+    let tmp = TempDir::new().unwrap();
+    for skill in ["graph-up", "graph-node-invite"] {
+        let body = agy_rendered_skill(tmp.path(), skill);
+        let brief = body
+            .lines()
+            .find(|line| line.contains("--text \"Node offer."))
+            .unwrap_or_else(|| panic!("{skill}: no brief"));
+        for construct in ["&&", "||", "$(", "${"] {
+            assert!(!brief.contains(construct), "{skill}: `{construct}`");
+        }
     }
 }

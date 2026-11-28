@@ -7,7 +7,12 @@ use std::fmt::Write as _;
 /// agent reads.
 const BARE: &str = "<!-- bare -->";
 
-/// Drops each `BARE` marker. With a `namespace`, it also writes `/<skill>` as
+/// The `--pid` argument of the other agents, and its `agy` form.
+const PID_PPID: &str = "--pid \"$PPID\"";
+const PID_AUTO: &str = "--pid auto";
+
+/// Drops each `BARE` marker. With a `namespace`, it also writes `--pid "$PPID"` as
+/// `--pid auto`, and writes `/<skill>` as
 /// `/<namespace>:<skill>` for each skill in `names`. A slash command stands
 /// after a space, a quote (double or single), a backtick, a bracket, or at the start of a line. A
 /// path such as `../shared/graph-meta.md` is not one.
@@ -15,6 +20,10 @@ pub(crate) fn namespace_commands(text: &str, names: &[String], namespace: Option
     let Some(namespace) = namespace else {
         return text.replace(BARE, "");
     };
+    // `agy` reads a shell-free command line: `--pid auto` finds the agent
+    // without `$PPID`.
+    let text = text.replace(PID_PPID, PID_AUTO);
+    let text = text.as_str();
     let is_name_char = |ch: char| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_';
     let mut out = String::with_capacity(text.len());
     let mut before: Option<char> = None;
