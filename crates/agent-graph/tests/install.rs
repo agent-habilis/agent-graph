@@ -684,6 +684,45 @@ fn graph_pack_writes_a_tar_that_install_accepts_with_the_hash_of_the_graph() {
 }
 
 #[test]
+fn a_graph_with_a_real_apple_double_name_has_the_hash_of_the_graph_without_it_and_installs() {
+    let (_tmp, root) = root();
+    let dir = root.join(".agent-graph/graphs/g");
+    let plain = graph_folder(&dir);
+    write(&dir.join("._index.md"), "a file that macOS wrote on exFAT");
+    write(&dir.join("nodes/worker/._index.md"), "another");
+    write(
+        &dir.join("nodes/._hidden/index.md"),
+        "a folder with that name",
+    );
+    let hash = graph::hash(&dir).unwrap();
+    let file = root.join("g.tar");
+    let home = root.join("home");
+
+    let packed = run_in(
+        &root,
+        &home,
+        &["graph", "pack", "g", "--output", file.to_str().unwrap()],
+    );
+    let out = run_in(
+        &root,
+        &home,
+        &[
+            "graph",
+            "install",
+            "--tar",
+            file.to_str().unwrap(),
+            "--expect",
+            &hash,
+        ],
+    );
+
+    assert_eq!(hash, plain, "the hash covers a ._ name");
+    assert!(packed.status.success(), "{}", stderr(&packed));
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(graph::hash(&installed(&home).join(&hash)).unwrap(), hash);
+}
+
+#[test]
 fn graph_pack_holds_only_regular_files_in_path_order_with_fixed_headers() {
     let (_tmp, root) = root();
     graph_with_an_xattr(&root);

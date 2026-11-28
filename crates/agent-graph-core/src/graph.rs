@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::LazyLock;
 use std::{fs, io};
 
@@ -237,8 +237,19 @@ fn hex(digest: &[u8]) -> String {
     text
 }
 
+/// True when a part of `path` starts with `._`. macOS writes `._<name>` for a
+/// file with extended attributes on a volume that has none, and `tar` writes
+/// it without `COPYFILE_DISABLE`. It is not part of a graph: `files`, and so
+/// `hash` and `pack`, skip it, and `install` skips it in a tar.
+#[must_use]
+pub fn is_apple_double(path: &Path) -> bool {
+    path.components().any(
+        |part| matches!(part, Component::Normal(name) if name.to_string_lossy().starts_with("._")),
+    )
+}
+
 /// Each file under `dir`, in path order. These are the files that `hash`
-/// covers. A link to a folder is followed.
+/// covers, without a `._` name. A link to a folder is followed.
 ///
 /// # Errors
 ///
@@ -253,6 +264,12 @@ pub fn files(dir: &Path) -> io::Result<Vec<PathBuf>> {
 fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> io::Result<()> {
     for entry in fs::read_dir(dir)? {
         let path = entry?.path();
+        if path
+            .file_name()
+            .is_some_and(|name| is_apple_double(Path::new(name)))
+        {
+            continue;
+        }
         if path.is_dir() {
             collect_files(&path, files)?;
         } else {
