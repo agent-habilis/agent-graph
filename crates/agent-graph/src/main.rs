@@ -1,5 +1,6 @@
 mod agent_pid;
 mod init;
+mod install;
 mod plug;
 mod state;
 
@@ -13,7 +14,7 @@ use agent_graph_core::{graph, include, name as short_name, node, traits};
 use agent_graph_topology as topology;
 use agent_pid::PidArg;
 use anyhow::{Result, anyhow, bail};
-use clap::{Parser, Subcommand};
+use clap::{ArgGroup, Parser, Subcommand};
 use regex::Regex;
 
 /// Find and print agent graphs and standalone nodes: OKF bundles in
@@ -93,6 +94,20 @@ enum GraphCommand {
     Init {
         /// The folder to write into. The default is the current directory.
         dir: Option<PathBuf>,
+    },
+    /// Put a graph at `~/.agent-graph/graphs/<hash>`, from a folder or from a
+    /// tar file of one, and print the hash. A tar file stays only if the hash
+    /// of what it holds is `--expect`.
+    #[command(group = ArgGroup::new("source").required(true).args(["folder", "tar"]))]
+    Install {
+        /// The graph folder to copy.
+        folder: Option<PathBuf>,
+        /// A tar file of a graph folder, made with `tar -cf <file> -C <folder> .`.
+        #[arg(long, requires = "expect")]
+        tar: Option<PathBuf>,
+        /// The hash that the graph in the tar file must have.
+        #[arg(long, requires = "tar", value_parser = parse_hash)]
+        expect: Option<String>,
     },
     /// Print the graph's body, then the body of one of its nodes, with their
     /// `@file` includes expanded.
@@ -354,6 +369,32 @@ fn run_trait(command: TraitCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
     Ok(())
 }
 
+/// A hash is 64 lowercase hex digits. It becomes a folder name, so nothing
+/// else can pass.
+fn parse_hash(text: &str) -> Result<String, String> {
+    if text.len() == 64
+        && text
+            .bytes()
+            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+    {
+        Ok(text.to_string())
+    } else {
+        Err("a hash is 64 lowercase hex digits".to_string())
+    }
+}
+
+fn graph_init(dir: &Path, stdout: &mut impl Write) -> Result<()> {
+    match init::init(dir)? {
+        Some(written) => {
+            for path in written {
+                writeln!(stdout, "{}", path.display())?;
+            }
+        }
+        None => eprintln!("{} already exists", dir.join(".agent-graph").display()),
+    }
+    Ok(())
+}
+
 fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Result<()> {
     let graphs = node::discover_graphs(cwd);
     let find = |name: &str| {
@@ -362,17 +403,7 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
             .ok_or_else(|| anyhow!("graph `{name}` not found"))
     };
     match command {
-        GraphCommand::Init { dir } => {
-            let dir = dir.unwrap_or_else(|| cwd.to_path_buf());
-            match init::init(&dir)? {
-                Some(written) => {
-                    for path in written {
-                        writeln!(stdout, "{}", path.display())?;
-                    }
-                }
-                None => eprintln!("{} already exists", dir.join(".agent-graph").display()),
-            }
-        }
+        GraphCommand::Init { dir } => graph_init(dir.as_deref().unwrap_or(cwd), stdout)?,
         GraphCommand::List => {
             for (name, dir) in &graphs {
                 match graph::load(dir) {
@@ -448,6 +479,18 @@ fn run_graph(command: GraphCommand, cwd: &Path, stdout: &mut impl Write) -> Resu
         }
         GraphCommand::NodeUp { name, label, pid } => {
             graph_node_up(&graphs, &name, label.as_deref(), pid, stdout)?;
+        }
+        GraphCommand::Install {
+            folder,
+            tar,
+            expect,
+        } => {
+            let hash = match (folder, tar, expect) {
+                (Some(folder), _, _) => install::from_folder(&folder)?,
+                (None, Some(tar), Some(expect)) => install::from_tar(&tar, &expect)?,
+                _ => unreachable!("clap requires a folder, or a tar file with its hash"),
+            };
+            writeln!(stdout, "{hash}")?;
         }
         GraphCommand::NodeHash { name } => graph_node_hash(&graphs, &name, stdout)?,
         GraphCommand::NodeDown { pid } => state::remove(pid.resolve()?)?,
