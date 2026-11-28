@@ -955,6 +955,49 @@ fn the_node_offer_brief_declines_when_agent_graph_is_too_old() {
     }
 }
 
+#[test]
+fn the_node_offer_brief_declines_when_agent_gossip_is_too_old_and_names_the_conversation_id() {
+    let tmp = TempDir::new().unwrap();
+    for skill in ["graph-up", "graph-node-invite"] {
+        let body = rendered_skill(tmp.path(), skill);
+        let brief = body
+            .lines()
+            .find(|line| line.contains("--text \"Node offer."))
+            .unwrap_or_else(|| panic!("{skill}: no brief"));
+        let first_step = brief.find("A1.").unwrap();
+        for text in [
+            "\\$CONVERSATION is not a shell variable: write your conversation id in its place",
+            "If agent-gossip rejects --session, decline with the reason: agent-gossip too old, run agent-gossip plug after an upgrade",
+        ] {
+            let at = brief
+                .find(text)
+                .unwrap_or_else(|| panic!("{skill}: no `{text}`"));
+            assert!(at < first_step, "{skill}: `{text}` is not before A1");
+        }
+    }
+}
+
+#[test]
+fn each_skill_that_finds_the_gossip_says_what_to_write_for_conversation_and_stops_when_agent_gossip_is_too_old()
+ {
+    let tmp = TempDir::new().unwrap();
+    let mut seen = 0;
+    for (name, source) in source_skills() {
+        if !source.contains("shared/gossip-session.md") {
+            continue;
+        }
+        let body = agy_rendered_skill(tmp.path(), &name);
+        for text in [
+            "`$CONVERSATION` is not a shell variable. Write the conversation id",
+            "graph \u{b7} agent-gossip too old \u{b7} run agent-gossip plug after an upgrade",
+        ] {
+            assert!(body.contains(text), "{name}: no `{text}`");
+        }
+        seen += 1;
+    }
+    assert!(seen > 0, "no skill includes gossip-session.md");
+}
+
 /// The `bash` and `sh` blocks of a skill: the line of the fence, the command
 /// lines (a trailing `\` joins the next line, a blank or `#` line is not one),
 /// and the text before the fence.
